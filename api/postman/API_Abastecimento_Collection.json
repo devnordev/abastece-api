@@ -1,0 +1,1744 @@
+{
+  "info": {
+    "name": "API Sistema de Abastecimento",
+    "description": "Collection completa da API de Sistema de Abastecimento com todas as rotas, autenticação JWT e exemplos de dados.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 Autenticação",
+      "item": [
+        {
+          "name": "Registrar Usuário",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"novo@usuario.com\",\n  \"senha\": \"123456\",\n  \"nome\": \"Novo Usuário\",\n  \"cpf\": \"12345678901\",\n  \"tipo_usuario\": \"COLABORADOR_PREFEITURA\",\n  \"prefeituraId\": 1,\n  \"phone\": \"11999999999\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Registra um novo usuário no sistema. Tipos de usuário: SUPER_ADMIN, ADMIN_PREFEITURA, COLABORADOR_PREFEITURA, ADMIN_EMPRESA, COLABORADOR_EMPRESA"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('jwt_token', response.accessToken);",
+                  "    pm.collectionVariables.set('refresh_token', response.refreshToken);",
+                  "    console.log('Token salvo:', response.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@nordev.com\",\n  \"senha\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Faz login no sistema e retorna JWT token e refresh token. Usuários de exemplo:\n- superadmin@nordev.com (SUPER_ADMIN)\n- admin@prefeitura.sp.gov.br (ADMIN_PREFEITURA)\n- colaborador@prefeitura.sp.gov.br (COLABORADOR_PREFEITURA)\n- admin@postoshell.com (ADMIN_EMPRESA)\n- colaborador@postoshell.com (COLABORADOR_EMPRESA)\nSenha padrão: 123456"
+          }
+        },
+        {
+          "name": "Renovar Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "Renova o access token usando o refresh token"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Faz logout e invalida o refresh token"
+          }
+        },
+        {
+          "name": "Perfil do Usuário",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "profile"]
+            },
+            "description": "Retorna o perfil do usuário logado"
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 Usuários",
+      "item": [
+        {
+          "name": "Listar Usuários",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/usuarios?page=1&limit=10&ativo=true",
+              "host": ["{{base_url}}"],
+              "path": ["usuarios"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Página para paginação"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Limite de itens por página"
+                },
+                {
+                  "key": "nome",
+                  "value": "",
+                  "description": "Filtrar por nome",
+                  "disabled": true
+                },
+                {
+                  "key": "email",
+                  "value": "",
+                  "description": "Filtrar por email",
+                  "disabled": true
+                },
+                {
+                  "key": "tipo_usuario",
+                  "value": "",
+                  "description": "Filtrar por tipo de usuário",
+                  "disabled": true
+                },
+                {
+                  "key": "ativo",
+                  "value": "true",
+                  "description": "Filtrar por status ativo"
+                }
+              ]
+            },
+            "description": "Lista usuários com filtros e paginação"
+          }
+        },
+        {
+          "name": "Buscar Usuário por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/usuarios/1",
+              "host": ["{{base_url}}"],
+              "path": ["usuarios", "1"]
+            },
+            "description": "Busca um usuário específico por ID"
+          }
+        },
+        {
+          "name": "Criar Usuário",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"novo@usuario.com\",\n  \"senha\": \"123456\",\n  \"nome\": \"Novo Usuário\",\n  \"cpf\": \"12345678901\",\n  \"tipo_usuario\": \"COLABORADOR_PREFEITURA\",\n  \"prefeituraId\": 1,\n  \"phone\": \"11999999999\",\n  \"statusAcess\": \"Acesso_solicitado\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/usuarios",
+              "host": ["{{base_url}}"],
+              "path": ["usuarios"]
+            },
+            "description": "Cria um novo usuário. Tipos de usuário: SUPER_ADMIN, ADMIN_PREFEITURA, COLABORADOR_PREFEITURA, ADMIN_EMPRESA, COLABORADOR_EMPRESA"
+          }
+        },
+        {
+          "name": "Atualizar Usuário",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Nome Atualizado\",\n  \"phone\": \"11988888888\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/usuarios/1",
+              "host": ["{{base_url}}"],
+              "path": ["usuarios", "1"]
+            },
+            "description": "Atualiza dados de um usuário"
+          }
+        },
+        {
+          "name": "Excluir Usuário",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/usuarios/1",
+              "host": ["{{base_url}}"],
+              "path": ["usuarios", "1"]
+            },
+            "description": "Exclui um usuário (não pode ter relacionamentos)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏛️ Prefeituras",
+      "item": [
+        {
+          "name": "Listar Prefeituras",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/prefeituras?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["prefeituras"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "nome",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "ativo",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista prefeituras com filtros e paginação"
+          }
+        },
+        {
+          "name": "Buscar Prefeitura por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/prefeituras/1",
+              "host": ["{{base_url}}"],
+              "path": ["prefeituras", "1"]
+            },
+            "description": "Busca uma prefeitura específica por ID"
+          }
+        },
+        {
+          "name": "Criar Prefeitura",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Prefeitura Municipal de Santos\",\n  \"cnpj\": \"12345678000196\",\n  \"email_administrativo\": \"admin@prefeitura.santos.sp.gov.br\",\n  \"requer_cupom_fiscal\": true,\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/prefeituras",
+              "host": ["{{base_url}}"],
+              "path": ["prefeituras"]
+            },
+            "description": "Cria uma nova prefeitura"
+          }
+        },
+        {
+          "name": "Atualizar Prefeitura",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Prefeitura Municipal de Santos - Atualizada\",\n  \"requer_cupom_fiscal\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/prefeituras/1",
+              "host": ["{{base_url}}"],
+              "path": ["prefeituras", "1"]
+            },
+            "description": "Atualiza dados de uma prefeitura"
+          }
+        },
+        {
+          "name": "Excluir Prefeitura",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/prefeituras/1",
+              "host": ["{{base_url}}"],
+              "path": ["prefeituras", "1"]
+            },
+            "description": "Exclui uma prefeitura (não pode ter usuários associados)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏢 Empresas",
+      "item": [
+        {
+          "name": "Listar Empresas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/empresas?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["empresas"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "nome",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "uf",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "tipo_empresa",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "ativo",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista empresas com filtros e paginação"
+          }
+        },
+        {
+          "name": "Buscar Empresas Próximas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/empresas/nearby?latitude=-23.5505&longitude=-46.6333&radius=10",
+              "host": ["{{base_url}}"],
+              "path": ["empresas", "nearby"],
+              "query": [
+                {
+                  "key": "latitude",
+                  "value": "-23.5505",
+                  "description": "Latitude do ponto de referência"
+                },
+                {
+                  "key": "longitude",
+                  "value": "-46.6333",
+                  "description": "Longitude do ponto de referência"
+                },
+                {
+                  "key": "radius",
+                  "value": "10",
+                  "description": "Raio em km (padrão: 10)"
+                }
+              ]
+            },
+            "description": "Busca empresas próximas por coordenadas geográficas"
+          }
+        },
+        {
+          "name": "Buscar Empresa por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/empresas/1",
+              "host": ["{{base_url}}"],
+              "path": ["empresas", "1"]
+            },
+            "description": "Busca uma empresa específica por ID"
+          }
+        },
+        {
+          "name": "Criar Empresa",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Posto Ipiranga - Centro\",\n  \"cnpj\": \"98765432000124\",\n  \"uf\": \"SP\",\n  \"endereco\": \"Rua das Palmeiras, 456\",\n  \"endereco_completo\": \"Rua das Palmeiras, 456, Centro, São Paulo - SP\",\n  \"contato\": \"Maria Silva\",\n  \"telefone\": \"11977777777\",\n  \"email\": \"contato@postoipiranga.com\",\n  \"ativo\": true,\n  \"isPublic\": true,\n  \"tipo_empresa\": \"POSTO_GASOLINA\",\n  \"bandeira\": \"Ipiranga\",\n  \"latitude\": -23.5505,\n  \"longitude\": -46.6333,\n  \"horario_funcionamento\": \"24h\",\n  \"servicos_disponiveis\": \"Abastecimento, Lavagem, Conveniência\",\n  \"formas_pagamento\": \"Dinheiro, Cartão, PIX\",\n  \"avaliacao\": 4.2,\n  \"total_avaliacoes\": 50\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/empresas",
+              "host": ["{{base_url}}"],
+              "path": ["empresas"]
+            },
+            "description": "Cria uma nova empresa. Tipos: POSTO_GASOLINA, DISTRIBUIDORA, OUTROS"
+          }
+        },
+        {
+          "name": "Atualizar Empresa",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Posto Ipiranga - Centro - Atualizado\",\n  \"telefone\": \"11966666666\",\n  \"avaliacao\": 4.5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/empresas/1",
+              "host": ["{{base_url}}"],
+              "path": ["empresas", "1"]
+            },
+            "description": "Atualiza dados de uma empresa"
+          }
+        },
+        {
+          "name": "Excluir Empresa",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/empresas/1",
+              "host": ["{{base_url}}"],
+              "path": ["empresas", "1"]
+            },
+            "description": "Exclui uma empresa (não pode ter usuários associados)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🚗 Veículos",
+      "item": [
+        {
+          "name": "Listar Veículos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/veiculos?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["veiculos"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "nome",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "placa",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "tipo_veiculo",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "prefeituraId",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista veículos com filtros e paginação"
+          }
+        },
+        {
+          "name": "Buscar Veículo por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/veiculos/1",
+              "host": ["{{base_url}}"],
+              "path": ["veiculos", "1"]
+            },
+            "description": "Busca um veículo específico por ID"
+          }
+        },
+        {
+          "name": "Criar Veículo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefeituraId\": 1,\n  \"orgaoId\": 1,\n  \"nome\": \"Ambulância 02\",\n  \"placa\": \"DEF-5678\",\n  \"modelo\": \"Mercedes Sprinter\",\n  \"ano\": 2021,\n  \"tipo_abastecimento\": \"COTA\",\n  \"ativo\": true,\n  \"capacidade_tanque\": 100.0,\n  \"tipo_veiculo\": \"Ambulancia\",\n  \"situacao_veiculo\": \"Proprio\",\n  \"periodicidade\": \"Semanal\",\n  \"quantidade\": 120.0,\n  \"apelido\": \"Ambulância da Emergência\",\n  \"ano_fabricacao\": 2020,\n  \"chassi\": \"9BWZZZZZZZZZZZZZZ\",\n  \"renavam\": \"98765432109\",\n  \"cor\": \"Branco\",\n  \"capacidade_passageiros\": 6,\n  \"observacoes\": \"Veículo novo em excelente estado\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/veiculos",
+              "host": ["{{base_url}}"],
+              "path": ["veiculos"]
+            },
+            "description": "Cria um novo veículo. Tipos: Ambulancia, Caminhao, Caminhonete, Carro, Maquina_Pesada, Microonibus, Moto, Onibus, Outro"
+          }
+        },
+        {
+          "name": "Atualizar Veículo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Ambulância 02 - Atualizada\",\n  \"apelido\": \"Ambulância da Emergência - Nova\",\n  \"observacoes\": \"Veículo atualizado com novos equipamentos\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/veiculos/1",
+              "host": ["{{base_url}}"],
+              "path": ["veiculos", "1"]
+            },
+            "description": "Atualiza dados de um veículo"
+          }
+        },
+        {
+          "name": "Excluir Veículo",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/veiculos/1",
+              "host": ["{{base_url}}"],
+              "path": ["veiculos", "1"]
+            },
+            "description": "Exclui um veículo (não pode ter abastecimentos associados)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "👨‍💼 Motoristas",
+      "item": [
+        {
+          "name": "Listar Motoristas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/motoristas?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["motoristas"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "nome",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "cpf",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "prefeituraId",
+                  "value": "1",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista motoristas com filtros e paginação"
+          }
+        },
+        {
+          "name": "Buscar Motorista por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/motoristas/1",
+              "host": ["{{base_url}}"],
+              "path": ["motoristas", "1"]
+            },
+            "description": "Busca um motorista específico por ID"
+          }
+        },
+        {
+          "name": "Criar Motorista",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefeituraId\": 1,\n  \"nome\": \"Pedro Santos\",\n  \"cpf\": \"66666666666\",\n  \"cnh\": \"98765432109\",\n  \"categoria_cnh\": \"B\",\n  \"data_vencimento_cnh\": \"2025-12-31T00:00:00.000Z\",\n  \"telefone\": \"11955555555\",\n  \"email\": \"pedro.santos@prefeitura.sp.gov.br\",\n  \"endereco\": \"Rua das Acácias, 789\",\n  \"ativo\": true,\n  \"observacoes\": \"Motorista experiente com 5 anos de experiência\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/motoristas",
+              "host": ["{{base_url}}"],
+              "path": ["motoristas"]
+            },
+            "description": "Cria um novo motorista"
+          }
+        },
+        {
+          "name": "Atualizar Motorista",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telefone\": \"11944444444\",\n  \"observacoes\": \"Motorista atualizado com nova experiência\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/motoristas/1",
+              "host": ["{{base_url}}"],
+              "path": ["motoristas", "1"]
+            },
+            "description": "Atualiza dados de um motorista"
+          }
+        },
+        {
+          "name": "Excluir Motorista",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/motoristas/1",
+              "host": ["{{base_url}}"],
+              "path": ["motoristas", "1"]
+            },
+            "description": "Exclui um motorista (não pode ter abastecimentos associados)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "⛽ Abastecimentos",
+      "item": [
+        {
+          "name": "Listar Abastecimentos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/abastecimentos?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["abastecimentos"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "veiculoId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "motoristaId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "empresaId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "data_inicial",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "data_final",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista abastecimentos com filtros e paginação"
+          }
+        },
+        {
+          "name": "Buscar Abastecimento por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/abastecimentos/1",
+              "host": ["{{base_url}}"],
+              "path": ["abastecimentos", "1"]
+            },
+            "description": "Busca um abastecimento específico por ID"
+          }
+        },
+        {
+          "name": "Criar Abastecimento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"veiculoId\": 1,\n  \"motoristaId\": 1,\n  \"combustivelId\": 1,\n  \"empresaId\": 1,\n  \"solicitanteId\": 2,\n  \"tipo_abastecimento\": \"COM_COTA\",\n  \"quantidade\": 50.5,\n  \"preco_anp\": 5.50,\n  \"preco_empresa\": 5.45,\n  \"desconto\": 0.05,\n  \"valor_total\": 275.25,\n  \"data_abastecimento\": \"2024-01-15T10:30:00.000Z\",\n  \"odometro\": 50000,\n  \"orimetro\": 1000,\n  \"status\": \"Aguardando\",\n  \"abastecido_por\": \"João Silva\",\n  \"nfe_chave_acesso\": \"12345678901234567890123456789012345678901234\",\n  \"nfe_img_url\": \"https://exemplo.com/nfe.jpg\",\n  \"nfe_link\": \"https://exemplo.com/nfe\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/abastecimentos",
+              "host": ["{{base_url}}"],
+              "path": ["abastecimentos"]
+            },
+            "description": "Cria um novo abastecimento. Tipos: COM_COTA, LIVRE, COM_AUTORIZACAO"
+          }
+        },
+        {
+          "name": "Atualizar Abastecimento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"odometro\": 50050,\n  \"observacoes\": \"Abastecimento realizado com sucesso\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/abastecimentos/1",
+              "host": ["{{base_url}}"],
+              "path": ["abastecimentos", "1"]
+            },
+            "description": "Atualiza dados de um abastecimento"
+          }
+        },
+        {
+          "name": "Aprovar Abastecimento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/abastecimentos/1/approve",
+              "host": ["{{base_url}}"],
+              "path": ["abastecimentos", "1", "approve"]
+            },
+            "description": "Aprova um abastecimento que está aguardando"
+          }
+        },
+        {
+          "name": "Rejeitar Abastecimento",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Quantidade excede a cota disponível\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/abastecimentos/1/reject",
+              "host": ["{{base_url}}"],
+              "path": ["abastecimentos", "1", "reject"]
+            },
+            "description": "Rejeita um abastecimento que está aguardando"
+          }
+        },
+        {
+          "name": "Excluir Abastecimento",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/abastecimentos/1",
+              "host": ["{{base_url}}"],
+              "path": ["abastecimentos", "1"]
+            },
+            "description": "Exclui um abastecimento"
+          }
+        }
+      ]
+    },
+    {
+      "name": "⛽ Combustíveis",
+      "item": [
+        {
+          "name": "Listar Combustíveis",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/combustiveis?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["combustiveis"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "ativo",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista combustíveis com paginação"
+          }
+        },
+        {
+          "name": "Buscar Combustível por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/combustiveis/1",
+              "host": ["{{base_url}}"],
+              "path": ["combustiveis", "1"]
+            },
+            "description": "Busca um combustível específico por ID"
+          }
+        },
+        {
+          "name": "Criar Combustível",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Diesel S500\",\n  \"sigla\": \"DIESEL_S500\",\n  \"descricao\": \"Diesel com teor de enxofre de 500 ppm\",\n  \"observacoes\": \"Combustível para veículos pesados\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/combustiveis",
+              "host": ["{{base_url}}"],
+              "path": ["combustiveis"]
+            },
+            "description": "Cria um novo tipo de combustível"
+          }
+        },
+        {
+          "name": "Atualizar Combustível",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Diesel S500 - Atualizado\",\n  \"descricao\": \"Diesel com teor de enxofre de 500 ppm - Atualizado\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/combustiveis/1",
+              "host": ["{{base_url}}"],
+              "path": ["combustiveis", "1"]
+            },
+            "description": "Atualiza dados de um combustível"
+          }
+        },
+        {
+          "name": "Excluir Combustível",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/combustiveis/1",
+              "host": ["{{base_url}}"],
+              "path": ["combustiveis", "1"]
+            },
+            "description": "Exclui um combustível"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏛️ Órgãos",
+      "item": [
+        {
+          "name": "Listar Órgãos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orgaos?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["orgaos"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "prefeituraId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "ativo",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista órgãos com filtros e paginação"
+          }
+        },
+        {
+          "name": "Buscar Órgão por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orgaos/1",
+              "host": ["{{base_url}}"],
+              "path": ["orgaos", "1"]
+            },
+            "description": "Busca um órgão específico por ID"
+          }
+        },
+        {
+          "name": "Criar Órgão",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefeituraId\": 1,\n  \"nome\": \"Secretaria Municipal de Educação\",\n  \"sigla\": \"SME\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/orgaos",
+              "host": ["{{base_url}}"],
+              "path": ["orgaos"]
+            },
+            "description": "Cria um novo órgão"
+          }
+        },
+        {
+          "name": "Atualizar Órgão",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Secretaria Municipal de Educação - Atualizada\",\n  \"sigla\": \"SME_NOVA\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/orgaos/1",
+              "host": ["{{base_url}}"],
+              "path": ["orgaos", "1"]
+            },
+            "description": "Atualiza dados de um órgão"
+          }
+        },
+        {
+          "name": "Excluir Órgão",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/orgaos/1",
+              "host": ["{{base_url}}"],
+              "path": ["orgaos", "1"]
+            },
+            "description": "Exclui um órgão"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📂 Categorias",
+      "item": [
+        {
+          "name": "Listar Categorias",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/categorias?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["categorias"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "prefeituraId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "tipo_categoria",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "ativo",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista categorias com filtros e paginação"
+          }
+        },
+        {
+          "name": "Buscar Categoria por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/categorias/1",
+              "host": ["{{base_url}}"],
+              "path": ["categorias", "1"]
+            },
+            "description": "Busca uma categoria específica por ID"
+          }
+        },
+        {
+          "name": "Criar Categoria",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefeituraId\": 1,\n  \"tipo_categoria\": \"VEICULO\",\n  \"nome\": \"Veículos de Limpeza\",\n  \"descricao\": \"Veículos utilizados para limpeza urbana\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/categorias",
+              "host": ["{{base_url}}"],
+              "path": ["categorias"]
+            },
+            "description": "Cria uma nova categoria. Tipos: VEICULO, MOTORISTA, OUTRO"
+          }
+        },
+        {
+          "name": "Atualizar Categoria",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Veículos de Limpeza - Atualizada\",\n  \"descricao\": \"Veículos utilizados para limpeza urbana - Atualizada\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/categorias/1",
+              "host": ["{{base_url}}"],
+              "path": ["categorias", "1"]
+            },
+            "description": "Atualiza dados de uma categoria"
+          }
+        },
+        {
+          "name": "Excluir Categoria",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/categorias/1",
+              "host": ["{{base_url}}"],
+              "path": ["categorias", "1"]
+            },
+            "description": "Exclui uma categoria"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 Processos",
+      "item": [
+        {
+          "name": "Listar Processos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/processos?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["processos"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "prefeituraId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "ativo",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista processos com filtros e paginação"
+          }
+        },
+        {
+          "name": "Buscar Processo por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/processos/1",
+              "host": ["{{base_url}}"],
+              "path": ["processos", "1"]
+            },
+            "description": "Busca um processo específico por ID"
+          }
+        },
+        {
+          "name": "Criar Processo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo_contrato\": \"OBJETIVO\",\n  \"prefeituraId\": 1,\n  \"litros_desejados\": 10000.0,\n  \"valor_utilizado\": 50000.0,\n  \"valor_disponivel\": 100000.0,\n  \"numero_processo\": \"2024/001\",\n  \"numero_documento\": \"DOC-2024-001\",\n  \"tipo_documento\": \"LICITACAO\",\n  \"tipo_itens\": \"QUANTIDADE_LITROS\",\n  \"objeto\": \"Contratação de empresa para fornecimento de combustíveis\",\n  \"data_abertura\": \"2024-01-01T00:00:00.000Z\",\n  \"data_encerramento\": \"2024-12-31T23:59:59.000Z\",\n  \"status\": \"ATIVO\",\n  \"ativo\": true,\n  \"observacoes\": \"Processo licitatório para abastecimento de veículos da prefeitura\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/processos",
+              "host": ["{{base_url}}"],
+              "path": ["processos"]
+            },
+            "description": "Cria um novo processo. Tipos: OBJETIVO, CONSORCIADO"
+          }
+        },
+        {
+          "name": "Atualizar Processo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor_utilizado\": 75000.0,\n  \"status\": \"EM_ANDAMENTO\",\n  \"observacoes\": \"Processo em andamento com valor atualizado\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/processos/1",
+              "host": ["{{base_url}}"],
+              "path": ["processos", "1"]
+            },
+            "description": "Atualiza dados de um processo"
+          }
+        },
+        {
+          "name": "Excluir Processo",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/processos/1",
+              "host": ["{{base_url}}"],
+              "path": ["processos", "1"]
+            },
+            "description": "Exclui um processo"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📄 Contratos",
+      "item": [
+        {
+          "name": "Listar Contratos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/contratos?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["contratos"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "empresaId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "ativo",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista contratos com filtros e paginação"
+          }
+        },
+        {
+          "name": "Buscar Contrato por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/contratos/1",
+              "host": ["{{base_url}}"],
+              "path": ["contratos", "1"]
+            },
+            "description": "Busca um contrato específico por ID"
+          }
+        },
+        {
+          "name": "Criar Contrato",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"empresaId\": 1,\n  \"empresa_contratante\": \"Nordev\",\n  \"empresa_contratada\": \"Posto Shell - Centro\",\n  \"title\": \"Contrato de Fornecimento de Combustíveis\",\n  \"cnpj_empresa\": \"98765432000123\",\n  \"vigencia_inicio\": \"2024-01-01T00:00:00.000Z\",\n  \"vigencia_fim\": \"2024-12-31T23:59:59.000Z\",\n  \"ativo\": true,\n  \"anexo_contrato\": \"contrato_2024.pdf\",\n  \"anexo_contrato_assinado\": \"contrato_2024_assinado.pdf\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/contratos",
+              "host": ["{{base_url}}"],
+              "path": ["contratos"]
+            },
+            "description": "Cria um novo contrato"
+          }
+        },
+        {
+          "name": "Atualizar Contrato",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Contrato de Fornecimento de Combustíveis - Atualizado\",\n  \"vigencia_fim\": \"2025-12-31T23:59:59.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/contratos/1",
+              "host": ["{{base_url}}"],
+              "path": ["contratos", "1"]
+            },
+            "description": "Atualiza dados de um contrato"
+          }
+        },
+        {
+          "name": "Excluir Contrato",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/contratos/1",
+              "host": ["{{base_url}}"],
+              "path": ["contratos", "1"]
+            },
+            "description": "Exclui um contrato"
+          }
+        }
+      ]
+    }
+  ]
+}

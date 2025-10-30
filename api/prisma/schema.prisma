@@ -1,0 +1,957 @@
+// ---------------- generator & datasource ----------------
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UF {
+  AC 
+  AL 
+  AP 
+  AM 
+  BA 
+  CE 
+  DF 
+  ES 
+  GO 
+  MA 
+  MT 
+  MS 
+  MG 
+  PA 
+  PB 
+  PR 
+  PE 
+  PI 
+  RJ 
+  RN 
+  RS 
+  RO 
+  RR 
+  SC 
+  SP 
+  SE 
+  TO
+}
+
+enum TipoUsuario {
+  SUPER_ADMIN
+  ADMIN_PREFEITURA
+  COLABORADOR_PREFEITURA
+  ADMIN_EMPRESA
+  COLABORADOR_EMPRESA
+}
+
+enum StatusAcesso {
+  Acesso_solicitado @map("Acesso solicitado")
+  Desativado
+  Em_validacao @map("Em validação")
+  Ativado
+}
+
+enum TipoAbastecimento {
+  COM_COTA
+  LIVRE
+  COM_AUTORIZACAO
+}
+
+enum TipoAbastecimentoVeiculo {
+  COTA
+  LIVRE
+  COM_AUTORIZACAO
+}
+
+enum StatusAbastecimento {
+  Aguardando
+  Aprovado
+  Rejeitado
+  Cancelado
+}
+
+enum TipoVeiculo {
+  Ambulancia @map("Ambulância")
+  Caminhao @map("Caminhão")
+  Caminhonete
+  Carro
+  Maquina_Pesada @map("Máquina Pesada")
+  Microonibus @map("Microônibus")
+  Moto
+  Onibus @map("Ônibus")
+  Outro
+}
+
+enum SituacaoVeiculo {
+  Locado
+  Particular_a_servico @map("Particular à serviço")
+  Proprio @map("Próprio")
+}
+
+enum Periodicidade {
+  Diario @map("Diário")
+  Semanal
+  Mensal
+}
+
+enum TipoEmpresa {
+  POSTO_GASOLINA
+  DISTRIBUIDORA
+  OUTROS
+}
+
+enum TipoContrato {
+  OBJETIVO
+  CONSORCIADO
+}
+
+enum TipoDocumento {
+  LICITACAO @map("LICITAÇÃO")
+  CONTRATO
+  ARP
+}
+
+enum TipoItens {
+  QUANTIDADE_LITROS
+}
+
+enum StatusProcesso {
+  ATIVO
+  DESATIVADO
+  EM_ANDAMENTO
+  CANCELADO
+}
+
+enum TipoCategoria {
+  VEICULO
+  MOTORISTA
+  OUTRO
+}
+
+enum AnpBase {
+  MINIMO
+  MEDIO
+  MAXIMO
+}
+
+enum StatusPreco {
+  ACTIVE
+  INACTIVE_AUTO
+  INACTIVE_MANUAL
+}
+
+enum TipoCombustivelAnp {
+  GASOLINA_COMUM
+  GASOLINA_ADITIVADA
+  ETANOL_COMUM
+  ETANOL_ADITIVADO
+  DIESEL_S10
+  DIESEL_S500
+  GNV
+  GLP
+}
+
+enum TipoAditivo {
+  PRAZO
+}
+
+enum TipoAditivoProcesso {
+  PRAZO
+  QUANTIDADE
+}
+
+enum OperacaoAditivo {
+  ADICIONAR
+  SUBTRAIR
+}
+
+enum AcaoLog {
+  INSERT
+  UPDATE
+  DELETE
+}
+
+enum TipoNotificacao {
+  RECLASSIFICACAO_SEMANA_ANP
+  ATUALIZACAO_PRECOS
+  MANUTENCAO_SISTEMA
+  OUTROS
+}
+
+enum StatusSystem {
+  Ligado
+  Desligado
+}
+
+enum StatusAdesao {
+  ATIVA
+  INATIVA
+  PENDENTE
+}
+
+enum TipoAbastecimentoSolicitacao {
+  COM_COTA
+  LIVRE
+  COM_AUTORIZACAO
+}
+
+enum StatusSolicitacao {
+  PENDENTE
+  APROVADA
+  REJEITADA
+  EXPIRADA
+  EFETIVADA
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model Prefeitura {
+  id                    Int       @id @default(autoincrement())
+  nome                  String
+  cnpj                  String    @unique
+  imagem_perfil         String?
+  email_administrativo  String    @unique
+  data_cadastro         DateTime?
+  ativo                 Boolean   @default(true)
+  requer_cupom_fiscal   Boolean?
+
+  // Relacionamentos
+  usuarios              Usuario[]
+  orgaos                Orgao[]
+  veiculos              Veiculo[]
+  motoristas            Motorista[]
+  categorias            Categoria[]
+  processos             Processo[]
+  contasFaturamento     ContaFaturamentoOrgao[]
+  processosConsorcio    ProcessoPrefeituraConsorcio[]
+  combustiveisConsorcio ProcessoPrefeituraCombustivelConsorcio[]
+  solicitacoesAbastecimento SolicitacaoAbastecimento[]
+
+  @@map("prefeitura")
+}
+
+model Usuario {
+  id              Int           @id @default(autoincrement())
+  prefeituraId    Int?
+  email           String        @unique
+  senha           String
+  nome            String
+  data_cadastro   DateTime?
+  ultimo_login    DateTime?
+  tipo_usuario    TipoUsuario
+  empresaId       Int?
+  imagem_perfil   String?
+  cpf             String        @unique
+  phone           String?       @unique
+  statusAcess     StatusAcesso
+  ativo           Boolean
+
+  // Relacionamentos
+  prefeitura              Prefeitura?               @relation(fields: [prefeituraId], references: [id])
+  empresa                 Empresa?                  @relation(fields: [empresaId], references: [id])
+  refreshTokens           RefreshToken[]
+  logsAlteracoes          LogsAlteracoes[]
+  solicitacoes            Abastecimento[]           @relation("Solicitante")
+  validacoes              Abastecimento[]           @relation("Validador")
+  orgaos                  UsuarioOrgao[]
+
+  @@map("usuario")
+}
+
+model Empresa {
+  id                      Int       @id @default(autoincrement())
+  nome                    String
+  cnpj                    String
+  endereco                String?
+  uf                      UF
+  contato                 String?
+  ativo                   Boolean
+  imagem_perfil           String?
+  isPublic                Boolean
+  tipo_empresa            TipoEmpresa?  @default(POSTO_GASOLINA)
+  latitude                Decimal?      @db.Decimal(10, 8)
+  longitude               Decimal?      @db.Decimal(11, 8)
+  endereco_completo       String?       @db.Text
+  horario_funcionamento   String?
+  telefone                String?
+  email                   String?
+  website                 String?
+  bandeira                String?
+  servicos_disponiveis    String?       @db.Text
+  formas_pagamento        String?       @db.Text
+  avaliacao               Decimal?      @db.Decimal(3, 2)
+  total_avaliacoes        Int?          @default(0)
+
+  // Relacionamentos
+  usuarios                Usuario[]
+  contratos               Contrato[]
+  abastecimentos          Abastecimento[]           @relation("EmpresaAbastecimento")
+  abastecedores           Abastecimento[]           @relation("Abastecedor")
+  precosCombustiveis      EmpresaPrecoCombustivel[]
+  solicitacoes            SolicitacaoAbastecimento[]
+
+  @@map("empresa")
+}
+
+model Orgao {
+  id              Int       @id @default(autoincrement())
+  prefeituraId    Int
+  nome            String
+  sigla           String
+  ativo           Boolean?
+
+  // Relacionamentos
+  prefeitura              Prefeitura                @relation(fields: [prefeituraId], references: [id])
+  veiculos                Veiculo[]
+  cotasOrgao              CotaOrgao[]
+  contasFaturamento       ContaFaturamentoOrgao[]
+  usuarios                UsuarioOrgao[]
+
+  @@map("orgao")
+}
+
+model Contrato {
+  id                        Int       @id @default(autoincrement())
+  empresaId                 Int
+  empresa_contratante       String    @default("Nordev")
+  empresa_contratada        String
+  title                     String
+  cnpj_empresa              String
+  vigencia_inicio           DateTime?
+  vigencia_fim              DateTime?
+  ativo                     Boolean
+  anexo_contrato            String?
+  anexo_contrato_assinado   String?
+  createdAt                 DateTime?
+  updatedAt                 DateTime?
+
+  // Relacionamentos
+  empresa                   Empresa                 @relation(fields: [empresaId], references: [id])
+  combustiveis              ContratoCombustivel[]
+  aditivos                  AditivoContrato[]
+
+  @@map("contrato")
+}
+
+model Combustivel {
+  id          Int       @id @default(autoincrement())
+  nome        String
+  sigla       String    @unique
+  descricao   String?   @db.Text
+  ativo       Boolean   @default(true)
+  observacoes String?   @db.Text
+
+  // Relacionamentos
+  veiculos                    VeiculoCombustivel[]
+  abastecimentos              Abastecimento[]
+  contratos                   ContratoCombustivel[]
+  //cotasOrgao                  CotaOrgao[]
+  //cotasCombustivel            CotaOrgao[]           @relation("CombustivelCota")
+  cotas            CotaOrgao[]           @relation("CombustivelCota")
+  processos                   ProcessoCombustivel[]
+  processosConsorciado        ProcessoCombustivelConsorciado[]
+  prefeiturasConsorcio        ProcessoPrefeituraCombustivelConsorcio[]
+  precosEmpresas              EmpresaPrecoCombustivel[]
+  solicitacoes                SolicitacaoAbastecimento[]
+
+  @@map("combustivel")
+}
+
+model Categoria {
+  id              Int             @id @default(autoincrement())
+  prefeituraId    Int
+  tipo_categoria  TipoCategoria
+  nome            String
+  descricao       String?
+  ativo           Boolean         @default(true)
+
+  // Relacionamentos
+  prefeitura      Prefeitura      @relation(fields: [prefeituraId], references: [id])
+  veiculos        VeiculoCategoria[]
+
+  @@map("categoria")
+}
+
+model Motorista {
+  id                    Int       @id @default(autoincrement())
+  prefeituraId          Int
+  nome                  String
+  cpf                   String    @unique
+  cnh                   String?
+  categoria_cnh         String?
+  data_vencimento_cnh   DateTime?
+  telefone              String?
+  email                 String?
+  endereco              String?
+  ativo                 Boolean   @default(true)
+  observacoes           String?   @db.Text
+
+  // Relacionamentos
+  prefeitura            Prefeitura            @relation(fields: [prefeituraId], references: [id])
+  veiculos              VeiculoMotorista[]
+  abastecimentos        Abastecimento[]
+  solicitacoes          SolicitacaoAbastecimento[]
+
+  @@map("motorista")
+}
+
+model Veiculo {
+  id                        Int       @id @default(autoincrement())
+  prefeituraId              Int
+  orgaoId                   Int?
+  contaFaturamentoOrgaoId   Int?
+  nome                      String
+  placa                     String    @unique
+  modelo                    String?
+  ano                       Int
+  tipo_abastecimento        TipoAbastecimentoVeiculo @default(COTA)
+  ativo                     Boolean   @default(true)
+  capacidade_tanque         Decimal   @db.Decimal(10, 2)
+  tipo_veiculo              TipoVeiculo? @default(Outro)
+  situacao_veiculo          SituacaoVeiculo? @default(Proprio)
+  observacoes               String?   @db.Text
+  periodicidade             Periodicidade?
+  quantidade                Decimal?  @db.Decimal(10, 1)
+  apelido                   String?
+  ano_fabricacao            Int?
+  chassi                    String?
+  renavam                   String?
+  crlv                      String?
+  crlv_vencimento           DateTime?
+  tacografo                 String?
+  foto_veiculo              String?
+  foto_crlv                 String?
+  cor                       String?
+  capacidade_passageiros    Int?
+
+  // Relacionamentos
+  prefeitura                Prefeitura                @relation(fields: [prefeituraId], references: [id])
+  orgao                     Orgao?                    @relation(fields: [orgaoId], references: [id])
+  contaFaturamento          ContaFaturamentoOrgao?    @relation(fields: [contaFaturamentoOrgaoId], references: [id])
+  categorias                VeiculoCategoria[]
+  combustiveis              VeiculoCombustivel[]
+  motoristas                VeiculoMotorista[]
+  abastecimentos            Abastecimento[]
+  cotasPeriodo              VeiculoCotaPeriodo[]
+  solicitacoes              SolicitacaoAbastecimento[]
+
+  @@map("veiculo")
+}
+
+model Abastecimento {
+  id                          Int       @id @default(autoincrement())
+  veiculoId                   Int
+  motoristaId                 Int?
+  combustivelId               Int
+  empresaId                   Int
+  solicitanteId               Int?
+  abastecedorId               Int?
+  validadorId                 Int?
+  tipo_abastecimento          TipoAbastecimento
+  quantidade                  Decimal   @db.Decimal(10, 3)
+  preco_anp                   Decimal?  @db.Decimal(10, 2)
+  preco_empresa               Decimal?  @db.Decimal(10, 2)
+  desconto                    Decimal?  @default(0.00) @db.Decimal(10, 2)
+  valor_total                 Decimal   @db.Decimal(10, 2)
+  data_abastecimento          DateTime?
+  odometro                    Int?
+  orimetro                    Int?
+  status                      StatusAbastecimento @default(Aguardando)
+  motivo_rejeicao             String?   @db.Text
+  abastecido_por              String?
+  nfe_chave_acesso            String?
+  nfe_img_url                 String?
+  nfe_link                    String?
+  conta_faturamento_orgao_id  Int?
+  cota_id                     Int?
+  ativo                       Boolean   @default(true)
+  data_aprovacao              DateTime?
+  data_rejeicao               DateTime?
+  aprovado_por                String?
+  aprovado_por_email          String?
+  rejeitado_por               String?
+  rejeitado_por_email         String?
+
+  // Relacionamentos
+  veiculo                     Veiculo                   @relation(fields: [veiculoId], references: [id])
+  motorista                   Motorista?                @relation(fields: [motoristaId], references: [id])
+  combustivel                 Combustivel               @relation(fields: [combustivelId], references: [id])
+  empresa                     Empresa                   @relation("EmpresaAbastecimento", fields: [empresaId], references: [id])
+  solicitante                 Usuario?                  @relation("Solicitante", fields: [solicitanteId], references: [id])
+  abastecedor                 Empresa?                  @relation("Abastecedor", fields: [abastecedorId], references: [id])
+  validador                   Usuario?                  @relation("Validador", fields: [validadorId], references: [id])
+  contaFaturamento            ContaFaturamentoOrgao?    @relation(fields: [conta_faturamento_orgao_id], references: [id])
+  cota                        CotaOrgao?                @relation(fields: [cota_id], references: [id])
+  solicitacao                 SolicitacaoAbastecimento?
+
+  @@map("abastecimento")
+}
+
+model CotaOrgao {
+  id                    Int       @id @default(autoincrement())
+  processoId            Int
+  orgaoId               Int
+  combustivelId         Int
+  quantidade            Decimal   @db.Decimal(10, 3)
+  quantidade_utilizada  Decimal   @default(0) @db.Decimal(10, 1)
+  valor_utilizado       Decimal   @default(0) @db.Decimal(10, 2)
+  restante              Decimal?  @db.Decimal(10, 1)
+  saldo_disponivel_cota Decimal?  @default(0.00) @db.Decimal(10, 2)
+  ativa                 Boolean   @default(true)
+
+  // Relacionamentos
+  orgao                 Orgao                     @relation(fields: [orgaoId], references: [id])
+  processo              Processo                  @relation(fields: [processoId], references: [id])
+  combustivel           Combustivel               @relation("CombustivelCota", fields: [combustivelId], references: [id])
+  abastecimentos        Abastecimento[]
+
+  @@map("cota_orgao")
+}
+
+model ContaFaturamentoOrgao {
+  id              Int       @id @default(autoincrement())
+  prefeituraId    Int
+  orgaoId         Int
+  nome            String
+  descricao       String?   @db.Text
+
+  // Relacionamentos
+  prefeitura      Prefeitura    @relation(fields: [prefeituraId], references: [id])
+  orgao           Orgao         @relation(fields: [orgaoId], references: [id])
+  veiculos        Veiculo[]
+  abastecimentos  Abastecimento[]
+
+  @@map("conta_faturamento_orgao")
+}
+
+model Processo {
+  id                      Int       @id @default(autoincrement())
+  tipo_contrato           TipoContrato @default(OBJETIVO)
+  prefeituraId            Int?
+  litros_desejados        Decimal?  @db.Decimal(10, 2)
+  valor_utilizado         Decimal?  @db.Decimal(10, 2)
+  valor_disponivel        Decimal?  @db.Decimal(10, 2)
+  numero_processo         String
+  numero_documento        String
+  tipo_documento          TipoDocumento
+  tipo_itens              TipoItens @default(QUANTIDADE_LITROS)
+  objeto                  String    @db.Text
+  data_abertura           DateTime
+  data_encerramento       DateTime
+  status                  StatusProcesso @default(ATIVO)
+  ativo                   Boolean   @default(true)
+  observacoes             String?   @db.Text
+  arquivo_contrato        String?
+
+  // Relacionamentos
+  prefeitura                              Prefeitura?                               @relation(fields: [prefeituraId], references: [id])
+  combustiveis                            ProcessoCombustivel[]
+  cotasOrgao                              CotaOrgao[]
+  prefeiturasConsorcio                    ProcessoPrefeituraConsorcio[]
+  combustiveisConsorciado                 ProcessoCombustivelConsorciado[]
+  prefeiturasCombustiveisConsorcio        ProcessoPrefeituraCombustivelConsorcio[]
+  aditivos                                AditivoProcesso[]
+
+  @@map("processo")
+}
+
+// ============================================
+// TABELAS DE RELACIONAMENTO (Many-to-Many)
+// ============================================
+
+model ContratoCombustivel {
+  id              Int       @id @default(autoincrement())
+  contratoId      Int
+  combustivelId   Int
+  ativo           Boolean   @default(true)
+  createdAt       DateTime?
+  updatedAt       DateTime?
+
+  // Relacionamentos
+  contrato        Contrato      @relation(fields: [contratoId], references: [id])
+  combustivel     Combustivel   @relation(fields: [combustivelId], references: [id])
+
+  @@unique([contratoId, combustivelId])
+  @@map("contrato_combustivel")
+}
+
+model VeiculoCombustivel {
+  id              Int       @id @default(autoincrement())
+  veiculoId       Int
+  combustivelId   Int
+  ativo           Boolean   @default(true)
+  observacoes     String?   @db.Text
+
+  // Relacionamentos
+  veiculo         Veiculo       @relation(fields: [veiculoId], references: [id])
+  combustivel     Combustivel   @relation(fields: [combustivelId], references: [id])
+
+  @@map("veiculo_combustivel")
+}
+
+model VeiculoCategoria {
+  id              Int       @id @default(autoincrement())
+  veiculoId       Int
+  categoriaId     Int
+  ativo           Boolean   @default(true)
+
+  // Relacionamentos
+  veiculo         Veiculo       @relation(fields: [veiculoId], references: [id])
+  categoria       Categoria     @relation(fields: [categoriaId], references: [id])
+
+  @@unique([veiculoId, categoriaId])
+  @@map("veiculo_categoria")
+}
+
+model VeiculoMotorista {
+  id              Int       @id @default(autoincrement())
+  veiculoId       Int
+  motoristaId     Int
+  data_inicio     DateTime
+  data_fim        DateTime?
+  ativo           Boolean   @default(true)
+  observacoes     String?   @db.Text
+
+  // Relacionamentos
+  veiculo         Veiculo       @relation(fields: [veiculoId], references: [id])
+  motorista       Motorista     @relation(fields: [motoristaId], references: [id])
+
+  @@map("veiculo_motorista")
+}
+
+model UsuarioOrgao {
+  id          Int       @id @default(autoincrement())
+  usuarioId   Int
+  orgaoId     Int
+  ativo       Boolean   @default(true)
+
+  // Relacionamentos
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id])
+  orgao       Orgao     @relation(fields: [orgaoId], references: [id])
+
+  @@map("usuario_orgao")
+}
+
+model ProcessoCombustivel {
+  id                          Int       @id @default(autoincrement())
+  processoId                  Int
+  combustivelId               Int
+  quantidade_litros           Decimal   @db.Decimal(10, 2)
+  valor_unitario              Decimal?  @db.Decimal(10, 2)
+  saldo_bloqueado_processo    Decimal?  @default(0.00) @db.Decimal(10, 2)
+  saldo_disponivel_processo   Decimal?  @default(0.00) @db.Decimal(10, 2)
+
+  // Relacionamentos
+  processo                    Processo      @relation(fields: [processoId], references: [id])
+  combustivel                 Combustivel   @relation(fields: [combustivelId], references: [id])
+  aditivos                    AditivoProcesso[]
+
+  @@map("processo_combustivel")
+}
+
+model ProcessoCombustivelConsorciado {
+  id                          Int       @id @default(autoincrement())
+  processoId                  Int
+  combustivelId               Int
+  quantidade_litros           Decimal   @db.Decimal(10, 2)
+  saldo_bloqueado_processo    Decimal?  @default(0.00) @db.Decimal(10, 2)
+  saldo_disponivel_processo   Decimal?  @default(0.00) @db.Decimal(10, 2)
+  ativo                       Boolean   @default(true)
+
+  // Relacionamentos
+  processo                    Processo      @relation(fields: [processoId], references: [id])
+  combustivel                 Combustivel   @relation(fields: [combustivelId], references: [id])
+
+  @@unique([processoId, combustivelId], name: "unique_processo_combustivel_consorciado")
+  @@map("processo_combustivel_consorciado")
+}
+
+model ProcessoPrefeituraConsorcio {
+  id                      Int       @id @default(autoincrement())
+  processoId              Int
+  prefeituraId            Int
+  litros_alocados         Decimal   @default(0.00) @db.Decimal(10, 2)
+  percentual_participacao Decimal?  @db.Decimal(5, 2)
+  data_adesao             DateTime
+  status_adesao           StatusAdesao @default(ATIVA)
+  observacoes             String?   @db.Text
+  ativo                   Boolean   @default(true)
+
+  // Relacionamentos
+  processo                Processo      @relation(fields: [processoId], references: [id])
+  prefeitura              Prefeitura    @relation(fields: [prefeituraId], references: [id])
+
+  @@map("processo_prefeitura_consorcio")
+}
+
+model ProcessoPrefeituraCombustivelConsorcio {
+  id                          Int       @id @default(autoincrement())
+  processoId                  Int
+  prefeituraId                Int
+  combustivelId               Int
+  litros_alocados             Decimal   @default(0.00) @db.Decimal(10, 2)
+  percentual_combustivel      Decimal?  @db.Decimal(5, 2)
+  ativo                       Boolean   @default(true)
+  saldo_bloqueado_processo    Decimal?  @default(0.00) @db.Decimal(10, 2)
+  saldo_disponivel_processo   Decimal?  @default(0.00) @db.Decimal(10, 2)
+
+  // Relacionamentos
+  processo                    Processo      @relation(fields: [processoId], references: [id])
+  prefeitura                  Prefeitura    @relation(fields: [prefeituraId], references: [id])
+  combustivel                 Combustivel   @relation(fields: [combustivelId], references: [id])
+
+  @@unique([processoId, prefeituraId, combustivelId], name: "unique_processo_prefeitura_combustivel")
+  @@map("processo_prefeitura_combustivel_consorcio")
+}
+
+// ============================================
+// OUTRAS TABELAS
+// ============================================
+
+model EmpresaPrecoCombustivel {
+  id                Int       @id @default(autoincrement())
+  empresa_id        Int
+  combustivel_id    Int
+  preco_atual       Decimal   @db.Decimal(10, 2)
+  teto_vigente      Decimal   @db.Decimal(10, 2)
+  anp_base          AnpBase
+  anp_base_valor    Decimal   @db.Decimal(10, 2)
+  margem_app_pct    Decimal   @db.Decimal(5, 2)
+  uf_referencia     String    @db.Char(2)
+  status            StatusPreco @default(ACTIVE)
+  updated_at        DateTime
+  updated_by        String?
+
+  // Relacionamentos
+  empresa           Empresa       @relation(fields: [empresa_id], references: [id])
+  combustivel       Combustivel   @relation(fields: [combustivel_id], references: [id])
+
+  @@map("empresa_preco_combustivel")
+}
+
+model AditivoContrato {
+  id                  Int       @id @default(autoincrement())
+  contratoId          Int
+  tipo                TipoAditivo
+  valor               Decimal?  @db.Decimal(10, 2)
+  data_anterior       DateTime?
+  data_apos           DateTime?
+  motivo              String    @db.Text
+  arquivo_atestado    String?
+  data_registro       DateTime
+  nome_usuario        String?   @db.VarChar(100)
+  ativo               Boolean   @default(true)
+  createdAt           DateTime?
+  updatedAt           DateTime?
+
+  // Relacionamentos
+  contrato            Contrato  @relation(fields: [contratoId], references: [id])
+
+  @@map("aditivo_contrato")
+}
+
+model AditivoProcesso {
+  id                  Int       @id @default(autoincrement())
+  processoId          Int
+  tipo                TipoAditivoProcesso
+  operacao            OperacaoAditivo?
+  valor               Decimal?  @db.Decimal(10, 2)
+  data_anterior       DateTime?
+  data_apos           DateTime?
+  itemId              Int?
+  motivo              String    @db.Text
+  arquivo_atestado    String?
+  data_registro       DateTime
+  nome_usuario        String?   @db.VarChar(100)
+  ativo               Boolean   @default(true)
+  createdAt           DateTime?
+  updatedAt           DateTime?
+
+  // Relacionamentos
+  processo            Processo            @relation(fields: [processoId], references: [id])
+  item                ProcessoCombustivel? @relation(fields: [itemId], references: [id])
+
+  @@map("aditivo_processo")
+}
+
+model AnpSemana {
+  id              Int       @id @default(autoincrement())
+  semana_ref      DateTime  @db.Date
+  publicada_em    DateTime
+  ativo           Boolean   @default(false)
+  observacoes     String?   @db.Text
+  importado_em    DateTime?
+
+  // Relacionamentos
+  precos          AnpPrecosUf[]
+
+  @@map("anp_semana")
+}
+
+model AnpPrecosUf {
+  id                  Int       @id @default(autoincrement())
+  anp_semana_id       Int
+  uf                  UF
+  combustivel         TipoCombustivelAnp
+  preco_minimo        Decimal?  @db.Decimal(10, 2)
+  preco_medio         Decimal   @db.Decimal(10, 2)
+  preco_maximo        Decimal?  @db.Decimal(10, 2)
+  teto_calculado      Decimal?  @db.Decimal(10, 2)
+  base_utilizada      AnpBase?
+  margem_aplicada     Decimal?  @db.Decimal(5, 2)
+
+  // Relacionamentos
+  anpSemana           AnpSemana @relation(fields: [anp_semana_id], references: [id])
+
+  @@map("anp_precos_uf")
+}
+
+model LogsAlteracoes {
+  id                Int       @id @default(autoincrement())
+  tabela            String    @db.VarChar(100)
+  registro_id       Int
+  acao              AcaoLog
+  campo_alterado    String?   @db.VarChar(100)
+  valor_antes       String?   @db.Text
+  valor_depois      String?   @db.Text
+  executado_por     Int?
+  executado_em      DateTime
+  contexto          String?   @db.VarChar(100)
+  ip_address        String?   @db.VarChar(45)
+  user_agent        String?   @db.Text
+
+  // Relacionamentos
+  usuario           Usuario?  @relation(fields: [executado_por], references: [id])
+
+  @@map("logs_alteracoes")
+}
+
+model Notificacao {
+  id                  Int       @id @default(autoincrement())
+  empresa_id          Int
+  tipo                TipoNotificacao @default(OUTROS)
+  titulo              String
+  mensagem            String    @db.Text
+  lida                Boolean   @default(false)
+  data_notificacao    DateTime
+  data_leitura        DateTime?
+  notificado_por      String?
+  dados_extras        Json?
+  ativo               Boolean   @default(true)
+
+  @@map("notificacao")
+}
+
+model OnOff {
+  id                  Int       @id @default(autoincrement())
+  ligadodesligado     Boolean   @default(true)
+  status_system       StatusSystem?
+
+  @@map("onoff")
+}
+
+model OnOffApp {
+  id                  Int       @id @default(autoincrement())
+  ligadodesligado     Boolean   @default(false)
+  status_system       StatusSystem?
+
+  @@map("onoffapp")
+}
+
+model ParametrosTeto {
+  id                      Int       @id @default(autoincrement())
+  anp_base                AnpBase   @default(MEDIO)
+  margem_pct              Decimal?  @db.Decimal(5, 2)
+  excecoes_combustivel    String?   @db.Text
+  ativo                   Boolean   @default(true)
+  observacoes             String?   @db.Text
+
+  @@map("parametros_teto")
+}
+
+model RefreshToken {
+  id              Int       @id @default(autoincrement())
+  usuarioId       Int
+  token           String    @unique
+  expiracao       DateTime
+  criadoEm        DateTime
+  revogadoEm      DateTime?
+  ipCriacao       String?
+  ipRevogacao     String?
+  userAgent       String?
+
+  // Relacionamentos
+  usuario         Usuario   @relation(fields: [usuarioId], references: [id])
+
+  @@map("refresh_token")
+}
+
+model SolicitacaoAbastecimento {
+  id                          Int       @id @default(autoincrement())
+  prefeituraId                Int
+  veiculoId                   Int
+  motoristaId                 Int?
+  combustivelId               Int
+  empresaId                   Int
+  quantidade                  Decimal   @db.Decimal(10, 2)
+  data_solicitacao            DateTime
+  data_expiracao              DateTime
+  tipo_abastecimento          TipoAbastecimentoSolicitacao
+  status                      StatusSolicitacao @default(PENDENTE)
+  nfe_chave_acesso            String?
+  nfe_img_url                 String?
+  motivo_rejeicao             String?   @db.Text
+  aprovado_por                String?
+  aprovado_por_email          String?
+  aprovado_por_empresa        String?
+  data_aprovacao              DateTime?
+  rejeitado_por               String?
+  rejeitado_por_email         String?
+  rejeitado_por_empresa       String?
+  data_rejeicao               DateTime?
+  conta_faturamento_orgao_id  Int?
+  abastecido_por              String?   @default("Sistema")
+  valor_total                 Decimal?  @db.Decimal(10, 2)
+  preco_empresa               Decimal?  @db.Decimal(10, 2)
+  abastecimento_id            Int?      @unique
+  ativo                       Boolean   @default(true)
+  observacoes                 String?   @db.Text
+  created_at                  DateTime?
+  updated_at                  DateTime?
+
+  // Relacionamentos
+  prefeitura                  Prefeitura    @relation(fields: [prefeituraId], references: [id])
+  veiculo                     Veiculo       @relation(fields: [veiculoId], references: [id])
+  motorista                   Motorista?    @relation(fields: [motoristaId], references: [id])
+  combustivel                 Combustivel   @relation(fields: [combustivelId], references: [id])
+  empresa                     Empresa       @relation(fields: [empresaId], references: [id])
+  abastecimento               Abastecimento? @relation(fields: [abastecimento_id], references: [id])
+
+  @@map("solicitacoes_abastecimento")
+}
+
+model VeiculoCotaPeriodo {
+  id                      Int       @id @default(autoincrement())
+  veiculoId               Int
+  data_inicio_periodo     DateTime
+  data_fim_periodo        DateTime
+  quantidade_permitida    Decimal   @db.Decimal(10, 1)
+  quantidade_utilizada    Decimal   @default(0) @db.Decimal(10, 1)
+  quantidade_disponivel   Decimal   @db.Decimal(10, 1)
+  periodicidade           Periodicidade
+  ativo                   Boolean   @default(true)
+
+  // Relacionamentos
+  veiculo                 Veiculo   @relation(fields: [veiculoId], references: [id])
+
+  @@map("veiculo_cota_periodo")
+}
+
