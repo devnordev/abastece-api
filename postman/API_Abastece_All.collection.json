@@ -1,0 +1,228 @@
+{
+  "info": {
+    "name": "Abastece API - Completa",
+    "_postman_id": "e1b6b1b2-2c33-4c1f-91c4-collection-all",
+    "description": "Collection completa para testar a API Abastece (todas as rotas principais). Use a variável {{baseUrl}} e faça login para popular {{accessToken}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Autenticação e gerenciamento de tokens",
+      "item": [
+        {
+          "name": "Registrar usuário",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth","register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"senha\": \"123456\",\n  \"nome\": \"User Teste\",\n  \"tipo_usuario\": \"SUPER_ADMIN\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', json.access_token || json.accessToken || '');",
+                  "pm.collectionVariables.set('refreshToken', json.refresh_token || json.refreshToken || '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth","login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@nordev.com\",\n  \"senha\": \"123456\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', json.access_token || json.accessToken || '');",
+                  "pm.collectionVariables.set('refreshToken', json.refresh_token || json.refreshToken || pm.collectionVariables.get('refreshToken'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth","refresh"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth","logout"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Perfil",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/profile", "host": ["{{baseUrl}}"], "path": ["auth","profile"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Usuários",
+      "item": [
+        { "name": "Criar usuário", "request": { "method": "POST", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/usuarios", "host": ["{{baseUrl}}"], "path": ["usuarios"]}, "body": {"mode": "raw", "raw": "{\n  \"email\": \"user@exemplo.com\",\n  \"senha\": \"123456\",\n  \"nome\": \"Usuário\",\n  \"cpf\": \"11111111111\",\n  \"tipo_usuario\": \"ADMIN_PREFEITURA\",\n  \"ativo\": true\n}"} } },
+        { "name": "Listar usuários", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/usuarios?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["usuarios"], "query": [ {"key":"page","value":"1"}, {"key":"limit","value":"10"} ] } } },
+        { "name": "Buscar usuário por ID", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/usuarios/1", "host": ["{{baseUrl}}"], "path": ["usuarios","1"] } } },
+        { "name": "Atualizar usuário", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/usuarios/1", "host": ["{{baseUrl}}"], "path": ["usuarios","1"] }, "body": {"mode": "raw", "raw": "{\n  \"nome\": \"Usuário Atualizado\"\n}"} } },
+        { "name": "Excluir usuário", "request": { "method": "DELETE", "url": {"raw": "{{baseUrl}}/usuarios/1", "host": ["{{baseUrl}}"], "path": ["usuarios","1"] } } }
+      ]
+    },
+    {
+      "name": "Prefeituras",
+      "item": [
+        { "name": "Criar prefeitura", "request": { "method": "POST", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/prefeituras", "host": ["{{baseUrl}}"], "path": ["prefeituras"]}, "body": {"mode": "raw", "raw": "{\n  \"nome\": \"Prefeitura X\",\n  \"cnpj\": \"12345678000100\",\n  \"email_administrativo\": \"admin@prefx.gov\",\n  \"ativo\": true\n}"} } },
+        { "name": "Listar prefeituras", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/prefeituras?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["prefeituras"], "query": [ {"key":"page","value":"1"}, {"key":"limit","value":"10"} ] } } },
+        { "name": "Buscar prefeitura por ID", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/prefeituras/1", "host": ["{{baseUrl}}"], "path": ["prefeituras","1"] } } },
+        { "name": "Atualizar prefeitura", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/prefeituras/1", "host": ["{{baseUrl}}"], "path": ["prefeituras","1"] }, "body": {"mode": "raw", "raw": "{\n  \"nome\": \"Prefeitura X Atualizada\"\n}"} } },
+        { "name": "Excluir prefeitura", "request": { "method": "DELETE", "url": {"raw": "{{baseUrl}}/prefeituras/1", "host": ["{{baseUrl}}"], "path": ["prefeituras","1"] } } }
+      ]
+    },
+    {
+      "name": "Órgãos",
+      "item": [
+        { "name": "Criar órgão", "request": { "method": "POST", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/orgaos", "host": ["{{baseUrl}}"], "path": ["orgaos"]}, "body": {"mode": "raw", "raw": "{\n  \"prefeituraId\": 1,\n  \"nome\": \"Saúde\",\n  \"sigla\": \"SMS\",\n  \"ativo\": true\n}"} } },
+        { "name": "Listar órgãos", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/orgaos?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["orgaos"], "query": [ {"key":"page","value":"1"}, {"key":"limit","value":"10"} ] } } },
+        { "name": "Buscar órgão por ID", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/orgaos/1", "host": ["{{baseUrl}}"], "path": ["orgaos","1"] } } },
+        { "name": "Atualizar órgão", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/orgaos/1", "host": ["{{baseUrl}}"], "path": ["orgaos","1"] }, "body": {"mode": "raw", "raw": "{\n  \"nome\": \"Saúde Atualizada\"\n}"} } },
+        { "name": "Excluir órgão", "request": { "method": "DELETE", "url": {"raw": "{{baseUrl}}/orgaos/1", "host": ["{{baseUrl}}"], "path": ["orgaos","1"] } } }
+      ]
+    },
+    {
+      "name": "Empresas",
+      "item": [
+        { "name": "Criar empresa", "request": { "method": "POST", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/empresas", "host": ["{{baseUrl}}"], "path": ["empresas"]}, "body": {"mode": "raw", "raw": "{\n  \"nome\": \"Posto X\",\n  \"cnpj\": \"12345678000199\",\n  \"uf\": \"AL\",\n  \"ativo\": true,\n  \"isPublic\": false\n}"} } },
+        { "name": "Listar empresas", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/empresas?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["empresas"], "query": [ {"key":"page","value":"1"}, {"key":"limit","value":"10"} ] } } },
+        { "name": "Empresas próximas (nearby)", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/empresas/nearby?latitude=-9.405&longitude=-36.623&radius=10", "host": ["{{baseUrl}}"], "path": ["empresas","nearby"], "query": [ {"key":"latitude","value":"-9.405"}, {"key":"longitude","value":"-36.623"}, {"key":"radius","value":"10"} ] } } },
+        { "name": "Buscar empresa por ID", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/empresas/1", "host": ["{{baseUrl}}"], "path": ["empresas","1"] } } },
+        { "name": "Atualizar empresa", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/empresas/1", "host": ["{{baseUrl}}"], "path": ["empresas","1"] }, "body": {"mode": "raw", "raw": "{\n  \"nome\": \"Posto X Atualizado\"\n}"} } },
+        { "name": "Excluir empresa", "request": { "method": "DELETE", "url": {"raw": "{{baseUrl}}/empresas/1", "host": ["{{baseUrl}}"], "path": ["empresas","1"] } } }
+      ]
+    },
+    {
+      "name": "Veículos",
+      "item": [
+        { "name": "Criar veículo", "request": { "method": "POST", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/veiculos", "host": ["{{baseUrl}}"], "path": ["veiculos"]}, "body": {"mode": "raw", "raw": "{\n  \"prefeituraId\": 1,\n  \"nome\": \"Ambulância UTI 01\",\n  \"placa\": \"AL-1234\",\n  \"ano\": 2020,\n  \"capacidade_tanque\": 80,\n  \"ativo\": true\n}"} } },
+        { "name": "Listar veículos", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/veiculos?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["veiculos"], "query": [ {"key":"page","value":"1"}, {"key":"limit","value":"10"} ] } } },
+        { "name": "Buscar veículo por ID", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/veiculos/1", "host": ["{{baseUrl}}"], "path": ["veiculos","1"] } } },
+        { "name": "Atualizar veículo", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/veiculos/1", "host": ["{{baseUrl}}"], "path": ["veiculos","1"] }, "body": {"mode": "raw", "raw": "{\n  \"apelido\": \"AMB UTI 01\"\n}"} } },
+        { "name": "Excluir veículo", "request": { "method": "DELETE", "url": {"raw": "{{baseUrl}}/veiculos/1", "host": ["{{baseUrl}}"], "path": ["veiculos","1"] } } }
+      ]
+    },
+    {
+      "name": "Motoristas",
+      "item": [
+        { "name": "Criar motorista", "request": { "method": "POST", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/motoristas", "host": ["{{baseUrl}}"], "path": ["motoristas"]}, "body": {"mode": "raw", "raw": "{\n  \"prefeituraId\": 1,\n  \"nome\": \"José da Silva\",\n  \"cpf\": \"44444444444\",\n  \"cnh\": \"12345678901\",\n  \"ativo\": true\n}"} } },
+        { "name": "Listar motoristas", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/motoristas?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["motoristas"], "query": [ {"key":"page","value":"1"}, {"key":"limit","value":"10"} ] } } },
+        { "name": "Buscar motorista por ID", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/motoristas/1", "host": ["{{baseUrl}}"], "path": ["motoristas","1"] } } },
+        { "name": "Atualizar motorista", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/motoristas/1", "host": ["{{baseUrl}}"], "path": ["motoristas","1"] }, "body": {"mode": "raw", "raw": "{\n  \"telefone\": \"82999990000\"\n}"} } },
+        { "name": "Excluir motorista", "request": { "method": "DELETE", "url": {"raw": "{{baseUrl}}/motoristas/1", "host": ["{{baseUrl}}"], "path": ["motoristas","1"] } } }
+      ]
+    },
+    {
+      "name": "Combustíveis",
+      "item": [
+        { "name": "Criar combustível", "request": { "method": "POST", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/combustiveis", "host": ["{{baseUrl}}"], "path": ["combustiveis"]}, "body": {"mode": "raw", "raw": "{\n  \"nome\": \"Gasolina Comum\",\n  \"sigla\": \"GAS_COMUM\",\n  \"descricao\": \"Gasolina comum\"\n}"} } },
+        { "name": "Listar combustíveis", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/combustiveis?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["combustiveis"], "query": [ {"key":"page","value":"1"}, {"key":"limit","value":"10"} ] } } },
+        { "name": "Buscar combustível por ID", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/combustiveis/1", "host": ["{{baseUrl}}"], "path": ["combustiveis","1"] } } },
+        { "name": "Atualizar combustível", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/combustiveis/1", "host": ["{{baseUrl}}"], "path": ["combustiveis","1"] }, "body": {"mode": "raw", "raw": "{\n  \"descricao\": \"Atualizada\"\n}"} } },
+        { "name": "Excluir combustível", "request": { "method": "DELETE", "url": {"raw": "{{baseUrl}}/combustiveis/1", "host": ["{{baseUrl}}"], "path": ["combustiveis","1"] } } }
+      ]
+    },
+    {
+      "name": "Categorias",
+      "item": [
+        { "name": "Criar categoria", "request": { "method": "POST", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/categorias", "host": ["{{baseUrl}}"], "path": ["categorias"]}, "body": {"mode": "raw", "raw": "{\n  \"prefeituraId\": 1,\n  \"tipo_categoria\": \"VEICULO\",\n  \"nome\": \"Ambulâncias\",\n  \"ativo\": true\n}"} } },
+        { "name": "Listar categorias", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/categorias?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["categorias"], "query": [ {"key":"page","value":"1"}, {"key":"limit","value":"10"} ] } } },
+        { "name": "Buscar categoria por ID", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/categorias/1", "host": ["{{baseUrl}}"], "path": ["categorias","1"] } } },
+        { "name": "Atualizar categoria", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/categorias/1", "host": ["{{baseUrl}}"], "path": ["categorias","1"] }, "body": {"mode": "raw", "raw": "{\n  \"nome\": \"Ambulâncias e Vans\"\n}"} } },
+        { "name": "Excluir categoria", "request": { "method": "DELETE", "url": {"raw": "{{baseUrl}}/categorias/1", "host": ["{{baseUrl}}"], "path": ["categorias","1"] } } }
+      ]
+    },
+    {
+      "name": "Contratos",
+      "item": [
+        { "name": "Criar contrato", "request": { "method": "POST", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/contratos", "host": ["{{baseUrl}}"], "path": ["contratos"]}, "body": {"mode": "raw", "raw": "{\n  \"empresaId\": 1,\n  \"empresa_contratada\": \"Posto X\",\n  \"title\": \"Contrato 2024\",\n  \"cnpj_empresa\": \"12345678000199\",\n  \"ativo\": true\n}"} } },
+        { "name": "Listar contratos", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/contratos?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["contratos"], "query": [ {"key":"page","value":"1"}, {"key":"limit","value":"10"} ] } } },
+        { "name": "Buscar contrato por ID", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/contratos/1", "host": ["{{baseUrl}}"], "path": ["contratos","1"] } } },
+        { "name": "Atualizar contrato", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/contratos/1", "host": ["{{baseUrl}}"], "path": ["contratos","1"] }, "body": {"mode": "raw", "raw": "{\n  \"title\": \"Contrato 2024 Atualizado\"\n}"} } },
+        { "name": "Excluir contrato", "request": { "method": "DELETE", "url": {"raw": "{{baseUrl}}/contratos/1", "host": ["{{baseUrl}}"], "path": ["contratos","1"] } } }
+      ]
+    },
+    {
+      "name": "Abastecimentos",
+      "item": [
+        { "name": "Criar abastecimento", "request": { "method": "POST", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/abastecimentos", "host": ["{{baseUrl}}"], "path": ["abastecimentos"]}, "body": {"mode": "raw", "raw": "{\n  \"veiculoId\": 1,\n  \"combustivelId\": 1,\n  \"empresaId\": 1,\n  \"tipo_abastecimento\": \"LIVRE\",\n  \"quantidade\": 40,\n  \"valor_total\": 200\n}"} } },
+        { "name": "Listar abastecimentos", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/abastecimentos?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["abastecimentos"], "query": [ {"key":"page","value":"1"}, {"key":"limit","value":"10"} ] } } },
+        { "name": "Buscar abastecimento por ID", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/abastecimentos/1", "host": ["{{baseUrl}}"], "path": ["abastecimentos","1"] } } },
+        { "name": "Atualizar abastecimento", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/abastecimentos/1", "host": ["{{baseUrl}}"], "path": ["abastecimentos","1"] }, "body": {"mode": "raw", "raw": "{\n  \"odometro\": 12345\n}"} } },
+        { "name": "Aprovar abastecimento", "request": { "method": "PATCH", "url": {"raw": "{{baseUrl}}/abastecimentos/1/approve", "host": ["{{baseUrl}}"], "path": ["abastecimentos","1","approve"] } } },
+        { "name": "Rejeitar abastecimento", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/abastecimentos/1/reject", "host": ["{{baseUrl}}"], "path": ["abastecimentos","1","reject"] }, "body": {"mode": "raw", "raw": "{\n  \"motivo\": \"Dados inconsistentes\"\n}"} } },
+        { "name": "Excluir abastecimento", "request": { "method": "DELETE", "url": {"raw": "{{baseUrl}}/abastecimentos/1", "host": ["{{baseUrl}}"], "path": ["abastecimentos","1"] } } }
+      ]
+    },
+    {
+      "name": "Processos",
+      "item": [
+        { "name": "Criar processo", "request": { "method": "POST", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/processos", "host": ["{{baseUrl}}"], "path": ["processos"]}, "body": {"mode": "raw", "raw": "{\n  \"prefeituraId\": 1,\n  \"numero_processo\": \"2024.001\",\n  \"numero_documento\": \"123/2024\",\n  \"tipo_documento\": \"CONTRATO\",\n  \"objeto\": \"Fornecimento de combustível\",\n  \"data_abertura\": \"2024-01-01T00:00:00.000Z\",\n  \"data_encerramento\": \"2024-12-31T00:00:00.000Z\"\n}"} } },
+        { "name": "Listar processos", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/processos?page=1&limit=10", "host": ["{{baseUrl}}"], "path": ["processos"], "query": [ {"key":"page","value":"1"}, {"key":"limit","value":"10"} ] } } },
+        { "name": "Buscar processo por ID", "request": { "method": "GET", "url": {"raw": "{{baseUrl}}/processos/1", "host": ["{{baseUrl}}"], "path": ["processos","1"] } } },
+        { "name": "Atualizar processo", "request": { "method": "PATCH", "header": [ {"key": "Content-Type", "value": "application/json"} ], "url": {"raw": "{{baseUrl}}/processos/1", "host": ["{{baseUrl}}"], "path": ["processos","1"] }, "body": {"mode": "raw", "raw": "{\n  \"status\": \"ATIVO\"\n}"} } },
+        { "name": "Excluir processo", "request": { "method": "DELETE", "url": {"raw": "{{baseUrl}}/processos/1", "host": ["{{baseUrl}}"], "path": ["processos","1"] } } }
+      ]
+    }
+  ]
+}
+
+

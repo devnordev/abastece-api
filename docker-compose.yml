@@ -1,4 +1,27 @@
 services:
+  api:
+    build: .
+    container_name: abastece-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/abastece?schema=public
+      JWT_SECRET: your-super-secret-jwt-key-here
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: your-super-secret-refresh-key-here
+      JWT_REFRESH_EXPIRES_IN: 7d
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -lc "node -v && ls -la /app && ls -la /app/dist && node dist/src/main.js"
+    # Se já tiver migrações aplicadas, mantenha apenas o CMD padrão da imagem
+    # Caso precise aplicar migrações automaticamente (e tenha o prisma CLI na imagem), use:
+    # command: sh -c "npx prisma migrate deploy && node dist/main.js"
+    networks:
+      - appnet
   db:
     image: postgres:16-alpine
     container_name: pg-dev
@@ -17,6 +40,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - appnet
 
   pgadmin:
     image: dpage/pgadmin4:9.8
@@ -30,6 +55,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - appnet
 
 volumes:
   pgdata:
+
+networks:
+  appnet:
