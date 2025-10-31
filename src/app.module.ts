@@ -14,6 +14,7 @@ import { OrgaoModule } from './modules/orgao/orgao.module';
 import { CategoriaModule } from './modules/categoria/categoria.module';
 import { ProcessoModule } from './modules/processo/processo.module';
 import { ContratoModule } from './modules/contrato/contrato.module';
+import { LogModule } from './modules/log/log.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ContratoModule } from './modules/contrato/contrato.module';
     CategoriaModule,
     ProcessoModule,
     ContratoModule,
+    LogModule,
   ],
 })
 export class AppModule {}
