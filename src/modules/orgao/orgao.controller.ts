@@ -39,6 +39,25 @@ export class OrgaoController {
     );
   }
 
+  @Get(':id/veiculos')
+  @ApiOperation({ summary: 'Listar veículos de um órgão' })
+  @ApiResponse({ status: 200, description: 'Lista de veículos do órgão retornada com sucesso' })
+  @ApiResponse({ status: 404, description: 'Órgão não encontrado' })
+  @ApiResponse({ status: 403, description: 'Sem permissão para acessar este órgão' })
+  async findVeiculosByOrgao(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Request() req,
+  ) {
+    return this.orgaoService.findVeiculosByOrgao(
+      id,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 10,
+      req.user?.id,
+    );
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar órgão por ID' })
   @ApiResponse({ status: 200, description: 'Órgão encontrado com sucesso' })

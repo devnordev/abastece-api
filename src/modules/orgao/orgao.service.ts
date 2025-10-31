@@ -169,6 +169,92 @@ export class OrgaoService {
     };
   }
 
+  async findVeiculosByOrgao(orgaoId: number, page = 1, limit = 10, currentUserId?: number) {
+    const skip = (page - 1) * limit;
+
+    // Verificar se o órgão existe
+    const orgao = await this.prisma.orgao.findUnique({
+      where: { id: orgaoId },
+    });
+
+    if (!orgao) {
+      throw new NotFoundException('Órgão não encontrado');
+    }
+
+    // Aplicar filtros de autorização se houver usuário logado
+    if (currentUserId) {
+      const currentUser = await this.prisma.usuario.findUnique({
+        where: { id: currentUserId },
+      });
+
+      if (currentUser) {
+        // ADMIN_PREFEITURA só pode ver veículos dos órgãos da sua prefeitura
+        if (currentUser.tipo_usuario === 'ADMIN_PREFEITURA') {
+          if (!currentUser.prefeituraId) {
+            throw new ForbiddenException('Administrador sem prefeitura vinculada');
+          }
+          
+          // Verificar se o órgão pertence à prefeitura do admin
+          if (orgao.prefeituraId !== currentUser.prefeituraId) {
+            throw new ForbiddenException('Você não tem permissão para acessar este órgão');
+          }
+        }
+      }
+    }
+
+    // Buscar veículos do órgão
+    const [veiculos, total] = await Promise.all([
+      this.prisma.veiculo.findMany({
+        where: { orgaoId },
+        skip,
+        take: limit,
+        include: {
+          prefeitura: {
+            select: {
+              id: true,
+              nome: true,
+              cnpj: true,
+            },
+          },
+          orgao: {
+            select: {
+              id: true,
+              nome: true,
+              sigla: true,
+            },
+          },
+          contaFaturamento: {
+            select: {
+              id: true,
+              nome: true,
+              descricao: true,
+            },
+          },
+        },
+        orderBy: {
+          nome: 'asc',
+        },
+      }),
+      this.prisma.veiculo.count({ where: { orgaoId } }),
+    ]);
+
+    return {
+      message: 'Veículos encontrados com sucesso',
+      orgao: {
+        id: orgao.id,
+        nome: orgao.nome,
+        sigla: orgao.sigla,
+      },
+      veiculos,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   private async validateCreateOrgaoPermission(currentUserId: number, prefeituraId: number) {
     const currentUser = await this.prisma.usuario.findUnique({
       where: { id: currentUserId },
