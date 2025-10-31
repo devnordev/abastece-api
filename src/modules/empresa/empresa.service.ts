@@ -3,13 +3,17 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { UpdateEmpresaDto } from './dto/update-empresa.dto';
 import { FindEmpresaDto } from './dto/find-empresa.dto';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class EmpresaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private uploadService: UploadService,
+  ) {}
 
-  async create(createEmpresaDto: CreateEmpresaDto) {
-    const { cnpj } = createEmpresaDto;
+  async create(createEmpresaDto: CreateEmpresaDto, file?: Express.Multer.File) {
+    const { cnpj, imagem_perfil, ...restDto } = createEmpresaDto;
 
     // Verificar se empresa já existe
     const existingEmpresa = await this.prisma.empresa.findFirst({
@@ -20,13 +24,38 @@ export class EmpresaService {
       throw new ConflictException('Empresa já existe com este CNPJ');
     }
 
+    // Fazer upload da imagem se arquivo foi enviado
+    let imagemUrl = imagem_perfil;
+    if (file) {
+      try {
+        const empresaIdTmp = Date.now(); // ID temporário para nome do arquivo
+        imagemUrl = await this.uploadService.uploadImage(file, 'empresas', `empresa-${empresaIdTmp}`);
+      } catch (error) {
+        // Se falhar o upload, continua sem imagem (ou lança erro se preferir)
+        console.warn('Erro ao fazer upload da imagem:', error.message);
+        // throw new BadRequestException(`Erro ao fazer upload da imagem: ${error.message}`);
+      }
+    }
+
     // Criar empresa
     const empresa = await this.prisma.empresa.create({
       data: {
-        ...createEmpresaDto,
+        ...restDto,
+        cnpj,
+        imagem_perfil: imagemUrl,
         ativo: createEmpresaDto.ativo ?? true,
       } as any,
     });
+
+    // Se criou com sucesso e tinha arquivo, renomear arquivo com ID real
+    if (file && imagemUrl && empresa.id) {
+      try {
+        // Não precisamos renomear, mas podemos fazer upload novamente com ID correto se necessário
+        // Por enquanto, deixamos como está pois já temos a URL
+      } catch (error) {
+        console.warn('Erro ao atualizar nome do arquivo:', error.message);
+      }
+    }
 
     return {
       message: 'Empresa criada com sucesso',
@@ -170,7 +199,7 @@ export class EmpresaService {
     };
   }
 
-  async update(id: number, updateEmpresaDto: UpdateEmpresaDto) {
+  async update(id: number, updateEmpresaDto: UpdateEmpresaDto, file?: Express.Multer.File) {
     // Verificar se empresa existe
     const existingEmpresa = await this.prisma.empresa.findUnique({
       where: { id },
@@ -194,10 +223,48 @@ export class EmpresaService {
       }
     }
 
+    // Se arquivo foi enviado, fazer upload
+    let imagemUrl = updateEmpresaDto.imagem_perfil;
+    if (file) {
+      try {
+        // Remover imagem antiga se existir
+        if (existingEmpresa.imagem_perfil) {
+          try {
+            const oldFilePath = this.uploadService.extractFilePathFromUrl(existingEmpresa.imagem_perfil);
+            if (oldFilePath) {
+              await this.uploadService.deleteImage(oldFilePath);
+            }
+          } catch (error) {
+            console.warn('Erro ao remover imagem antiga:', error.message);
+          }
+        }
+
+        // Fazer upload da nova imagem
+        imagemUrl = await this.uploadService.uploadImage(file, 'empresas', `empresa-${id}`);
+      } catch (error) {
+        console.warn('Erro ao fazer upload da imagem:', error.message);
+        // Se falhar, mantém a URL anterior ou lança erro
+        if (!existingEmpresa.imagem_perfil) {
+          throw new BadRequestException(`Erro ao fazer upload da imagem: ${error.message}`);
+        }
+      }
+    }
+
+    // Preparar dados para atualização
+    const { imagem_perfil, ...restDto } = updateEmpresaDto;
+    const updateData: any = {
+      ...restDto,
+    };
+
+    // Só atualiza imagem_perfil se tiver nova URL ou se foi explicitamente enviado como null
+    if (imagemUrl !== undefined) {
+      updateData.imagem_perfil = imagemUrl;
+    }
+
     // Atualizar empresa
     const empresa = await this.prisma.empresa.update({
       where: { id },
-      data: updateEmpresaDto as any,
+      data: updateData,
     });
 
     return {
