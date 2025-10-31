@@ -1,5 +1,6 @@
 import { IsOptional, IsString, IsBoolean, IsInt } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class FindMotoristaDto {
   @ApiProperty({
@@ -44,6 +45,7 @@ export class FindMotoristaDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'ID da prefeitura deve ser um número inteiro' })
   prefeituraId?: number;
 
@@ -53,6 +55,7 @@ export class FindMotoristaDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'Página deve ser um número inteiro' })
   page?: number = 1;
 
@@ -62,6 +65,7 @@ export class FindMotoristaDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'Limite deve ser um número inteiro' })
   limit?: number = 10;
 }

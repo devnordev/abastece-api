@@ -1,6 +1,7 @@
 import { IsOptional, IsString, IsBoolean, IsEnum, IsInt, IsDateString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { TipoAbastecimento, StatusAbastecimento } from '@prisma/client';
+import { Type } from 'class-transformer';
 
 export class FindAbastecimentoDto {
   @ApiProperty({
@@ -9,6 +10,7 @@ export class FindAbastecimentoDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'ID do veículo deve ser um número inteiro' })
   veiculoId?: number;
 
@@ -18,6 +20,7 @@ export class FindAbastecimentoDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'ID do motorista deve ser um número inteiro' })
   motoristaId?: number;
 
@@ -27,6 +30,7 @@ export class FindAbastecimentoDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'ID do combustível deve ser um número inteiro' })
   combustivelId?: number;
 
@@ -36,6 +40,7 @@ export class FindAbastecimentoDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'ID da empresa deve ser um número inteiro' })
   empresaId?: number;
 
@@ -90,6 +95,7 @@ export class FindAbastecimentoDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'Página deve ser um número inteiro' })
   page?: number = 1;
 
@@ -99,6 +105,7 @@ export class FindAbastecimentoDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'Limite deve ser um número inteiro' })
   limit?: number = 10;
 }

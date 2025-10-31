@@ -1,6 +1,7 @@
 import { IsOptional, IsString, IsBoolean, IsEnum, IsInt } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UF, TipoEmpresa } from '@prisma/client';
+import { Type } from 'class-transformer';
 
 export class FindEmpresaDto {
   @ApiProperty({
@@ -72,6 +73,7 @@ export class FindEmpresaDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'Página deve ser um número inteiro' })
   page?: number = 1;
 
@@ -81,6 +83,7 @@ export class FindEmpresaDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'Limite deve ser um número inteiro' })
   limit?: number = 10;
 }
