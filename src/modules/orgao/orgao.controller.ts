@@ -45,10 +45,10 @@ export class OrgaoController {
   @ApiResponse({ status: 404, description: 'Órgão não encontrado' })
   @ApiResponse({ status: 403, description: 'Sem permissão para acessar este órgão' })
   async findVeiculosByOrgao(
+    @Request() req,
     @Param('id', ParseIntPipe) id: number,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-    @Request() req,
   ) {
     return this.orgaoService.findVeiculosByOrgao(
       id,
