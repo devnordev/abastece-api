@@ -92,4 +92,13 @@ export class CreateMotoristaDto {
   @IsOptional()
   @IsString({ message: 'Observações deve ser uma string' })
   observacoes?: string;
+
+  @ApiProperty({
+    description: 'URL da imagem de perfil (opcional)',
+    example: 'https://exemplo.com/imagem.jpg',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'Imagem de perfil deve ser uma string' })
+  imagem_perfil?: string;
 }

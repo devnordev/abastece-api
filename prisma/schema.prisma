@@ -391,6 +391,7 @@ model Motorista {
   telefone              String?
   email                 String?
   endereco              String?
+  imagem_perfil         String?
   ativo                 Boolean   @default(true)
   observacoes           String?   @db.Text
 

@@ -3,17 +3,21 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateMotoristaDto } from './dto/create-motorista.dto';
 import { UpdateMotoristaDto } from './dto/update-motorista.dto';
 import { FindMotoristaDto } from './dto/find-motorista.dto';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class MotoristaService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private uploadService: UploadService,
+  ) {}
 
-  async create(createMotoristaDto: CreateMotoristaDto, currentUserId?: number) {
+  async create(createMotoristaDto: CreateMotoristaDto, currentUserId?: number, file?: Express.Multer.File) {
     // Validação de autorização
     if (currentUserId) {
       await this.validateCreateMotoristaPermission(currentUserId, createMotoristaDto.prefeituraId);
     }
-    const { cpf, email, prefeituraId } = createMotoristaDto;
+    const { cpf, email, prefeituraId, imagem_perfil, ...restDto } = createMotoristaDto;
 
     // Validar campos obrigatórios
     if (!cpf) {
@@ -50,10 +54,27 @@ export class MotoristaService {
       throw new NotFoundException('Prefeitura não encontrada');
     }
 
+    // Fazer upload da imagem se arquivo foi enviado
+    let imagemUrl = imagem_perfil;
+    if (file) {
+      try {
+        const motoristaIdTmp = Date.now(); // ID temporário para nome do arquivo
+        imagemUrl = await this.uploadService.uploadImage(file, 'motoristas', `motorista-${motoristaIdTmp}`);
+      } catch (error) {
+        // Se falhar o upload, continua sem imagem (ou lança erro se preferir)
+        console.warn('Erro ao fazer upload da imagem:', error.message);
+        // throw new BadRequestException(`Erro ao fazer upload da imagem: ${error.message}`);
+      }
+    }
+
     // Criar motorista com status ativo por padrão quando não especificado
     const motorista = await this.prisma.motorista.create({
       data: {
-        ...createMotoristaDto,
+        ...restDto,
+        prefeituraId,
+        cpf,
+        email,
+        imagem_perfil: imagemUrl,
         ativo: createMotoristaDto.ativo !== undefined ? createMotoristaDto.ativo : true,
       },
       include: {
@@ -210,7 +231,7 @@ export class MotoristaService {
     };
   }
 
-  async update(id: number, updateMotoristaDto: UpdateMotoristaDto) {
+  async update(id: number, updateMotoristaDto: UpdateMotoristaDto, file?: Express.Multer.File) {
     // Verificar se motorista existe
     const existingMotorista = await this.prisma.motorista.findUnique({
       where: { id },
@@ -234,10 +255,48 @@ export class MotoristaService {
       }
     }
 
+    // Se arquivo foi enviado, fazer upload
+    let imagemUrl = updateMotoristaDto.imagem_perfil;
+    if (file) {
+      try {
+        // Remover imagem antiga se existir
+        if (existingMotorista.imagem_perfil) {
+          try {
+            const oldFilePath = this.uploadService.extractFilePathFromUrl(existingMotorista.imagem_perfil);
+            if (oldFilePath) {
+              await this.uploadService.deleteImage(oldFilePath);
+            }
+          } catch (error) {
+            console.warn('Erro ao remover imagem antiga:', error.message);
+          }
+        }
+
+        // Fazer upload da nova imagem
+        imagemUrl = await this.uploadService.uploadImage(file, 'motoristas', `motorista-${id}`);
+      } catch (error) {
+        console.warn('Erro ao fazer upload da imagem:', error.message);
+        // Se falhar, mantém a URL anterior ou lança erro
+        if (!existingMotorista.imagem_perfil) {
+          throw new BadRequestException(`Erro ao fazer upload da imagem: ${error.message}`);
+        }
+      }
+    }
+
+    // Preparar dados para atualização
+    const { imagem_perfil, ...restDto } = updateMotoristaDto;
+    const updateData: any = {
+      ...restDto,
+    };
+
+    // Só atualiza imagem_perfil se tiver nova URL ou se foi explicitamente enviado como null
+    if (imagemUrl !== undefined) {
+      updateData.imagem_perfil = imagemUrl;
+    }
+
     // Atualizar motorista
     const motorista = await this.prisma.motorista.update({
       where: { id },
-      data: updateMotoristaDto,
+      data: updateData,
       include: {
         prefeitura: {
           select: {
