@@ -3,13 +3,17 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreatePrefeituraDto } from './dto/create-prefeitura.dto';
 import { UpdatePrefeituraDto } from './dto/update-prefeitura.dto';
 import { FindPrefeituraDto } from './dto/find-prefeitura.dto';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class PrefeituraService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private uploadService: UploadService,
+  ) {}
 
-  async create(createPrefeituraDto: CreatePrefeituraDto) {
-    const { cnpj, email_administrativo } = createPrefeituraDto;
+  async create(createPrefeituraDto: CreatePrefeituraDto, file?: Express.Multer.File) {
+    const { cnpj, email_administrativo, imagem_perfil, ...restDto } = createPrefeituraDto;
 
     // Verificar se prefeitura já existe
     const existingPrefeitura = await this.prisma.prefeitura.findFirst({
@@ -25,10 +29,26 @@ export class PrefeituraService {
       throw new ConflictException('Prefeitura já existe com este CNPJ ou email');
     }
 
+    // Fazer upload da imagem se arquivo foi enviado
+    let imagemUrl = imagem_perfil;
+    if (file) {
+      try {
+        const prefeituraIdTmp = Date.now(); // ID temporário para nome do arquivo
+        imagemUrl = await this.uploadService.uploadImage(file, 'prefeituras', `prefeitura-${prefeituraIdTmp}`);
+      } catch (error) {
+        // Se falhar o upload, continua sem imagem (ou lança erro se preferir)
+        console.warn('Erro ao fazer upload da imagem:', error.message);
+        // throw new BadRequestException(`Erro ao fazer upload da imagem: ${error.message}`);
+      }
+    }
+
     // Criar prefeitura
     const prefeitura = await this.prisma.prefeitura.create({
       data: {
-        ...createPrefeituraDto,
+        ...restDto,
+        cnpj,
+        email_administrativo,
+        imagem_perfil: imagemUrl,
         data_cadastro: new Date(),
       },
     });
@@ -145,7 +165,7 @@ export class PrefeituraService {
     };
   }
 
-  async update(id: number, updatePrefeituraDto: UpdatePrefeituraDto) {
+  async update(id: number, updatePrefeituraDto: UpdatePrefeituraDto, file?: Express.Multer.File) {
     // Verificar se prefeitura existe
     const existingPrefeitura = await this.prisma.prefeitura.findUnique({
       where: { id },
@@ -180,10 +200,48 @@ export class PrefeituraService {
       }
     }
 
+    // Se arquivo foi enviado, fazer upload
+    let imagemUrl = updatePrefeituraDto.imagem_perfil;
+    if (file) {
+      try {
+        // Remover imagem antiga se existir
+        if (existingPrefeitura.imagem_perfil) {
+          try {
+            const oldFilePath = this.uploadService.extractFilePathFromUrl(existingPrefeitura.imagem_perfil);
+            if (oldFilePath) {
+              await this.uploadService.deleteImage(oldFilePath);
+            }
+          } catch (error) {
+            console.warn('Erro ao remover imagem antiga:', error.message);
+          }
+        }
+
+        // Fazer upload da nova imagem
+        imagemUrl = await this.uploadService.uploadImage(file, 'prefeituras', `prefeitura-${id}`);
+      } catch (error) {
+        console.warn('Erro ao fazer upload da imagem:', error.message);
+        // Se falhar, mantém a URL anterior ou lança erro
+        if (!existingPrefeitura.imagem_perfil) {
+          throw new BadRequestException(`Erro ao fazer upload da imagem: ${error.message}`);
+        }
+      }
+    }
+
+    // Preparar dados para atualização
+    const { imagem_perfil, ...restDto } = updatePrefeituraDto;
+    const updateData: any = {
+      ...restDto,
+    };
+
+    // Só atualiza imagem_perfil se tiver nova URL ou se foi explicitamente enviado como null
+    if (imagemUrl !== undefined) {
+      updateData.imagem_perfil = imagemUrl;
+    }
+
     // Atualizar prefeitura
     const prefeitura = await this.prisma.prefeitura.update({
       where: { id },
-      data: updatePrefeituraDto,
+      data: updateData,
     });
 
     return {
