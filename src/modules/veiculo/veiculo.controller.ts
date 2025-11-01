@@ -10,8 +10,12 @@ import {
   UseGuards,
   ParseIntPipe,
   Request,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { VeiculoService } from './veiculo.service';
 import { CreateVeiculoDto } from './dto/create-veiculo.dto';
 import { UpdateVeiculoDto } from './dto/update-veiculo.dto';
@@ -33,8 +37,99 @@ export class VeiculoController {
   @ApiResponse({ status: 400, description: 'Dados inválidos' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 403, description: 'Sem permissão para cadastrar veículo' })
-  async create(@Body() createVeiculoDto: CreateVeiculoDto, @Request() req) {
-    return this.veiculoService.create(createVeiculoDto, req.user?.id);
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        prefeituraId: { type: 'number' },
+        orgaoId: { type: 'number' },
+        contaFaturamentoOrgaoId: { type: 'number' },
+        nome: { type: 'string' },
+        placa: { type: 'string' },
+        modelo: { type: 'string' },
+        ano: { type: 'number' },
+        tipo_abastecimento: { type: 'string', enum: ['COTA', 'LIVRE', 'COM_AUTORIZACAO'] },
+        ativo: { type: 'boolean' },
+        capacidade_tanque: { type: 'number' },
+        tipo_veiculo: { type: 'string' },
+        situacao_veiculo: { type: 'string' },
+        observacoes: { type: 'string' },
+        periodicidade: { type: 'string' },
+        quantidade: { type: 'number' },
+        apelido: { type: 'string' },
+        ano_fabricacao: { type: 'number' },
+        chassi: { type: 'string' },
+        renavam: { type: 'string' },
+        crlv: { type: 'string' },
+        crlv_vencimento: { type: 'string', format: 'date-time' },
+        tacografo: { type: 'string' },
+        cor: { type: 'string' },
+        capacidade_passageiros: { type: 'number' },
+        categoriaIds: { type: 'string', description: 'Array de IDs separados por vírgula' },
+        combustivelIds: { type: 'string', description: 'Array de IDs separados por vírgula' },
+        motoristaIds: { type: 'string', description: 'Array de IDs separados por vírgula' },
+        foto_veiculo: {
+          type: 'string',
+          format: 'binary',
+          description: 'Arquivo de imagem do veículo (JPEG, PNG, WEBP)',
+        },
+        foto_crlv: {
+          type: 'string',
+          format: 'binary',
+          description: 'Arquivo de imagem do CRLV (JPEG, PNG, WEBP)',
+        },
+      },
+      required: ['prefeituraId', 'orgaoId', 'nome', 'placa', 'ano', 'tipo_abastecimento', 'capacidade_tanque', 'combustivelIds'],
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('foto_veiculo', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    }),
+  )
+  async create(
+    @Body() createVeiculoDto: any,
+    @Request() req,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    // Converter strings para tipos corretos quando vêm de multipart/form-data
+    const processedDto: CreateVeiculoDto = {
+      ...createVeiculoDto,
+      prefeituraId: createVeiculoDto.prefeituraId ? parseInt(createVeiculoDto.prefeituraId) : undefined,
+      orgaoId: createVeiculoDto.orgaoId ? parseInt(createVeiculoDto.orgaoId) : undefined,
+      contaFaturamentoOrgaoId: createVeiculoDto.contaFaturamentoOrgaoId
+        ? parseInt(createVeiculoDto.contaFaturamentoOrgaoId)
+        : undefined,
+      ano: createVeiculoDto.ano ? parseInt(createVeiculoDto.ano) : undefined,
+      ano_fabricacao: createVeiculoDto.ano_fabricacao ? parseInt(createVeiculoDto.ano_fabricacao) : undefined,
+      capacidade_passageiros: createVeiculoDto.capacidade_passageiros
+        ? parseInt(createVeiculoDto.capacidade_passageiros)
+        : undefined,
+      capacidade_tanque: createVeiculoDto.capacidade_tanque
+        ? parseFloat(createVeiculoDto.capacidade_tanque)
+        : undefined,
+      quantidade: createVeiculoDto.quantidade ? parseFloat(createVeiculoDto.quantidade) : undefined,
+      ativo:
+        createVeiculoDto.ativo === 'true' || createVeiculoDto.ativo === true || createVeiculoDto.ativo === undefined
+          ? true
+          : false,
+      crlv_vencimento: createVeiculoDto.crlv_vencimento ? new Date(createVeiculoDto.crlv_vencimento) : undefined,
+      categoriaIds: createVeiculoDto.categoriaIds
+        ? createVeiculoDto.categoriaIds.split(',').map((id: string) => parseInt(id.trim()))
+        : undefined,
+      combustivelIds: createVeiculoDto.combustivelIds
+        ? createVeiculoDto.combustivelIds.split(',').map((id: string) => parseInt(id.trim()))
+        : undefined,
+      motoristaIds: createVeiculoDto.motoristaIds
+        ? createVeiculoDto.motoristaIds.split(',').map((id: string) => parseInt(id.trim()))
+        : undefined,
+    };
+
+    return this.veiculoService.create(processedDto, req.user?.id, file);
   }
 
   @Get()
@@ -73,11 +168,91 @@ export class VeiculoController {
   @ApiResponse({ status: 409, description: 'Placa já está em uso' })
   @ApiResponse({ status: 400, description: 'Dados inválidos' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        orgaoId: { type: 'number' },
+        contaFaturamentoOrgaoId: { type: 'number' },
+        nome: { type: 'string' },
+        placa: { type: 'string' },
+        modelo: { type: 'string' },
+        ano: { type: 'number' },
+        tipo_abastecimento: { type: 'string', enum: ['COTA', 'LIVRE', 'COM_AUTORIZACAO'] },
+        ativo: { type: 'boolean' },
+        capacidade_tanque: { type: 'number' },
+        tipo_veiculo: { type: 'string' },
+        situacao_veiculo: { type: 'string' },
+        observacoes: { type: 'string' },
+        periodicidade: { type: 'string' },
+        quantidade: { type: 'number' },
+        apelido: { type: 'string' },
+        ano_fabricacao: { type: 'number' },
+        chassi: { type: 'string' },
+        renavam: { type: 'string' },
+        crlv: { type: 'string' },
+        crlv_vencimento: { type: 'string', format: 'date-time' },
+        tacografo: { type: 'string' },
+        cor: { type: 'string' },
+        capacidade_passageiros: { type: 'number' },
+        categoriaIds: { type: 'string', description: 'Array de IDs separados por vírgula' },
+        combustivelIds: { type: 'string', description: 'Array de IDs separados por vírgula' },
+        motoristaIds: { type: 'string', description: 'Array de IDs separados por vírgula' },
+        foto_veiculo: {
+          type: 'string',
+          format: 'binary',
+          description: 'Arquivo de imagem do veículo (JPEG, PNG, WEBP)',
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('foto_veiculo', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    }),
+  )
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() updateVeiculoDto: UpdateVeiculoDto,
+    @Body() updateVeiculoDto: any,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.veiculoService.update(id, updateVeiculoDto);
+    // Converter strings para tipos corretos quando vêm de multipart/form-data
+    const processedDto: UpdateVeiculoDto = {
+      ...updateVeiculoDto,
+      orgaoId: updateVeiculoDto.orgaoId ? parseInt(updateVeiculoDto.orgaoId) : undefined,
+      contaFaturamentoOrgaoId: updateVeiculoDto.contaFaturamentoOrgaoId
+        ? parseInt(updateVeiculoDto.contaFaturamentoOrgaoId)
+        : undefined,
+      ano: updateVeiculoDto.ano ? parseInt(updateVeiculoDto.ano) : undefined,
+      ano_fabricacao: updateVeiculoDto.ano_fabricacao ? parseInt(updateVeiculoDto.ano_fabricacao) : undefined,
+      capacidade_passageiros: updateVeiculoDto.capacidade_passageiros
+        ? parseInt(updateVeiculoDto.capacidade_passageiros)
+        : undefined,
+      capacidade_tanque: updateVeiculoDto.capacidade_tanque
+        ? parseFloat(updateVeiculoDto.capacidade_tanque)
+        : undefined,
+      quantidade: updateVeiculoDto.quantidade ? parseFloat(updateVeiculoDto.quantidade) : undefined,
+      ativo:
+        updateVeiculoDto.ativo !== undefined
+          ? updateVeiculoDto.ativo === 'true' || updateVeiculoDto.ativo === true
+          : undefined,
+      crlv_vencimento: updateVeiculoDto.crlv_vencimento ? new Date(updateVeiculoDto.crlv_vencimento) : undefined,
+      categoriaIds: updateVeiculoDto.categoriaIds
+        ? updateVeiculoDto.categoriaIds.split(',').map((id: string) => parseInt(id.trim()))
+        : undefined,
+      combustivelIds: updateVeiculoDto.combustivelIds
+        ? updateVeiculoDto.combustivelIds.split(',').map((id: string) => parseInt(id.trim()))
+        : undefined,
+      motoristaIds: updateVeiculoDto.motoristaIds
+        ? updateVeiculoDto.motoristaIds.split(',').map((id: string) => parseInt(id.trim()))
+        : undefined,
+    };
+
+    return this.veiculoService.update(id, processedDto, file);
   }
 
   @Delete(':id')

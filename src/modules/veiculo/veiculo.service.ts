@@ -3,17 +3,21 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateVeiculoDto } from './dto/create-veiculo.dto';
 import { UpdateVeiculoDto } from './dto/update-veiculo.dto';
 import { FindVeiculoDto } from './dto/find-veiculo.dto';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class VeiculoService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private uploadService: UploadService,
+  ) {}
 
-  async create(createVeiculoDto: CreateVeiculoDto, currentUserId?: number) {
+  async create(createVeiculoDto: CreateVeiculoDto, currentUserId?: number, file?: Express.Multer.File) {
     // Validação de autorização
     if (currentUserId) {
       await this.validateCreateVeiculoPermission(currentUserId, createVeiculoDto.prefeituraId);
     }
-    const { placa, prefeituraId } = createVeiculoDto;
+    const { placa, prefeituraId, foto_veiculo, ...restDto } = createVeiculoDto;
 
     // Verificar se veículo já existe com esta placa (globalmente)
     const existingVeiculo = await this.prisma.veiculo.findFirst({
@@ -114,15 +118,29 @@ export class VeiculoService {
       }
     }
 
+    // Fazer upload da imagem se arquivo foi enviado
+    let imagemUrl = foto_veiculo;
+    if (file) {
+      try {
+        const veiculoIdTmp = Date.now(); // ID temporário para nome do arquivo
+        imagemUrl = await this.uploadService.uploadImage(file, 'veiculos', `veiculo-${veiculoIdTmp}`);
+      } catch (error) {
+        // Se falhar o upload, continua sem imagem (ou lança erro se preferir)
+        console.warn('Erro ao fazer upload da imagem:', error.message);
+        // throw new BadRequestException(`Erro ao fazer upload da imagem: ${error.message}`);
+      }
+    }
+
     // Extrair dados para criação do veículo (sem os arrays de relacionamentos)
-    const { categoriaIds, combustivelIds, motoristaIds, cotasPeriodo, ...veiculoData } = createVeiculoDto;
+    const { categoriaIds, combustivelIds, motoristaIds, cotasPeriodo, ...veiculoData } = restDto;
 
     // Criar veículo com status ativo por padrão quando não especificado
     const veiculo = await this.prisma.veiculo.create({
       data: {
         ...veiculoData,
+        foto_veiculo: imagemUrl,
         ativo: veiculoData.ativo !== undefined ? veiculoData.ativo : true,
-      },
+      } as any,
       include: {
         prefeitura: {
           select: {
@@ -530,7 +548,7 @@ export class VeiculoService {
     };
   }
 
-  async update(id: number, updateVeiculoDto: UpdateVeiculoDto) {
+  async update(id: number, updateVeiculoDto: UpdateVeiculoDto, file?: Express.Multer.File) {
     // Verificar se veículo existe
     const existingVeiculo = await this.prisma.veiculo.findUnique({
       where: { id },
@@ -554,8 +572,45 @@ export class VeiculoService {
       }
     }
 
+    // Se arquivo foi enviado, fazer upload
+    let imagemUrl = updateVeiculoDto.foto_veiculo;
+    if (file) {
+      try {
+        // Remover imagem antiga se existir
+        if (existingVeiculo.foto_veiculo) {
+          try {
+            const oldFilePath = this.uploadService.extractFilePathFromUrl(existingVeiculo.foto_veiculo);
+            if (oldFilePath) {
+              await this.uploadService.deleteImage(oldFilePath);
+            }
+          } catch (error) {
+            console.warn('Erro ao remover imagem antiga:', error.message);
+          }
+        }
+
+        // Fazer upload da nova imagem
+        imagemUrl = await this.uploadService.uploadImage(file, 'veiculos', `veiculo-${id}`);
+      } catch (error) {
+        console.warn('Erro ao fazer upload da imagem:', error.message);
+        // Se falhar, mantém a URL anterior ou lança erro
+        if (!existingVeiculo.foto_veiculo) {
+          throw new BadRequestException(`Erro ao fazer upload da imagem: ${error.message}`);
+        }
+      }
+    }
+
     // Remover prefeituraId do objeto de update (não deve ser atualizável)
-    const { prefeituraId, categoriaIds, combustivelIds, motoristaIds, cotasPeriodo, ...updateData } = updateVeiculoDto;
+    const { prefeituraId, categoriaIds, combustivelIds, motoristaIds, cotasPeriodo, foto_veiculo, ...restUpdateData } = updateVeiculoDto;
+
+    // Preparar dados para atualização
+    const updateData: any = {
+      ...restUpdateData,
+    };
+
+    // Só atualiza foto_veiculo se tiver nova URL ou se foi explicitamente enviado como null
+    if (imagemUrl !== undefined) {
+      updateData.foto_veiculo = imagemUrl;
+    }
 
     // Atualizar veículo
     const veiculo = await this.prisma.veiculo.update({
