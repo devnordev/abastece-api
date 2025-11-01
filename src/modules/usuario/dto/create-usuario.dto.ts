@@ -86,4 +86,13 @@ export class CreateUsuarioDto {
   @IsOptional()
   @IsBoolean({ message: 'Ativo deve ser um valor booleano' })
   ativo?: boolean;
+
+  @ApiProperty({
+    description: 'URL da imagem de perfil (opcional)',
+    example: 'https://exemplo.com/imagem.jpg',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'Imagem de perfil deve ser uma string' })
+  imagem_perfil?: string;
 }

@@ -10,13 +10,18 @@ import {
   UseGuards,
   ParseIntPipe,
   Request,
-} from '@nestjs/common'; 
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { UsuarioService } from './usuario.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { FindUsuarioDto } from './dto/find-usuario.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { TipoUsuario, StatusAcesso } from '@prisma/client';
 
 @ApiTags('Usuários')
 @Controller('usuarios')
@@ -32,8 +37,55 @@ export class UsuarioController {
   @ApiResponse({ status: 400, description: 'Dados inválidos' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 403, description: 'Sem permissão para cadastrar este tipo de usuário' })
-  async create(@Body() createUsuarioDto: CreateUsuarioDto, @Request() req) {
-    return this.usuarioService.create(createUsuarioDto, req.user?.id);
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string' },
+        senha: { type: 'string' },
+        nome: { type: 'string' },
+        cpf: { type: 'string' },
+        tipo_usuario: { type: 'string', enum: Object.values(TipoUsuario) },
+        prefeituraId: { type: 'number' },
+        empresaId: { type: 'number' },
+        phone: { type: 'string' },
+        statusAcess: { type: 'string', enum: Object.values(StatusAcesso) },
+        ativo: { type: 'boolean' },
+        imagem_perfil: {
+          type: 'string',
+          format: 'binary',
+          description: 'Arquivo de imagem (JPEG, PNG, WEBP)',
+        },
+      },
+      required: ['email', 'senha', 'nome', 'cpf', 'tipo_usuario'],
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('imagem_perfil', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    }),
+  )
+  async create(
+    @Body() createUsuarioDto: any,
+    @Request() req,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    // Converter strings para tipos corretos quando vêm de multipart/form-data
+    const processedDto: CreateUsuarioDto = {
+      ...createUsuarioDto,
+      prefeituraId: createUsuarioDto.prefeituraId ? parseInt(createUsuarioDto.prefeituraId) : undefined,
+      empresaId: createUsuarioDto.empresaId ? parseInt(createUsuarioDto.empresaId) : undefined,
+      ativo:
+        createUsuarioDto.ativo === 'true' || createUsuarioDto.ativo === true || createUsuarioDto.ativo === undefined
+          ? true
+          : false,
+    };
+
+    return this.usuarioService.create(processedDto, req.user?.id, file);
   }
 
   @Get()
@@ -70,11 +122,54 @@ export class UsuarioController {
   @ApiResponse({ status: 409, description: 'Email ou CPF já está em uso' })
   @ApiResponse({ status: 400, description: 'Dados inválidos' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string' },
+        senha: { type: 'string' },
+        nome: { type: 'string' },
+        cpf: { type: 'string' },
+        tipo_usuario: { type: 'string', enum: Object.values(TipoUsuario) },
+        prefeituraId: { type: 'number' },
+        empresaId: { type: 'number' },
+        phone: { type: 'string' },
+        statusAcess: { type: 'string', enum: Object.values(StatusAcesso) },
+        ativo: { type: 'boolean' },
+        imagem_perfil: {
+          type: 'string',
+          format: 'binary',
+          description: 'Arquivo de imagem (JPEG, PNG, WEBP)',
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('imagem_perfil', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    }),
+  )
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() updateUsuarioDto: UpdateUsuarioDto,
+    @Body() updateUsuarioDto: any,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.usuarioService.update(id, updateUsuarioDto);
+    // Converter strings para tipos corretos quando vêm de multipart/form-data
+    const processedDto: UpdateUsuarioDto = {
+      ...updateUsuarioDto,
+      prefeituraId: updateUsuarioDto.prefeituraId ? parseInt(updateUsuarioDto.prefeituraId) : undefined,
+      empresaId: updateUsuarioDto.empresaId ? parseInt(updateUsuarioDto.empresaId) : undefined,
+      ativo:
+        updateUsuarioDto.ativo !== undefined
+          ? updateUsuarioDto.ativo === 'true' || updateUsuarioDto.ativo === true
+          : undefined,
+    };
+
+    return this.usuarioService.update(id, processedDto, file);
   }
 
   @Delete(':id')

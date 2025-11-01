@@ -3,19 +3,23 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { FindUsuarioDto } from './dto/find-usuario.dto';
+import { UploadService } from '../upload/upload.service';
 import * as bcrypt from 'bcryptjs';
 import { TipoUsuario, StatusAcesso } from '@prisma/client';
 
 @Injectable()
 export class UsuarioService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private uploadService: UploadService,
+  ) {}
 
-  async create(createUsuarioDto: CreateUsuarioDto, currentUserId?: number) {
+  async create(createUsuarioDto: CreateUsuarioDto, currentUserId?: number, file?: Express.Multer.File) {
     // Validação de regras de negócio se há usuário atual
     if (currentUserId) {
       await this.validateCreatePermission(currentUserId, createUsuarioDto);
     }
-    const { email, senha, cpf } = createUsuarioDto;
+    const { email, senha, cpf, imagem_perfil, ...restDto } = createUsuarioDto;
 
     // Verificar se usuário já existe
     const existingEmail = await this.prisma.usuario.findFirst({
@@ -36,6 +40,19 @@ export class UsuarioService {
 
     // Hash da senha
     const hashedPassword = await bcrypt.hash(senha, 12);
+
+    // Fazer upload da imagem se arquivo foi enviado
+    let imagemUrl = imagem_perfil;
+    if (file) {
+      try {
+        const usuarioIdTmp = Date.now(); // ID temporário para nome do arquivo
+        imagemUrl = await this.uploadService.uploadImage(file, 'usuarios', `usuario-${usuarioIdTmp}`);
+      } catch (error) {
+        // Se falhar o upload, continua sem imagem (ou lança erro se preferir)
+        console.warn('Erro ao fazer upload da imagem:', error.message);
+        // throw new BadRequestException(`Erro ao fazer upload da imagem: ${error.message}`);
+      }
+    }
 
     // Determinar o status de acesso padrão
     let defaultStatusAcess = createUsuarioDto.statusAcess || StatusAcesso.Acesso_solicitado;
@@ -58,8 +75,11 @@ export class UsuarioService {
     // Criar usuário com valores padrão para campos não obrigatórios
     const usuario = await this.prisma.usuario.create({
       data: {
-        ...createUsuarioDto,
+        ...restDto,
+        email,
         senha: hashedPassword,
+        cpf,
+        imagem_perfil: imagemUrl,
         data_cadastro: new Date(),
         statusAcess: defaultStatusAcess,
         ativo: createUsuarioDto.ativo !== undefined ? createUsuarioDto.ativo : true,
@@ -245,7 +265,7 @@ export class UsuarioService {
     };
   }
 
-  async update(id: number, updateUsuarioDto: UpdateUsuarioDto) {
+  async update(id: number, updateUsuarioDto: UpdateUsuarioDto, file?: Express.Multer.File) {
     // Verificar se usuário existe
     const existingUsuario = await this.prisma.usuario.findUnique({
       where: { id },
@@ -280,15 +300,53 @@ export class UsuarioService {
       }
     }
 
+    // Se arquivo foi enviado, fazer upload
+    let imagemUrl = updateUsuarioDto.imagem_perfil;
+    if (file) {
+      try {
+        // Remover imagem antiga se existir
+        if (existingUsuario.imagem_perfil) {
+          try {
+            const oldFilePath = this.uploadService.extractFilePathFromUrl(existingUsuario.imagem_perfil);
+            if (oldFilePath) {
+              await this.uploadService.deleteImage(oldFilePath);
+            }
+          } catch (error) {
+            console.warn('Erro ao remover imagem antiga:', error.message);
+          }
+        }
+
+        // Fazer upload da nova imagem
+        imagemUrl = await this.uploadService.uploadImage(file, 'usuarios', `usuario-${id}`);
+      } catch (error) {
+        console.warn('Erro ao fazer upload da imagem:', error.message);
+        // Se falhar, mantém a URL anterior ou lança erro
+        if (!existingUsuario.imagem_perfil) {
+          throw new BadRequestException(`Erro ao fazer upload da imagem: ${error.message}`);
+        }
+      }
+    }
+
     // Se estiver atualizando a senha, fazer hash
     if (updateUsuarioDto.senha) {
       updateUsuarioDto.senha = await bcrypt.hash(updateUsuarioDto.senha, 12);
     }
 
+    // Preparar dados para atualização
+    const { imagem_perfil, ...restUpdateData } = updateUsuarioDto;
+    const updateData: any = {
+      ...restUpdateData,
+    };
+
+    // Só atualiza imagem_perfil se tiver nova URL ou se foi explicitamente enviado como null
+    if (imagemUrl !== undefined) {
+      updateData.imagem_perfil = imagemUrl;
+    }
+
     // Atualizar usuário
     const usuario = await this.prisma.usuario.update({
       where: { id },
-      data: updateUsuarioDto as any,
+      data: updateData,
       include: {
         prefeitura: {
           select: {
