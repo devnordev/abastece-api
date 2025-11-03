@@ -1,0 +1,959 @@
+{
+  "info": {
+    "name": "Abastece API - Collection 03/11/2025",
+    "_postman_id": "collection-03-11-2025",
+    "description": "Collection completa com CRUD de usuários por perfil, vínculos entre entidades, empresas e processos objetivo. Use a variável {{baseUrl}} e faça login para popular {{accessToken}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "prefeituraId", "value": "1" },
+    { "key": "orgaoId", "value": "1" },
+    { "key": "veiculoId", "value": "1" },
+    { "key": "motoristaId", "value": "1" },
+    { "key": "empresaId", "value": "1" },
+    { "key": "processoId", "value": "1" },
+    { "key": "usuarioId", "value": "1" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "description": "Autenticação e gerenciamento de tokens",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.access_token || json.accessToken) {",
+                  "  pm.collectionVariables.set('accessToken', json.access_token || json.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.refresh_token || json.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@nordev.com\",\n  \"senha\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Registrar Usuário",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"senha\": \"123456\",\n  \"nome\": \"User Teste\",\n  \"tipo_usuario\": \"SUPER_ADMIN\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "profile"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 Usuários - CRUD por Perfil",
+      "description": "CRUD completo de usuários para cada tipo de perfil",
+      "item": [
+        {
+          "name": "SUPER_ADMIN",
+          "item": [
+            {
+              "name": "Criar SUPER_ADMIN",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"superadmin@teste.com\",\n  \"senha\": \"123456\",\n  \"nome\": \"Super Administrador\",\n  \"cpf\": \"00000000000\",\n  \"tipo_usuario\": \"SUPER_ADMIN\",\n  \"statusAcess\": \"Ativado\",\n  \"ativo\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Listar SUPER_ADMIN",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios?tipo_usuario=SUPER_ADMIN",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios"],
+                  "query": [
+                    { "key": "tipo_usuario", "value": "SUPER_ADMIN" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "ADMIN_PREFEITURA",
+          "item": [
+            {
+              "name": "Criar ADMIN_PREFEITURA",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"admin@prefeitura.sp.gov.br\",\n  \"senha\": \"123456\",\n  \"nome\": \"Admin Prefeitura\",\n  \"cpf\": \"11111111111\",\n  \"tipo_usuario\": \"ADMIN_PREFEITURA\",\n  \"prefeituraId\": {{prefeituraId}},\n  \"statusAcess\": \"Ativado\",\n  \"ativo\": true,\n  \"phone\": \"11999999999\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Listar ADMIN_PREFEITURA",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios?tipo_usuario=ADMIN_PREFEITURA&prefeituraId={{prefeituraId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios"],
+                  "query": [
+                    { "key": "tipo_usuario", "value": "ADMIN_PREFEITURA" },
+                    { "key": "prefeituraId", "value": "{{prefeituraId}}" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Buscar ADMIN_PREFEITURA por ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios/{{usuarioId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios", "{{usuarioId}}"]
+                }
+              }
+            },
+            {
+              "name": "Atualizar ADMIN_PREFEITURA",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios/{{usuarioId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios", "{{usuarioId}}"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"Admin Prefeitura Atualizado\",\n  \"phone\": \"11988888888\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Excluir ADMIN_PREFEITURA",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios/{{usuarioId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios", "{{usuarioId}}"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "COLABORADOR_PREFEITURA",
+          "item": [
+            {
+              "name": "Criar COLABORADOR_PREFEITURA",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"colaborador@prefeitura.sp.gov.br\",\n  \"senha\": \"123456\",\n  \"nome\": \"Colaborador Prefeitura\",\n  \"cpf\": \"22222222222\",\n  \"tipo_usuario\": \"COLABORADOR_PREFEITURA\",\n  \"prefeituraId\": {{prefeituraId}},\n  \"statusAcess\": \"Ativado\",\n  \"ativo\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Listar COLABORADOR_PREFEITURA",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios?tipo_usuario=COLABORADOR_PREFEITURA&prefeituraId={{prefeituraId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios"],
+                  "query": [
+                    { "key": "tipo_usuario", "value": "COLABORADOR_PREFEITURA" },
+                    { "key": "prefeituraId", "value": "{{prefeituraId}}" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "ADMIN_EMPRESA",
+          "item": [
+            {
+              "name": "Criar ADMIN_EMPRESA",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"admin@empresa.com\",\n  \"senha\": \"123456\",\n  \"nome\": \"Admin Empresa\",\n  \"cpf\": \"33333333333\",\n  \"tipo_usuario\": \"ADMIN_EMPRESA\",\n  \"empresaId\": {{empresaId}},\n  \"statusAcess\": \"Ativado\",\n  \"ativo\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Listar ADMIN_EMPRESA",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios?tipo_usuario=ADMIN_EMPRESA",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios"],
+                  "query": [
+                    { "key": "tipo_usuario", "value": "ADMIN_EMPRESA" }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "COLABORADOR_EMPRESA",
+          "item": [
+            {
+              "name": "Criar COLABORADOR_EMPRESA",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"colaborador@empresa.com\",\n  \"senha\": \"123456\",\n  \"nome\": \"Colaborador Empresa\",\n  \"cpf\": \"44444444444\",\n  \"tipo_usuario\": \"COLABORADOR_EMPRESA\",\n  \"empresaId\": {{empresaId}},\n  \"statusAcess\": \"Ativado\",\n  \"ativo\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Listar COLABORADOR_EMPRESA",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/usuarios?tipo_usuario=COLABORADOR_EMPRESA",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["usuarios"],
+                  "query": [
+                    { "key": "tipo_usuario", "value": "COLABORADOR_EMPRESA" }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🏛️ Prefeituras",
+      "description": "CRUD de prefeituras",
+      "item": [
+        {
+          "name": "Criar Prefeitura",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/prefeituras",
+              "host": ["{{baseUrl}}"],
+              "path": ["prefeituras"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Prefeitura Municipal de São Paulo\",\n  \"cnpj\": \"12345678000195\",\n  \"email_administrativo\": \"admin@prefeitura.sp.gov.br\",\n  \"ativo\": true,\n  \"requer_cupom_fiscal\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar Prefeituras",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prefeituras",
+              "host": ["{{baseUrl}}"],
+              "path": ["prefeituras"]
+            }
+          }
+        },
+        {
+          "name": "Buscar Prefeitura por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prefeituras/{{prefeituraId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["prefeituras", "{{prefeituraId}}"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Prefeitura",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/prefeituras/{{prefeituraId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["prefeituras", "{{prefeituraId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Prefeitura Municipal de São Paulo - Atualizada\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Excluir Prefeitura",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/prefeituras/{{prefeituraId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["prefeituras", "{{prefeituraId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔗 Vínculos - Prefeitura com Órgão",
+      "description": "CRUD de órgãos (vincula prefeitura com órgão)",
+      "item": [
+        {
+          "name": "Criar Órgão (Vincular Prefeitura-Órgão)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orgaos",
+              "host": ["{{baseUrl}}"],
+              "path": ["orgaos"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefeituraId\": {{prefeituraId}},\n  \"nome\": \"Secretaria Municipal de Saúde\",\n  \"sigla\": \"SMS\",\n  \"ativo\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar Órgãos por Prefeitura",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orgaos?prefeituraId={{prefeituraId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["orgaos"],
+              "query": [
+                { "key": "prefeituraId", "value": "{{prefeituraId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar Órgão por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orgaos/{{orgaoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["orgaos", "{{orgaoId}}"]
+            }
+          }
+        },
+        {
+          "name": "Listar Veículos de um Órgão",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orgaos/{{orgaoId}}/veiculos",
+              "host": ["{{baseUrl}}"],
+              "path": ["orgaos", "{{orgaoId}}", "veiculos"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Órgão",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orgaos/{{orgaoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["orgaos", "{{orgaoId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Secretaria Municipal de Saúde - Atualizada\",\n  \"sigla\": \"SMS\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Excluir Órgão",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orgaos/{{orgaoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["orgaos", "{{orgaoId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔗 Vínculos - Prefeitura com Veículo",
+      "description": "CRUD de veículos (vincula prefeitura com veículo)",
+      "item": [
+        {
+          "name": "Criar Veículo (Vincular Prefeitura-Veículo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/veiculos",
+              "host": ["{{baseUrl}}"],
+              "path": ["veiculos"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefeituraId\": {{prefeituraId}},\n  \"orgaoId\": {{orgaoId}},\n  \"nome\": \"Ambulância 01\",\n  \"placa\": \"ABC-1234\",\n  \"modelo\": \"Ford Transit\",\n  \"ano\": 2020,\n  \"capacidade_tanque\": 80.0,\n  \"tipo_abastecimento\": \"COTA\",\n  \"periodicidade\": \"Semanal\",\n  \"quantidade\": 100.0,\n  \"combustivelIds\": [1]\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar Veículos por Prefeitura",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/veiculos?prefeituraId={{prefeituraId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["veiculos"],
+              "query": [
+                { "key": "prefeituraId", "value": "{{prefeituraId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar Veículo por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/veiculos/{{veiculoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["veiculos", "{{veiculoId}}"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Veículo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/veiculos/{{veiculoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["veiculos", "{{veiculoId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Ambulância 01 - Atualizada\",\n  \"observacoes\": \"Veículo em manutenção\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Excluir Veículo",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/veiculos/{{veiculoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["veiculos", "{{veiculoId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔗 Vínculos - Prefeitura com Motorista",
+      "description": "CRUD de motoristas (vincula prefeitura com motorista)",
+      "item": [
+        {
+          "name": "Criar Motorista (Vincular Prefeitura-Motorista)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/motoristas",
+              "host": ["{{baseUrl}}"],
+              "path": ["motoristas"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefeituraId\": {{prefeituraId}},\n  \"nome\": \"João Silva\",\n  \"cpf\": \"55555555555\",\n  \"cnh\": \"12345678901\",\n  \"categoria_cnh\": \"B\",\n  \"data_vencimento_cnh\": \"2025-12-31T00:00:00.000Z\",\n  \"telefone\": \"11988888888\",\n  \"email\": \"joao.silva@prefeitura.sp.gov.br\",\n  \"ativo\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar Motoristas por Prefeitura",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/motoristas?prefeituraId={{prefeituraId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["motoristas"],
+              "query": [
+                { "key": "prefeituraId", "value": "{{prefeituraId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar Motorista por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/motoristas/{{motoristaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["motoristas", "{{motoristaId}}"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Motorista",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/motoristas/{{motoristaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["motoristas", "{{motoristaId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"João Silva Santos\",\n  \"telefone\": \"11977777777\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Excluir Motorista",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/motoristas/{{motoristaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["motoristas", "{{motoristaId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔗 Vínculos - Veículo com Motorista",
+      "description": "Vincular motorista a veículo (via motoristaIds no cadastro/atualização do veículo)",
+      "item": [
+        {
+          "name": "Vincular Motorista a Veículo (Criar)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/veiculos",
+              "host": ["{{baseUrl}}"],
+              "path": ["veiculos"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefeituraId\": {{prefeituraId}},\n  \"orgaoId\": {{orgaoId}},\n  \"nome\": \"Veículo com Motorista\",\n  \"placa\": \"XYZ-9999\",\n  \"ano\": 2021,\n  \"capacidade_tanque\": 60.0,\n  \"tipo_abastecimento\": \"COTA\",\n  \"periodicidade\": \"Semanal\",\n  \"quantidade\": 80.0,\n  \"combustivelIds\": [1],\n  \"motoristaIds\": [{{motoristaId}}]\n}"
+            }
+          }
+        },
+        {
+          "name": "Vincular Motorista a Veículo (Atualizar)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/veiculos/{{veiculoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["veiculos", "{{veiculoId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motoristaIds\": [{{motoristaId}}]\n}"
+            }
+          }
+        },
+        {
+          "name": "Ver Veículos de um Motorista",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/motoristas/{{motoristaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["motoristas", "{{motoristaId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔗 Vínculos - Veículo com Órgão",
+      "description": "Vincular veículo a órgão (via orgaoId no cadastro do veículo)",
+      "item": [
+        {
+          "name": "Vincular Veículo a Órgão (Criar)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/veiculos",
+              "host": ["{{baseUrl}}"],
+              "path": ["veiculos"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prefeituraId\": {{prefeituraId}},\n  \"orgaoId\": {{orgaoId}},\n  \"nome\": \"Veículo do Órgão\",\n  \"placa\": \"DEF-5678\",\n  \"ano\": 2022,\n  \"capacidade_tanque\": 70.0,\n  \"tipo_abastecimento\": \"COTA\",\n  \"periodicidade\": \"Semanal\",\n  \"quantidade\": 90.0,\n  \"combustivelIds\": [1]\n}"
+            }
+          }
+        },
+        {
+          "name": "Vincular Veículo a Órgão (Atualizar)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/veiculos/{{veiculoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["veiculos", "{{veiculoId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orgaoId\": {{orgaoId}}\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar Veículos de um Órgão",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/orgaos/{{orgaoId}}/veiculos",
+              "host": ["{{baseUrl}}"],
+              "path": ["orgaos", "{{orgaoId}}", "veiculos"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏢 Empresas",
+      "description": "CRUD completo de empresas",
+      "item": [
+        {
+          "name": "Criar Empresa",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/empresas",
+              "host": ["{{baseUrl}}"],
+              "path": ["empresas"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Posto Shell - Centro\",\n  \"cnpj\": \"98765432000123\",\n  \"uf\": \"SP\",\n  \"endereco\": \"Rua das Flores, 123\",\n  \"endereco_completo\": \"Rua das Flores, 123, Centro, São Paulo - SP\",\n  \"contato\": \"João Silva\",\n  \"telefone\": \"11999999999\",\n  \"email\": \"contato@postoshell.com\",\n  \"ativo\": true,\n  \"isPublic\": true,\n  \"tipo_empresa\": \"POSTO_GASOLINA\",\n  \"bandeira\": \"Shell\",\n  \"latitude\": -23.5505,\n  \"longitude\": -46.6333,\n  \"horario_funcionamento\": \"24h\",\n  \"servicos_disponiveis\": \"Abastecimento, Lavagem, Conveniência\",\n  \"formas_pagamento\": \"Dinheiro, Cartão, PIX\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar Empresas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/empresas",
+              "host": ["{{baseUrl}}"],
+              "path": ["empresas"]
+            }
+          }
+        },
+        {
+          "name": "Buscar Empresas Próximas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/empresas/nearby?latitude=-23.5505&longitude=-46.6333&radius=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["empresas", "nearby"],
+              "query": [
+                { "key": "latitude", "value": "-23.5505" },
+                { "key": "longitude", "value": "-46.6333" },
+                { "key": "radius", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar Empresa por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/empresas/{{empresaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["empresas", "{{empresaId}}"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Empresa",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/empresas/{{empresaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["empresas", "{{empresaId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Posto Shell - Centro - Atualizado\",\n  \"telefone\": \"11988888888\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Excluir Empresa",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/empresas/{{empresaId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["empresas", "{{empresaId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 Processos Objetivo",
+      "description": "CRUD completo de processos objetivo",
+      "item": [
+        {
+          "name": "Criar Processo Objetivo",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/processos",
+              "host": ["{{baseUrl}}"],
+              "path": ["processos"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo_contrato\": \"OBJETIVO\",\n  \"prefeituraId\": {{prefeituraId}},\n  \"numero_processo\": \"PROC-2024-001\",\n  \"numero_documento\": \"DOC-2024-001\",\n  \"tipo_documento\": \"LICITACAO\",\n  \"objeto\": \"Aquisição de combustíveis para frota municipal\",\n  \"data_abertura\": \"2024-01-15T00:00:00.000Z\",\n  \"data_encerramento\": \"2024-12-15T00:00:00.000Z\",\n  \"status\": \"ATIVO\",\n  \"litros_desejados\": 25000.0,\n  \"valor_disponivel\": 200000.0,\n  \"tipo_itens\": \"QUANTIDADE_LITROS\",\n  \"ativo\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar Processos Objetivo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/processos?prefeituraId={{prefeituraId}}&status=ATIVO",
+              "host": ["{{baseUrl}}"],
+              "path": ["processos"],
+              "query": [
+                { "key": "prefeituraId", "value": "{{prefeituraId}}" },
+                { "key": "status", "value": "ATIVO" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Buscar Processo Objetivo por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/processos/{{processoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["processos", "{{processoId}}"]
+            }
+          }
+        },
+        {
+          "name": "Atualizar Processo Objetivo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/processos/{{processoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["processos", "{{processoId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valor_utilizado\": 50000.0,\n  \"valor_disponivel\": 150000.0,\n  \"observacoes\": \"Processo em andamento\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Excluir Processo Objetivo",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/processos/{{processoId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["processos", "{{processoId}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+
