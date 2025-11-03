@@ -28,7 +28,9 @@
     "prisma:seed:admin-pref": "ts-node prisma/seed_admin_pref.ts",
     "seed:admin-pref": "ts-node prisma/seed_admin_pref.ts",
     "prisma:seed:colaborador-pref": "ts-node prisma/seed_colaborador_pref.ts",
-    "seed:colaborador-pref": "ts-node prisma/seed_colaborador_pref.ts"
+    "seed:colaborador-pref": "ts-node prisma/seed_colaborador_pref.ts",
+    "prisma:seed:veiculos": "ts-node prisma/seed_veiculos.ts",
+    "seed:veiculos": "ts-node prisma/seed_veiculos.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

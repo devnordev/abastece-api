@@ -119,13 +119,25 @@ export class VeiculoController {
           : false,
       crlv_vencimento: createVeiculoDto.crlv_vencimento ? new Date(createVeiculoDto.crlv_vencimento) : undefined,
       categoriaIds: createVeiculoDto.categoriaIds
-        ? createVeiculoDto.categoriaIds.split(',').map((id: string) => parseInt(id.trim()))
+        ? Array.isArray(createVeiculoDto.categoriaIds)
+          ? createVeiculoDto.categoriaIds.map((id: any) => parseInt(id))
+          : typeof createVeiculoDto.categoriaIds === 'string'
+            ? createVeiculoDto.categoriaIds.split(',').map((id: string) => parseInt(id.trim()))
+            : undefined
         : undefined,
       combustivelIds: createVeiculoDto.combustivelIds
-        ? createVeiculoDto.combustivelIds.split(',').map((id: string) => parseInt(id.trim()))
+        ? Array.isArray(createVeiculoDto.combustivelIds)
+          ? createVeiculoDto.combustivelIds.map((id: any) => parseInt(id))
+          : typeof createVeiculoDto.combustivelIds === 'string'
+            ? createVeiculoDto.combustivelIds.split(',').map((id: string) => parseInt(id.trim()))
+            : undefined
         : undefined,
       motoristaIds: createVeiculoDto.motoristaIds
-        ? createVeiculoDto.motoristaIds.split(',').map((id: string) => parseInt(id.trim()))
+        ? Array.isArray(createVeiculoDto.motoristaIds)
+          ? createVeiculoDto.motoristaIds.map((id: any) => parseInt(id))
+          : typeof createVeiculoDto.motoristaIds === 'string'
+            ? createVeiculoDto.motoristaIds.split(',').map((id: string) => parseInt(id.trim()))
+            : undefined
         : undefined,
     };
 
@@ -242,13 +254,25 @@ export class VeiculoController {
           : undefined,
       crlv_vencimento: updateVeiculoDto.crlv_vencimento ? new Date(updateVeiculoDto.crlv_vencimento) : undefined,
       categoriaIds: updateVeiculoDto.categoriaIds
-        ? updateVeiculoDto.categoriaIds.split(',').map((id: string) => parseInt(id.trim()))
+        ? Array.isArray(updateVeiculoDto.categoriaIds)
+          ? updateVeiculoDto.categoriaIds.map((id: any) => parseInt(id))
+          : typeof updateVeiculoDto.categoriaIds === 'string'
+            ? updateVeiculoDto.categoriaIds.split(',').map((id: string) => parseInt(id.trim()))
+            : undefined
         : undefined,
       combustivelIds: updateVeiculoDto.combustivelIds
-        ? updateVeiculoDto.combustivelIds.split(',').map((id: string) => parseInt(id.trim()))
+        ? Array.isArray(updateVeiculoDto.combustivelIds)
+          ? updateVeiculoDto.combustivelIds.map((id: any) => parseInt(id))
+          : typeof updateVeiculoDto.combustivelIds === 'string'
+            ? updateVeiculoDto.combustivelIds.split(',').map((id: string) => parseInt(id.trim()))
+            : undefined
         : undefined,
       motoristaIds: updateVeiculoDto.motoristaIds
-        ? updateVeiculoDto.motoristaIds.split(',').map((id: string) => parseInt(id.trim()))
+        ? Array.isArray(updateVeiculoDto.motoristaIds)
+          ? updateVeiculoDto.motoristaIds.map((id: any) => parseInt(id))
+          : typeof updateVeiculoDto.motoristaIds === 'string'
+            ? updateVeiculoDto.motoristaIds.split(',').map((id: string) => parseInt(id.trim()))
+            : undefined
         : undefined,
     };
 

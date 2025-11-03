@@ -138,6 +138,8 @@ export class VeiculoService {
     const veiculo = await this.prisma.veiculo.create({
       data: {
         ...veiculoData,
+        placa,
+        prefeituraId,
         foto_veiculo: imagemUrl,
         ativo: veiculoData.ativo !== undefined ? veiculoData.ativo : true,
       } as any,
