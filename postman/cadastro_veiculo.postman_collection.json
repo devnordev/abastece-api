@@ -1,0 +1,114 @@
+{
+  "info": {
+    "name": "Cadastro Veículo",
+    "_postman_id": "9e0d1d2b-0000-4000-8000-cadastro-veiculo",
+    "description": "Coleção para cadastrar veículo (JSON e multipart). Requer Bearer Token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Veículos - Criar (application/json)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "type": "string",
+              "value": "{{token}}"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"prefeituraId\": 1,\n  \"orgaoId\": 1,\n  \"contaFaturamentoOrgaoId\": 1,\n  \"nome\": \"Ambulância 01\",\n  \"placa\": \"ABC-1234\",\n  \"modelo\": \"Ford Transit\",\n  \"ano\": 2020,\n  \"tipo_abastecimento\": \"LIVRE\",\n  \"ativo\": true,\n  \"capacidade_tanque\": 50.5,\n  \"tipo_veiculo\": \"Ambulancia\",\n  \"situacao_veiculo\": \"Proprio\",\n  \"observacoes\": \"Veículo em bom estado\",\n  \"apelido\": \"Ambulância da Saúde\",\n  \"ano_fabricacao\": 2019,\n  \"chassi\": \"9BWZZZZZZZZZZZZZZ\",\n  \"renavam\": \"12345678901\",\n  \"crlv\": \"CRLV123456\",\n  \"crlv_vencimento\": \"2025-12-31\",\n  \"tacografo\": \"TACO123456\",\n  \"cor\": \"Branco\",\n  \"capacidade_passageiros\": 8,\n  \"categoriaIds\": [1, 2],\n  \"combustivelIds\": [1, 2],\n  \"motoristaIds\": [1, 2]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/veiculos",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "veiculos"
+          ]
+        },
+        "description": "Cria veículo via JSON. Campos obrigatórios: prefeituraId, orgaoId, nome, placa, ano, tipo_abastecimento (COTA|LIVRE|COM_AUTORIZACAO), capacidade_tanque, combustivelIds. Quando tipo_abastecimento = COTA, inclua periodicidade e quantidade."
+      },
+      "response": []
+    },
+    {
+      "name": "Veículos - Criar (multipart/form-data)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "type": "string",
+              "value": "{{token}}"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "multipart/form-data"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "prefeituraId", "value": "1", "type": "text" },
+            { "key": "orgaoId", "value": "1", "type": "text" },
+            { "key": "nome", "value": "Ambulância 01", "type": "text" },
+            { "key": "placa", "value": "ABC-1234", "type": "text" },
+            { "key": "modelo", "value": "Ford Transit", "type": "text", "disabled": false },
+            { "key": "ano", "value": "2020", "type": "text" },
+            { "key": "tipo_abastecimento", "value": "COTA", "type": "text" },
+            { "key": "periodicidade", "value": "Semanal", "type": "text" },
+            { "key": "quantidade", "value": "100", "type": "text" },
+            { "key": "capacidade_tanque", "value": "50.5", "type": "text" },
+            { "key": "combustivelIds", "value": "1,2", "type": "text" },
+            { "key": "categoriaIds", "value": "1,2", "type": "text", "disabled": true },
+            { "key": "motoristaIds", "value": "1,2", "type": "text", "disabled": true },
+            { "key": "ativo", "value": "true", "type": "text", "disabled": true },
+            { "key": "foto_veiculo", "type": "file", "src": [
+              "C:/caminho/para/imagem.jpg"
+            ], "disabled": true }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/veiculos",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "veiculos"
+          ]
+        },
+        "description": "Cria veículo via multipart. Envie IDs de arrays como string separada por vírgula (ex.: '1,2'). Use o campo 'foto_veiculo' para anexar imagem (opcional)."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ]
+}
+
+
