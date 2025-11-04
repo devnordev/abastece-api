@@ -57,6 +57,28 @@ export class ContaFaturamentoOrgaoController {
     );
   }
 
+  @Get('orgao/:orgaoId')
+  @ApiOperation({ summary: 'Listar contas de faturamento por órgão' })
+  @ApiResponse({ status: 200, description: 'Lista de contas de faturamento do órgão retornada com sucesso' })
+  @ApiResponse({ status: 403, description: 'Sem permissão para acessar contas de faturamento deste órgão' })
+  @ApiResponse({ status: 404, description: 'Órgão não encontrado' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Página (padrão: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Itens por página (padrão: 10)' })
+  async findByOrgaoId(
+    @Param('orgaoId', ParseIntPipe) orgaoId: number,
+    @Request() req,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.contaFaturamentoOrgaoService.findAll(
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 10,
+      undefined,
+      orgaoId,
+      req.user?.id,
+    );
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar conta de faturamento por ID' })
   @ApiResponse({ status: 200, description: 'Conta de faturamento encontrada com sucesso' })
