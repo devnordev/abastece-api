@@ -14,6 +14,7 @@ import { OrgaoModule } from './modules/orgao/orgao.module';
 import { CategoriaModule } from './modules/categoria/categoria.module';
 import { ProcessoModule } from './modules/processo/processo.module';
 import { ContratoModule } from './modules/contrato/contrato.module';
+import { ContaFaturamentoOrgaoModule } from './modules/conta-faturamento-orgao/conta-faturamento-orgao.module';
 import { LogModule } from './modules/log/log.module';
 import { UploadModule } from './modules/upload/upload.module';
 
@@ -42,6 +43,7 @@ import { UploadModule } from './modules/upload/upload.module';
     CategoriaModule,
     ProcessoModule,
     ContratoModule,
+    ContaFaturamentoOrgaoModule,
     LogModule,
     UploadModule,
   ],
