@@ -3,21 +3,34 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateParametrosTetoDto } from './dto/create-parametros-teto.dto';
 import { UpdateParametrosTetoDto } from './dto/update-parametros-teto.dto';
 import { AnpBase } from '@prisma/client';
+import { AnpPrecosUfService } from '../anp-precos-uf/anp-precos-uf.service';
 
 @Injectable()
 export class ParametrosTetoService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private anpPrecosUfService: AnpPrecosUfService,
+  ) {}
 
   async create(createParametrosTetoDto: CreateParametrosTetoDto) {
+    const anpBase = createParametrosTetoDto.anp_base || AnpBase.MEDIO;
+    const margemPct = createParametrosTetoDto.margem_pct;
+    const ativo = createParametrosTetoDto.ativo !== undefined ? createParametrosTetoDto.ativo : true;
+
     const parametroTeto = await this.prisma.parametrosTeto.create({
       data: {
-        anp_base: createParametrosTetoDto.anp_base || AnpBase.MEDIO,
-        margem_pct: createParametrosTetoDto.margem_pct,
+        anp_base: anpBase,
+        margem_pct: margemPct,
         excecoes_combustivel: createParametrosTetoDto.excecoes_combustivel,
-        ativo: createParametrosTetoDto.ativo !== undefined ? createParametrosTetoDto.ativo : true,
+        ativo: ativo,
         observacoes: createParametrosTetoDto.observacoes,
       },
     });
+
+    // Se o parâmetro estiver ativo, calcular o teto para todos os preços
+    if (ativo && margemPct !== null && margemPct !== undefined) {
+      await this.anpPrecosUfService.calcularTetoPrecos(anpBase, Number(margemPct));
+    }
 
     return {
       message: 'Parâmetro de teto criado com sucesso',
@@ -61,6 +74,17 @@ export class ParametrosTetoService {
       throw new NotFoundException('Parâmetro de teto não encontrado');
     }
 
+    // Determinar os valores finais após a atualização
+    const anpBase = updateParametrosTetoDto.anp_base !== undefined 
+      ? updateParametrosTetoDto.anp_base 
+      : existingParametroTeto.anp_base;
+    const margemPct = updateParametrosTetoDto.margem_pct !== undefined 
+      ? updateParametrosTetoDto.margem_pct 
+      : existingParametroTeto.margem_pct;
+    const ativo = updateParametrosTetoDto.ativo !== undefined 
+      ? updateParametrosTetoDto.ativo 
+      : existingParametroTeto.ativo;
+
     const parametroTeto = await this.prisma.parametrosTeto.update({
       where: { id },
       data: {
@@ -71,6 +95,22 @@ export class ParametrosTetoService {
         observacoes: updateParametrosTetoDto.observacoes,
       },
     });
+
+    // Recalcular tetos se:
+    // 1. O parâmetro estiver ativo após a atualização
+    // 2. E a margem_pct ou anp_base foram alterados ou o parâmetro foi ativado
+    const precisaRecalcular = ativo && 
+      margemPct !== null && 
+      margemPct !== undefined &&
+      (
+        updateParametrosTetoDto.anp_base !== undefined ||
+        updateParametrosTetoDto.margem_pct !== undefined ||
+        (updateParametrosTetoDto.ativo !== undefined && updateParametrosTetoDto.ativo === true && !existingParametroTeto.ativo)
+      );
+
+    if (precisaRecalcular && margemPct !== null) {
+      await this.anpPrecosUfService.calcularTetoPrecos(anpBase, Number(margemPct));
+    }
 
     return {
       message: 'Parâmetro de teto atualizado com sucesso',

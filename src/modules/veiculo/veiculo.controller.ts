@@ -164,6 +164,15 @@ export class VeiculoController {
     return this.veiculoService.findAll(findVeiculoDto, req.user?.id);
   }
 
+  @Get(':id/motoristas')
+  @ApiOperation({ summary: 'Listar motoristas vinculados ao veículo' })
+  @ApiResponse({ status: 200, description: 'Lista de motoristas retornada com sucesso' })
+  @ApiResponse({ status: 404, description: 'Veículo não encontrado' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  async findMotoristas(@Param('id', ParseIntPipe) id: number) {
+    return this.veiculoService.findMotoristasByVeiculo(id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar veículo por ID' })
   @ApiResponse({ status: 200, description: 'Veículo encontrado com sucesso' })

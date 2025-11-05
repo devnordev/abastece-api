@@ -550,6 +550,77 @@ export class VeiculoService {
     };
   }
 
+  async findMotoristasByVeiculo(veiculoId: number) {
+    // Verificar se o veículo existe
+    const veiculo = await this.prisma.veiculo.findUnique({
+      where: { id: veiculoId },
+      select: { id: true, nome: true, placa: true },
+    });
+
+    if (!veiculo) {
+      throw new NotFoundException('Veículo não encontrado');
+    }
+
+    // Buscar motoristas vinculados ao veículo
+    const veiculoMotoristas = await this.prisma.veiculoMotorista.findMany({
+      where: {
+        veiculoId: veiculoId,
+        ativo: true,
+      },
+      include: {
+        motorista: {
+          select: {
+            id: true,
+            nome: true,
+            cpf: true,
+            cnh: true,
+            categoria_cnh: true,
+            data_vencimento_cnh: true,
+            telefone: true,
+            email: true,
+            ativo: true,
+            observacoes: true,
+          },
+        },
+      },
+      orderBy: {
+        data_inicio: 'desc',
+      },
+    });
+
+    // Formatar resposta
+    const motoristas = veiculoMotoristas.map((vm) => ({
+      id: vm.motorista.id,
+      nome: vm.motorista.nome,
+      cpf: vm.motorista.cpf,
+      cnh: vm.motorista.cnh,
+      categoria_cnh: vm.motorista.categoria_cnh,
+      data_vencimento_cnh: vm.motorista.data_vencimento_cnh,
+      telefone: vm.motorista.telefone,
+      email: vm.motorista.email,
+      ativo: vm.motorista.ativo,
+      observacoes: vm.motorista.observacoes,
+      vinculo: {
+        id: vm.id,
+        data_inicio: vm.data_inicio,
+        data_fim: vm.data_fim,
+        ativo: vm.ativo,
+        observacoes: vm.observacoes,
+      },
+    }));
+
+    return {
+      message: 'Motoristas encontrados com sucesso',
+      veiculo: {
+        id: veiculo.id,
+        nome: veiculo.nome,
+        placa: veiculo.placa,
+      },
+      motoristas,
+      total: motoristas.length,
+    };
+  }
+
   async update(id: number, updateVeiculoDto: UpdateVeiculoDto, file?: Express.Multer.File) {
     // Verificar se veículo existe
     const existingVeiculo = await this.prisma.veiculo.findUnique({

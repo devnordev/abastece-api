@@ -19,6 +19,7 @@ import { LogModule } from './modules/log/log.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { ParametrosTetoModule } from './modules/parametros-teto/parametros-teto.module';
 import { AnpSemanaModule } from './modules/anp-semana/anp-semana.module';
+import { AnpPrecosUfModule } from './modules/anp-precos-uf/anp-precos-uf.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { AnpSemanaModule } from './modules/anp-semana/anp-semana.module';
     UploadModule,
     ParametrosTetoModule,
     AnpSemanaModule,
+    AnpPrecosUfModule,
   ],
 })
 export class AppModule {}
