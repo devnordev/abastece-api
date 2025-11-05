@@ -17,6 +17,7 @@ import { ContratoModule } from './modules/contrato/contrato.module';
 import { ContaFaturamentoOrgaoModule } from './modules/conta-faturamento-orgao/conta-faturamento-orgao.module';
 import { LogModule } from './modules/log/log.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { ParametrosTetoModule } from './modules/parametros-teto/parametros-teto.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { UploadModule } from './modules/upload/upload.module';
     ContaFaturamentoOrgaoModule,
     LogModule,
     UploadModule,
+    ParametrosTetoModule,
   ],
 })
 export class AppModule {}
