@@ -92,7 +92,7 @@ export class AnpPrecosUfService {
     });
 
     if (!preco) {
-      return null;
+      throw new NotFoundException('Preço ANP não encontrado. Verifique se o ID informado está correto.');
     }
 
     return {
@@ -286,11 +286,11 @@ export class AnpPrecosUfService {
     });
 
     if (!parametroTeto) {
-      throw new NotFoundException('Nenhum parâmetro de teto ativo encontrado. Cadastre um parâmetro de teto ativo antes de importar os preços.');
+      throw new NotFoundException('Nenhum parâmetro de teto ativo encontrado. Cadastre e ative um parâmetro de teto antes de importar os preços ANP.');
     }
 
     if (!parametroTeto.margem_pct) {
-      throw new BadRequestException('O parâmetro de teto ativo não possui margem percentual definida.');
+      throw new BadRequestException('O parâmetro de teto ativo não possui margem percentual definida. Configure a margem percentual (entre 0 e 100) no parâmetro de teto antes de importar os preços.');
     }
 
     return parametroTeto;
@@ -314,7 +314,7 @@ export class AnpPrecosUfService {
     });
 
     if (!anpSemana) {
-      throw new NotFoundException(`Semana ANP com ID ${anpSemanaId} não encontrada`);
+      throw new NotFoundException(`Semana ANP com ID ${anpSemanaId} não encontrada. Verifique se o ID informado está correto e se a semana foi cadastrada anteriormente.`);
     }
 
     // Buscar parâmetro de teto ativo
@@ -357,7 +357,7 @@ export class AnpPrecosUfService {
 
     const linhas = csvContent.split('\n').filter(linha => linha.trim());
     if (linhas.length < 2) {
-      throw new BadRequestException('CSV deve conter pelo menos uma linha de cabeçalho e uma linha de dados');
+      throw new BadRequestException('O arquivo CSV está vazio ou incompleto. O arquivo deve conter pelo menos uma linha de cabeçalho e uma linha de dados.');
     }
 
     // Detectar separador (ponto e vírgula ou vírgula)
@@ -459,8 +459,8 @@ export class AnpPrecosUfService {
       }).join('\n');
       
       throw new BadRequestException(
-        `Não foi possível encontrar o cabeçalho do CSV na linha 10. Verifique se o arquivo contém as colunas: ESTADOS, PRODUTO, PREÇO MÉDIO REVENDA.\n\n` +
-        `Primeiras linhas do arquivo:\n${primeirasLinhas}`
+        `Não foi possível encontrar o cabeçalho do CSV na linha 10. Verifique se o arquivo está no formato correto da ANP e contém as colunas obrigatórias: ESTADOS, PRODUTO, PREÇO MÉDIO REVENDA.\n\n` +
+        `Primeiras linhas do arquivo para análise:\n${primeirasLinhas}`
       );
     }
 
@@ -596,9 +596,14 @@ export class AnpPrecosUfService {
     }
 
     if (indiceEstados === -1 || indiceProduto === -1 || indicePrecoMedio === -1) {
+      const colunasFaltantes = [];
+      if (indiceEstados === -1) colunasFaltantes.push('ESTADOS/UF');
+      if (indiceProduto === -1) colunasFaltantes.push('PRODUTO/COMBUSTÍVEL');
+      if (indicePrecoMedio === -1) colunasFaltantes.push('PREÇO MÉDIO REVENDA');
+      
       throw new BadRequestException(
-        `CSV deve conter as colunas: estados, produto, preço médio. ` +
-        `Colunas encontradas: ${cabecalho.join(', ')}`
+        `O arquivo CSV não contém todas as colunas obrigatórias. Colunas faltantes: ${colunasFaltantes.join(', ')}. ` +
+        `Colunas encontradas no arquivo: ${cabecalho.join(', ')}. Verifique se o arquivo está no formato correto da ANP.`
       );
     }
 
@@ -622,20 +627,20 @@ export class AnpPrecosUfService {
         // Validar e mapear estado
         const uf = this.mapearEstadoParaUF(estado);
         if (!uf) {
-          erros.push(`Linha ${i + 1} (linha ${i + 1 + indiceCabecalho} do arquivo): Estado "${estado}" não reconhecido`);
+          erros.push(`Linha ${i + 1} (linha ${i + 1 + indiceCabecalho} do arquivo): Estado "${estado}" não reconhecido. Verifique se o nome do estado está correto ou use a sigla da UF (ex: SP, RJ, MG).`);
           continue;
         }
 
         // Validar e mapear produto
         const combustivel = this.mapearProdutoParaCombustivel(produto);
         if (!combustivel) {
-          erros.push(`Linha ${i + 1} (linha ${i + 1 + indiceCabecalho} do arquivo): Produto "${produto}" não reconhecido`);
+          erros.push(`Linha ${i + 1} (linha ${i + 1 + indiceCabecalho} do arquivo): Produto "${produto}" não reconhecido. Verifique se o nome do combustível está correto (ex: Gasolina Comum, Etanol, Diesel S10).`);
           continue;
         }
 
         // Validar preço médio
         if (isNaN(precoMedio) || precoMedio <= 0) {
-          erros.push(`Linha ${i + 1} (linha ${i + 1 + indiceCabecalho} do arquivo): Preço médio inválido`);
+          erros.push(`Linha ${i + 1} (linha ${i + 1 + indiceCabecalho} do arquivo): Preço médio inválido. O valor deve ser um número maior que zero.`);
           continue;
         }
 
@@ -673,7 +678,12 @@ export class AnpPrecosUfService {
     }
 
     if (dadosParaSalvar.length === 0) {
-      throw new BadRequestException('Nenhum dado válido encontrado no CSV. Erros: ' + erros.join('; '));
+      const mensagemErros = erros.length > 0 
+        ? `\n\nErros encontrados:\n${erros.slice(0, 10).join('\n')}${erros.length > 10 ? `\n... e mais ${erros.length - 10} erro(s)` : ''}`
+        : '';
+      throw new BadRequestException(
+        `Nenhum dado válido encontrado no CSV. Verifique se o arquivo está no formato correto da ANP e se todas as colunas obrigatórias estão presentes.${mensagemErros}`
+      );
     }
 
     // Salvar em lote usando transação

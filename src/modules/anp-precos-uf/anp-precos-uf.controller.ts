@@ -87,12 +87,12 @@ export class AnpPrecosUfController {
     @Body() body: any,
   ) {
     if (!file) {
-      throw new BadRequestException('Nenhum arquivo CSV foi enviado');
+      throw new BadRequestException('Nenhum arquivo CSV foi enviado. Envie um arquivo CSV válido com os preços ANP.');
     }
 
     const anpSemanaId = parseInt(body.anp_semana_id);
     if (isNaN(anpSemanaId) || anpSemanaId <= 0) {
-      throw new BadRequestException('anp_semana_id deve ser um número inteiro positivo');
+      throw new BadRequestException('O ID da semana ANP (anp_semana_id) deve ser um número inteiro positivo. Verifique se o valor informado está correto.');
     }
 
     // Converter buffer para string

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateParametrosTetoDto } from './dto/create-parametros-teto.dto';
 import { UpdateParametrosTetoDto } from './dto/update-parametros-teto.dto';
@@ -13,8 +13,21 @@ export class ParametrosTetoService {
   ) {}
 
   async create(createParametrosTetoDto: CreateParametrosTetoDto) {
-    const anpBase = createParametrosTetoDto.anp_base || AnpBase.MEDIO;
+    // Validar que não existe outro registro de ParametrosTeto
+    const existingParametro = await this.prisma.parametrosTeto.findFirst();
+    if (existingParametro) {
+      throw new ConflictException('Já existe um registro de parâmetros de teto cadastrado. O sistema permite apenas um registro único. Use a atualização para modificar os parâmetros existentes.');
+    }
+
+    // Validar margem_pct entre 0 e 100
     const margemPct = createParametrosTetoDto.margem_pct;
+    if (margemPct !== null && margemPct !== undefined) {
+      if (margemPct < 0 || margemPct > 100) {
+        throw new BadRequestException('A margem percentual deve ser um valor entre 0 e 100.');
+      }
+    }
+
+    const anpBase = createParametrosTetoDto.anp_base || AnpBase.MEDIO;
     const ativo = createParametrosTetoDto.ativo !== undefined ? createParametrosTetoDto.ativo : true;
 
     const parametroTeto = await this.prisma.parametrosTeto.create({
@@ -56,7 +69,7 @@ export class ParametrosTetoService {
     });
 
     if (!parametroTeto) {
-      throw new NotFoundException('Parâmetro de teto não encontrado');
+      throw new NotFoundException('Parâmetro de teto não encontrado. Verifique se o ID informado está correto.');
     }
 
     return {
@@ -71,7 +84,14 @@ export class ParametrosTetoService {
     });
 
     if (!existingParametroTeto) {
-      throw new NotFoundException('Parâmetro de teto não encontrado');
+      throw new NotFoundException('Parâmetro de teto não encontrado. Verifique se o ID informado está correto.');
+    }
+
+    // Validar margem_pct entre 0 e 100 se estiver sendo atualizado
+    if (updateParametrosTetoDto.margem_pct !== undefined && updateParametrosTetoDto.margem_pct !== null) {
+      if (updateParametrosTetoDto.margem_pct < 0 || updateParametrosTetoDto.margem_pct > 100) {
+        throw new BadRequestException('A margem percentual deve ser um valor entre 0 e 100.');
+      }
     }
 
     // Determinar os valores finais após a atualização
@@ -124,7 +144,7 @@ export class ParametrosTetoService {
     });
 
     if (!existingParametroTeto) {
-      throw new NotFoundException('Parâmetro de teto não encontrado');
+      throw new NotFoundException('Parâmetro de teto não encontrado. Verifique se o ID informado está correto.');
     }
 
     await this.prisma.parametrosTeto.delete({

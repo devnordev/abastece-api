@@ -8,13 +8,37 @@ export class AnpSemanaService {
   constructor(private prisma: PrismaService) {}
 
   async create(createAnpSemanaDto: CreateAnpSemanaDto) {
+    // Validar data de referência
+    const dataRef = new Date(createAnpSemanaDto.semana_ref);
+    if (isNaN(dataRef.getTime())) {
+      throw new BadRequestException('A data de referência da semana informada é inválida. Use o formato YYYY-MM-DD.');
+    }
+
+    // Validar data de publicação se fornecida
+    let dataPublicada = new Date();
+    if (createAnpSemanaDto.publicada_em) {
+      dataPublicada = new Date(createAnpSemanaDto.publicada_em);
+      if (isNaN(dataPublicada.getTime())) {
+        throw new BadRequestException('A data de publicação informada é inválida. Use o formato YYYY-MM-DD ou ISO 8601.');
+      }
+    }
+
+    // Validar data de importação se fornecida
+    let dataImportado = null;
+    if (createAnpSemanaDto.importado_em) {
+      dataImportado = new Date(createAnpSemanaDto.importado_em);
+      if (isNaN(dataImportado.getTime())) {
+        throw new BadRequestException('A data de importação informada é inválida. Use o formato YYYY-MM-DD ou ISO 8601.');
+      }
+    }
+
     const anpSemana = await this.prisma.anpSemana.create({
       data: {
-        semana_ref: new Date(createAnpSemanaDto.semana_ref),
-        publicada_em: createAnpSemanaDto.publicada_em ? new Date(createAnpSemanaDto.publicada_em) : new Date(),
+        semana_ref: dataRef,
+        publicada_em: dataPublicada,
         ativo: createAnpSemanaDto.ativo !== undefined ? createAnpSemanaDto.ativo : false,
         observacoes: createAnpSemanaDto.observacoes,
-        importado_em: createAnpSemanaDto.importado_em ? new Date(createAnpSemanaDto.importado_em) : null,
+        importado_em: dataImportado,
       },
       include: {
         _count: {
@@ -67,7 +91,7 @@ export class AnpSemanaService {
     });
 
     if (!anpSemana) {
-      throw new NotFoundException('Semana ANP não encontrada');
+      throw new NotFoundException('Semana ANP não encontrada. Verifique se o ID informado está correto.');
     }
 
     return {
@@ -82,7 +106,29 @@ export class AnpSemanaService {
     });
 
     if (!existingAnpSemana) {
-      throw new NotFoundException('Semana ANP não encontrada');
+      throw new NotFoundException('Semana ANP não encontrada. Verifique se o ID informado está correto.');
+    }
+
+    // Validar datas se fornecidas
+    if (updateAnpSemanaDto.semana_ref) {
+      const dataRef = new Date(updateAnpSemanaDto.semana_ref);
+      if (isNaN(dataRef.getTime())) {
+        throw new BadRequestException('A data de referência da semana informada é inválida. Use o formato YYYY-MM-DD.');
+      }
+    }
+
+    if (updateAnpSemanaDto.publicada_em) {
+      const dataPublicada = new Date(updateAnpSemanaDto.publicada_em);
+      if (isNaN(dataPublicada.getTime())) {
+        throw new BadRequestException('A data de publicação informada é inválida. Use o formato YYYY-MM-DD ou ISO 8601.');
+      }
+    }
+
+    if (updateAnpSemanaDto.importado_em) {
+      const dataImportado = new Date(updateAnpSemanaDto.importado_em);
+      if (isNaN(dataImportado.getTime())) {
+        throw new BadRequestException('A data de importação informada é inválida. Use o formato YYYY-MM-DD ou ISO 8601.');
+      }
     }
 
     const updateData: any = {};
@@ -133,11 +179,11 @@ export class AnpSemanaService {
     });
 
     if (!existingAnpSemana) {
-      throw new NotFoundException('Semana ANP não encontrada');
+      throw new NotFoundException('Semana ANP não encontrada. Verifique se o ID informado está correto.');
     }
 
     if (existingAnpSemana._count.precos > 0) {
-      throw new BadRequestException('Não é possível excluir semana ANP com preços vinculados');
+      throw new BadRequestException(`Não é possível excluir a semana ANP pois existem ${existingAnpSemana._count.precos} preço(s) vinculado(s) a ela. Remova os preços antes de excluir a semana.`);
     }
 
     await this.prisma.anpSemana.delete({
