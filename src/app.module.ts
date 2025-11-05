@@ -18,6 +18,7 @@ import { ContaFaturamentoOrgaoModule } from './modules/conta-faturamento-orgao/c
 import { LogModule } from './modules/log/log.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { ParametrosTetoModule } from './modules/parametros-teto/parametros-teto.module';
+import { AnpSemanaModule } from './modules/anp-semana/anp-semana.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { ParametrosTetoModule } from './modules/parametros-teto/parametros-teto.
     LogModule,
     UploadModule,
     ParametrosTetoModule,
+    AnpSemanaModule,
   ],
 })
 export class AppModule {}
