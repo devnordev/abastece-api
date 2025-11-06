@@ -1,11 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 
 const prisma = new PrismaClient();
-const execAsync = promisify(exec);
 
 /**
  * Script para gerar backup do banco de dados
@@ -50,24 +47,7 @@ async function generateFullBackup(): Promise<string> {
   const filepath = path.join(backupDir, filename);
 
   try {
-    const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) {
-      throw new Error('DATABASE_URL não configurada');
-    }
-
-    const url = new URL(databaseUrl);
-    const host = url.hostname;
-    const port = url.port || '5432';
-    const database = url.pathname.substring(1);
-    const username = url.username;
-    const password = url.password;
-
-    const env = { ...process.env, PGPASSWORD: password };
-    const command = `pg_dump -h ${host} -p ${port} -U ${username} -d ${database} --no-owner --no-acl --clean --if-exists --inserts > "${filepath}"`;
-
-    await execAsync(command, { env, maxBuffer: 10 * 1024 * 1024 });
-
-    const header = `-- ============================================
+    let sqlContent = `-- ============================================
 -- BACKUP COMPLETO DO BANCO DE DADOS
 -- Data/Hora: ${new Date().toLocaleString('pt-BR')}
 -- Timestamp: ${timestamp}
@@ -76,14 +56,194 @@ async function generateFullBackup(): Promise<string> {
 -- ============================================
 
 `;
-    const content = fs.readFileSync(filepath, 'utf8');
-    fs.writeFileSync(filepath, header + content);
+
+    // Buscar todas as tabelas principais usando Prisma
+    console.log('📊 Buscando dados do banco...');
+
+    const prefeituras = await prisma.prefeitura.findMany();
+    if (prefeituras.length > 0) {
+      sqlContent += generateInsertSQL('prefeitura', prefeituras);
+    }
+
+    const empresas = await prisma.empresa.findMany();
+    if (empresas.length > 0) {
+      sqlContent += generateInsertSQL('empresa', empresas);
+    }
+
+    const usuarios = await prisma.usuario.findMany();
+    if (usuarios.length > 0) {
+      sqlContent += generateInsertSQL('usuario', usuarios);
+    }
+
+    const orgaos = await prisma.orgao.findMany();
+    if (orgaos.length > 0) {
+      sqlContent += generateInsertSQL('orgao', orgaos);
+    }
+
+    const veiculos = await prisma.veiculo.findMany();
+    if (veiculos.length > 0) {
+      sqlContent += generateInsertSQL('veiculo', veiculos);
+    }
+
+    const motoristas = await prisma.motorista.findMany();
+    if (motoristas.length > 0) {
+      sqlContent += generateInsertSQL('motorista', motoristas);
+    }
+
+    const categorias = await prisma.categoria.findMany();
+    if (categorias.length > 0) {
+      sqlContent += generateInsertSQL('categoria', categorias);
+    }
+
+    const combustiveis = await prisma.combustivel.findMany();
+    if (combustiveis.length > 0) {
+      sqlContent += generateInsertSQL('combustivel', combustiveis);
+    }
+
+    const contratos = await prisma.contrato.findMany();
+    if (contratos.length > 0) {
+      sqlContent += generateInsertSQL('contrato', contratos);
+    }
+
+    const processos = await prisma.processo.findMany();
+    if (processos.length > 0) {
+      sqlContent += generateInsertSQL('processo', processos);
+    }
+
+    const abastecimentos = await prisma.abastecimento.findMany();
+    if (abastecimentos.length > 0) {
+      sqlContent += generateInsertSQL('abastecimento', abastecimentos);
+    }
+
+    const cotasOrgao = await prisma.cotaOrgao.findMany();
+    if (cotasOrgao.length > 0) {
+      sqlContent += generateInsertSQL('cota_orgao', cotasOrgao);
+    }
+
+    const contasFaturamento = await prisma.contaFaturamentoOrgao.findMany();
+    if (contasFaturamento.length > 0) {
+      sqlContent += generateInsertSQL('conta_faturamento_orgao', contasFaturamento);
+    }
+
+    const processoCombustiveis = await prisma.processoCombustivel.findMany();
+    if (processoCombustiveis.length > 0) {
+      sqlContent += generateInsertSQL('processo_combustivel', processoCombustiveis);
+    }
+
+    const processoCombustiveisConsorciado = await prisma.processoCombustivelConsorciado.findMany();
+    if (processoCombustiveisConsorciado.length > 0) {
+      sqlContent += generateInsertSQL('processo_combustivel_consorciado', processoCombustiveisConsorciado);
+    }
+
+    const prefeiturasConsorcio = await prisma.processoPrefeituraConsorcio.findMany();
+    if (prefeiturasConsorcio.length > 0) {
+      sqlContent += generateInsertSQL('processo_prefeitura_consorcio', prefeiturasConsorcio);
+    }
+
+    const prefeiturasCombustiveisConsorcio = await prisma.processoPrefeituraCombustivelConsorcio.findMany();
+    if (prefeiturasCombustiveisConsorcio.length > 0) {
+      sqlContent += generateInsertSQL('processo_prefeitura_combustivel_consorcio', prefeiturasCombustiveisConsorcio);
+    }
+
+    const aditivosContrato = await prisma.aditivoContrato.findMany();
+    if (aditivosContrato.length > 0) {
+      sqlContent += generateInsertSQL('aditivo_contrato', aditivosContrato);
+    }
+
+    const aditivosProcesso = await prisma.aditivoProcesso.findMany();
+    if (aditivosProcesso.length > 0) {
+      sqlContent += generateInsertSQL('aditivo_processo', aditivosProcesso);
+    }
+
+    const empresaPrecoCombustivel = await prisma.empresaPrecoCombustivel.findMany();
+    if (empresaPrecoCombustivel.length > 0) {
+      sqlContent += generateInsertSQL('empresa_preco_combustivel', empresaPrecoCombustivel);
+    }
+
+    const anpSemana = await prisma.anpSemana.findMany();
+    if (anpSemana.length > 0) {
+      sqlContent += generateInsertSQL('anp_semana', anpSemana);
+    }
+
+    const anpPrecosUf = await prisma.anpPrecosUf.findMany();
+    if (anpPrecosUf.length > 0) {
+      sqlContent += generateInsertSQL('anp_precos_uf', anpPrecosUf);
+    }
+
+    const parametrosTeto = await prisma.parametrosTeto.findMany();
+    if (parametrosTeto.length > 0) {
+      sqlContent += generateInsertSQL('parametros_teto', parametrosTeto);
+    }
+
+    const notificacoes = await prisma.notificacao.findMany();
+    if (notificacoes.length > 0) {
+      sqlContent += generateInsertSQL('notificacao', notificacoes);
+    }
+
+    const onOff = await prisma.onOff.findMany();
+    if (onOff.length > 0) {
+      sqlContent += generateInsertSQL('onoff', onOff);
+    }
+
+    const onOffApp = await prisma.onOffApp.findMany();
+    if (onOffApp.length > 0) {
+      sqlContent += generateInsertSQL('onoffapp', onOffApp);
+    }
+
+    const logsAlteracoes = await prisma.logsAlteracoes.findMany();
+    if (logsAlteracoes.length > 0) {
+      sqlContent += generateInsertSQL('logs_alteracoes', logsAlteracoes);
+    }
+
+    const refreshTokens = await prisma.refreshToken.findMany();
+    if (refreshTokens.length > 0) {
+      sqlContent += generateInsertSQL('refresh_token', refreshTokens);
+    }
+
+    const solicitacoesAbastecimento = await prisma.solicitacaoAbastecimento.findMany();
+    if (solicitacoesAbastecimento.length > 0) {
+      sqlContent += generateInsertSQL('solicitacoes_abastecimento', solicitacoesAbastecimento);
+    }
+
+    const veiculoCotaPeriodos = await prisma.veiculoCotaPeriodo.findMany();
+    if (veiculoCotaPeriodos.length > 0) {
+      sqlContent += generateInsertSQL('veiculo_cota_periodo', veiculoCotaPeriodos);
+    }
+
+    // Tabelas de relacionamento Many-to-Many
+    const contratoCombustiveis = await prisma.contratoCombustivel.findMany();
+    if (contratoCombustiveis.length > 0) {
+      sqlContent += generateInsertSQL('contrato_combustivel', contratoCombustiveis);
+    }
+
+    const veiculoCombustiveis = await prisma.veiculoCombustivel.findMany();
+    if (veiculoCombustiveis.length > 0) {
+      sqlContent += generateInsertSQL('veiculo_combustivel', veiculoCombustiveis);
+    }
+
+    const veiculoCategorias = await prisma.veiculoCategoria.findMany();
+    if (veiculoCategorias.length > 0) {
+      sqlContent += generateInsertSQL('veiculo_categoria', veiculoCategorias);
+    }
+
+    const veiculoMotoristas = await prisma.veiculoMotorista.findMany();
+    if (veiculoMotoristas.length > 0) {
+      sqlContent += generateInsertSQL('veiculo_motorista', veiculoMotoristas);
+    }
+
+    const usuarioOrgaos = await prisma.usuarioOrgao.findMany();
+    if (usuarioOrgaos.length > 0) {
+      sqlContent += generateInsertSQL('usuario_orgao', usuarioOrgaos);
+    }
+
+    // Salvar arquivo
+    fs.writeFileSync(filepath, sqlContent, 'utf8');
 
     console.log(`✅ Backup completo gerado: ${filename}`);
     console.log(`📁 Localização: ${filepath}`);
     return filename;
-  } catch (error) {
-    throw new Error(`Erro ao gerar backup: ${error.message}`);
+  } catch (error: any) {
+    throw new Error(`Erro ao gerar backup: ${error?.message || error}`);
   }
 }
 
