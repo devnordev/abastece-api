@@ -234,5 +234,22 @@ export class AnpSemanaService {
       anpSemana,
     };
   }
+
+  async findActive() {
+    const anpSemana = await this.prisma.anpSemana.findFirst({
+      where: {
+        ativo: true,
+      },
+    });
+
+    if (!anpSemana) {
+      throw new NotFoundException('Nenhuma semana ANP ativa encontrada.');
+    }
+
+    return {
+      message: 'Semana ANP ativa encontrada com sucesso',
+      anpSemana,
+    };
+  }
 }
 

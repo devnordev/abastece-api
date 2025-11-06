@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntPipe, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AnpSemanaService } from './anp-semana.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -31,14 +31,36 @@ export class AnpSemanaController {
     return this.anpSemanaService.findAll();
   }
 
+  @Get('active')
+  @ApiOperation({ summary: 'Buscar semana ANP ativa' })
+  @ApiResponse({ status: 200, description: 'Semana ANP ativa encontrada com sucesso' })
+  @ApiResponse({ status: 404, description: 'Nenhuma semana ANP ativa encontrada' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado - apenas SUPER_ADMIN' })
+  async findActive() {
+    return this.anpSemanaService.findActive();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar semana ANP por ID' })
   @ApiResponse({ status: 200, description: 'Semana ANP encontrada com sucesso' })
   @ApiResponse({ status: 404, description: 'Semana ANP não encontrada' })
+  @ApiResponse({ status: 400, description: 'ID inválido' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 403, description: 'Acesso negado - apenas SUPER_ADMIN' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.anpSemanaService.findOne(id);
+  async findOne(@Param('id') id: string) {
+    // Verificar se é "active" e redirecionar
+    if (id === 'active') {
+      return this.anpSemanaService.findActive();
+    }
+    
+    // Validar se é um número
+    const numericId = parseInt(id, 10);
+    if (isNaN(numericId)) {
+      throw new BadRequestException('ID deve ser um número válido');
+    }
+    
+    return this.anpSemanaService.findOne(numericId);
   }
 
   @Patch(':id/activate')

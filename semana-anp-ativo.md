@@ -5,6 +5,7 @@
 - [Requisitos de Acesso](#requisitos-de-acesso)
 - [Cadastro de Nova Semana ANP](#cadastro-de-nova-semana-anp)
 - [Ativação de Semana ANP](#ativação-de-semana-anp)
+- [Buscar Semana ANP Ativa](#buscar-semana-anp-ativa)
 - [Exemplos de Requisições](#exemplos-de-requisições)
 - [Respostas da API](#respostas-da-api)
 - [Comportamento do Sistema](#comportamento-do-sistema)
@@ -166,6 +167,72 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ---
 
+## 🔍 Buscar Semana ANP Ativa
+
+### Rota
+```http
+GET /anp-semana/active
+```
+
+### Descrição
+Retorna a semana ANP que está atualmente ativa (com `ativo = true`). Retorna todos os campos da tabela `anp_semana`:
+- `id`: Identificador único da semana
+- `semana_ref`: Data de referência da semana
+- `publicada_em`: Data de publicação
+- `ativo`: Status ativo (sempre `true` nesta rota)
+- `observacoes`: Observações adicionais
+- `importado_em`: Data de importação
+
+**Importante**: Se não houver nenhuma semana ativa no sistema, a API retornará um erro 404.
+
+### Parâmetros
+Esta rota não requer parâmetros na URL ou no body.
+
+### Exemplo de Requisição
+
+```http
+GET http://localhost:3000/anp-semana/active
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### Resposta de Sucesso (200 OK)
+
+```json
+{
+  "message": "Semana ANP ativa encontrada com sucesso",
+  "anpSemana": {
+    "id": 1,
+    "semana_ref": "2024-01-15T00:00:00.000Z",
+    "publicada_em": "2024-01-15T10:00:00.000Z",
+    "ativo": true,
+    "observacoes": "Semana de referência para janeiro de 2024",
+    "importado_em": "2024-01-15T10:00:00.000Z"
+  }
+}
+```
+
+### Resposta de Erro (404 Not Found)
+
+Quando não há nenhuma semana ativa no sistema:
+
+```json
+{
+  "statusCode": 404,
+  "message": "Nenhuma semana ANP ativa encontrada.",
+  "error": "Not Found"
+}
+```
+
+### Casos de Uso
+
+Esta rota é útil para:
+- ✅ Verificar qual semana está atualmente ativa no sistema
+- ✅ Obter informações completas da semana ativa sem precisar conhecer o ID
+- ✅ Validar se existe uma semana ativa antes de realizar operações que dependem dela
+- ✅ Integrar com sistemas externos que precisam saber qual semana está em uso
+
+---
+
 ## 📡 Exemplos de Requisições
 
 ### Exemplo 1: Fluxo Completo - Cadastrar e Ativar
@@ -225,6 +292,27 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
+#### Passo 3: Verificar Semana Ativa
+```http
+GET http://localhost:3000/anp-semana/active
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Resposta:**
+```json
+{
+  "message": "Semana ANP ativa encontrada com sucesso",
+  "anpSemana": {
+    "id": 2,
+    "semana_ref": "2024-02-05T00:00:00.000Z",
+    "publicada_em": "2024-02-05T08:00:00.000Z",
+    "ativo": true,
+    "observacoes": "Segunda semana de fevereiro",
+    "importado_em": null
+  }
+}
+```
+
 ### Exemplo 2: Usando cURL
 
 #### Cadastrar Semana
@@ -242,6 +330,12 @@ curl -X POST http://localhost:3000/anp-semana \
 #### Ativar Semana
 ```bash
 curl -X PATCH http://localhost:3000/anp-semana/3/activate \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+#### Buscar Semana Ativa
+```bash
+curl -X GET http://localhost:3000/anp-semana/active \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
@@ -281,9 +375,24 @@ async function ativarSemana(id) {
   console.log('Semana ativada:', data);
 }
 
+// Buscar semana ativa
+async function buscarSemanaAtiva() {
+  const response = await fetch('http://localhost:3000/anp-semana/active', {
+    method: 'GET',
+    headers: {
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+    }
+  });
+  
+  const data = await response.json();
+  console.log('Semana ativa:', data);
+  return data.anpSemana;
+}
+
 // Uso
 const semanaId = await criarSemana();
 await ativarSemana(semanaId);
+const semanaAtiva = await buscarSemanaAtiva();
 ```
 
 ---
@@ -295,11 +404,11 @@ await ativarSemana(semanaId);
 | Código | Significado | Quando Ocorre |
 |--------|-------------|---------------|
 | `201` | Created | Semana criada com sucesso |
-| `200` | OK | Semana ativada ou atualizada com sucesso |
+| `200` | OK | Semana ativada, atualizada ou encontrada com sucesso |
 | `400` | Bad Request | Dados inválidos (ex: data inválida) |
 | `401` | Unauthorized | Token JWT ausente ou inválido |
 | `403` | Forbidden | Usuário não tem perfil SUPER_ADMIN |
-| `404` | Not Found | Semana não encontrada |
+| `404` | Not Found | Semana não encontrada ou nenhuma semana ativa |
 
 ### Exemplos de Erros
 
@@ -333,6 +442,15 @@ await ativarSemana(semanaId);
 {
   "statusCode": 404,
   "message": "Semana ANP não encontrada. Verifique se o ID informado está correto.",
+  "error": "Not Found"
+}
+```
+
+#### Erro 404 - Nenhuma Semana Ativa
+```json
+{
+  "statusCode": 404,
+  "message": "Nenhuma semana ANP ativa encontrada.",
   "error": "Not Found"
 }
 ```
@@ -376,6 +494,11 @@ await ativarSemana(semanaId);
 ### Listar Todas as Semanas
 ```http
 GET /anp-semana
+```
+
+### Buscar Semana Ativa
+```http
+GET /anp-semana/active
 ```
 
 ### Buscar Semana por ID
@@ -422,6 +545,10 @@ DELETE /anp-semana/:id
 ### Problema: Token expirado
 - **Causa**: Access token JWT expirou (válido por 15 minutos)
 - **Solução**: Renove o token usando `POST /auth/refresh` com o refresh token
+
+### Problema: "Nenhuma semana ANP ativa encontrada"
+- **Causa**: Não há nenhuma semana com `ativo = true` no banco de dados
+- **Solução**: Ative uma semana usando `PATCH /anp-semana/:id/activate` antes de buscar a semana ativa
 
 ---
 
