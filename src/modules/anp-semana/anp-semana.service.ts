@@ -36,7 +36,7 @@ export class AnpSemanaService {
       data: {
         semana_ref: dataRef,
         publicada_em: dataPublicada,
-        ativo: createAnpSemanaDto.ativo !== undefined ? createAnpSemanaDto.ativo : false,
+        ativo: false, // Sempre cria como inativo
         observacoes: createAnpSemanaDto.observacoes,
         importado_em: dataImportado,
       },
@@ -192,6 +192,46 @@ export class AnpSemanaService {
 
     return {
       message: 'Semana ANP excluída com sucesso',
+    };
+  }
+
+  async activate(id: number) {
+    const existingAnpSemana = await this.prisma.anpSemana.findUnique({
+      where: { id },
+    });
+
+    if (!existingAnpSemana) {
+      throw new NotFoundException('Semana ANP não encontrada. Verifique se o ID informado está correto.');
+    }
+
+    // Desativar todas as semanas
+    await this.prisma.anpSemana.updateMany({
+      where: {
+        ativo: true,
+      },
+      data: {
+        ativo: false,
+      },
+    });
+
+    // Ativar a semana especificada
+    const anpSemana = await this.prisma.anpSemana.update({
+      where: { id },
+      data: {
+        ativo: true,
+      },
+      include: {
+        _count: {
+          select: {
+            precos: true,
+          },
+        },
+      },
+    });
+
+    return {
+      message: 'Semana ANP ativada com sucesso. As outras semanas foram desativadas.',
+      anpSemana,
     };
   }
 }

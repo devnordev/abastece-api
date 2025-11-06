@@ -1,0 +1,188 @@
+{
+  "instrucoes": {
+    "endpoint": "POST /anp-precos-uf/importar-csv",
+    "metodo": "multipart/form-data",
+    "autenticacao": "Bearer Token (JWT)",
+    "perfil_necessario": "SUPER_ADMIN",
+    "arquivo_csv": "resumo_semanal_lpc_2025-08-24_2025-08-30(ESTADOS) (1) (1).csv"
+  },
+  "requisicao_postman": {
+    "url": "http://localhost:3000/anp-precos-uf/importar-csv",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer <seu-token-jwt>"
+    },
+    "body": {
+      "type": "form-data",
+      "fields": [
+        {
+          "key": "file",
+          "type": "file",
+          "value": "resumo_semanal_lpc_2025-08-24_2025-08-30(ESTADOS) (1) (1).csv"
+        },
+        {
+          "key": "anp_semana_id",
+          "type": "text",
+          "value": "1"
+        }
+      ]
+    }
+  },
+  "exemplos_dados_csv": [
+    {
+      "linha_csv": "24/08/2025;30/08/2025;SUDESTE;SAO PAULO;ETANOL HIDRATADO;1128;R$/l;3,98;0,356;3,19;6,29;0,089",
+      "dados_convertidos": {
+        "anp_semana_id": 1,
+        "uf": "SP",
+        "combustivel": "ETANOL_COMUM",
+        "preco_minimo": 3.19,
+        "preco_medio": 3.98,
+        "preco_maximo": 6.29
+      }
+    },
+    {
+      "linha_csv": "24/08/2025;30/08/2025;SUDESTE;SAO PAULO;GASOLINA COMUM;1137;R$/l;6,04;0,468;5,09;8,99;0,077",
+      "dados_convertidos": {
+        "anp_semana_id": 1,
+        "uf": "SP",
+        "combustivel": "GASOLINA_COMUM",
+        "preco_minimo": 5.09,
+        "preco_medio": 6.04,
+        "preco_maximo": 8.99
+      }
+    },
+    {
+      "linha_csv": "24/08/2025;30/08/2025;SUDESTE;RIO DE JANEIRO;OLEO DIESEL S10;190;R$/l;6,09;0,338;5,52;7,39;0,055",
+      "dados_convertidos": {
+        "anp_semana_id": 1,
+        "uf": "RJ",
+        "combustivel": "DIESEL_S10",
+        "preco_minimo": 5.52,
+        "preco_medio": 6.09,
+        "preco_maximo": 7.39
+      }
+    },
+    {
+      "linha_csv": "24/08/2025;30/08/2025;SUDESTE;SAO PAULO;GASOLINA ADITIVADA;895;R$/l;6,37;0,562;5,19;9,49;0,088",
+      "dados_convertidos": {
+        "anp_semana_id": 1,
+        "uf": "SP",
+        "combustivel": "GASOLINA_ADITIVADA",
+        "preco_minimo": 5.19,
+        "preco_medio": 6.37,
+        "preco_maximo": 9.49
+      }
+    },
+    {
+      "linha_csv": "24/08/2025;30/08/2025;NORDESTE;BAHIA;ETANOL HIDRATADO;100;R$/l;4,75;0,240;4,19;5,19;0,051",
+      "dados_convertidos": {
+        "anp_semana_id": 1,
+        "uf": "BA",
+        "combustivel": "ETANOL_COMUM",
+        "preco_minimo": 4.19,
+        "preco_medio": 4.75,
+        "preco_maximo": 5.19
+      }
+    },
+    {
+      "linha_csv": "24/08/2025;30/08/2025;SUL;PARANA;GASOLINA COMUM;207;R$/l;6,49;0,317;5,69;6,99;0,049",
+      "dados_convertidos": {
+        "anp_semana_id": 1,
+        "uf": "PR",
+        "combustivel": "GASOLINA_COMUM",
+        "preco_minimo": 5.69,
+        "preco_medio": 6.49,
+        "preco_maximo": 6.99
+      }
+    },
+    {
+      "linha_csv": "24/08/2025;30/08/2025;NORTE;ACRE;OLEO DIESEL;5;R$/l;8,17;0,009;8,17;8,19;0,001",
+      "dados_convertidos": {
+        "anp_semana_id": 1,
+        "uf": "AC",
+        "combustivel": "DIESEL_S500",
+        "preco_minimo": 8.17,
+        "preco_medio": 8.17,
+        "preco_maximo": 8.19
+      }
+    },
+    {
+      "linha_csv": "24/08/2025;30/08/2025;SUDESTE;SAO PAULO;GLP;286;R$/13kg;110,10;11,095;81,99;139,00;0,101",
+      "dados_convertidos": {
+        "anp_semana_id": 1,
+        "uf": "SP",
+        "combustivel": "GLP",
+        "preco_minimo": 81.99,
+        "preco_medio": 110.10,
+        "preco_maximo": 139.00
+      }
+    },
+    {
+      "linha_csv": "24/08/2025;30/08/2025;SUDESTE;RIO DE JANEIRO;GNV;154;R$/m³;4,38;0,433;3,97;6,28;0,099",
+      "dados_convertidos": {
+        "anp_semana_id": 1,
+        "uf": "RJ",
+        "combustivel": "GNV",
+        "preco_minimo": 3.97,
+        "preco_medio": 4.38,
+        "preco_maximo": 6.28
+      }
+    }
+  ],
+  "mapeamento_combustiveis": {
+    "ETANOL HIDRATADO": "ETANOL_COMUM",
+    "GASOLINA COMUM": "GASOLINA_COMUM",
+    "GASOLINA ADITIVADA": "GASOLINA_ADITIVADA",
+    "OLEO DIESEL": "DIESEL_S500",
+    "ÓLEO DIESEL": "DIESEL_S500",
+    "OLEO DIESEL S10": "DIESEL_S10",
+    "ÓLEO DIESEL S10": "DIESEL_S10",
+    "GNV": "GNV",
+    "GLP": "GLP"
+  },
+  "mapeamento_estados": {
+    "ACRE": "AC",
+    "ALAGOAS": "AL",
+    "AMAPA": "AP",
+    "AMAPÁ": "AP",
+    "AMAZONAS": "AM",
+    "BAHIA": "BA",
+    "CEARA": "CE",
+    "CEARÁ": "CE",
+    "DISTRITO FEDERAL": "DF",
+    "ESPIRITO SANTO": "ES",
+    "ESPÍRITO SANTO": "ES",
+    "GOIAS": "GO",
+    "GOIÁS": "GO",
+    "MARANHAO": "MA",
+    "MARANHÃO": "MA",
+    "MATO GROSSO": "MT",
+    "MATO GROSSO DO SUL": "MS",
+    "MINAS GERAIS": "MG",
+    "PARA": "PA",
+    "PARÁ": "PA",
+    "PARAIBA": "PB",
+    "PARAÍBA": "PB",
+    "PARANA": "PR",
+    "PARANÁ": "PR",
+    "PERNAMBUCO": "PE",
+    "PIAUI": "PI",
+    "PIAUÍ": "PI",
+    "RIO DE JANEIRO": "RJ",
+    "RIO GRANDE DO NORTE": "RN",
+    "RIO GRANDE DO SUL": "RS",
+    "RONDONIA": "RO",
+    "RONDÔNIA": "RO",
+    "RORAIMA": "RR",
+    "SANTA CATARINA": "SC",
+    "SAO PAULO": "SP",
+    "SÃO PAULO": "SP",
+    "SERGIPE": "SE",
+    "TOCANTINS": "TO"
+  },
+  "resposta_esperada": {
+    "message": "X preços importados com sucesso",
+    "total": 187,
+    "erros": null
+  }
+}

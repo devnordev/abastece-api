@@ -41,6 +41,16 @@ export class AnpSemanaController {
     return this.anpSemanaService.findOne(id);
   }
 
+  @Patch(':id/activate')
+  @ApiOperation({ summary: 'Ativar semana ANP (desativa as outras automaticamente)' })
+  @ApiResponse({ status: 200, description: 'Semana ANP ativada com sucesso' })
+  @ApiResponse({ status: 404, description: 'Semana ANP não encontrada' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado - apenas SUPER_ADMIN' })
+  async activate(@Param('id', ParseIntPipe) id: number) {
+    return this.anpSemanaService.activate(id);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Atualizar semana ANP' })
   @ApiResponse({ status: 200, description: 'Semana ANP atualizada com sucesso' })

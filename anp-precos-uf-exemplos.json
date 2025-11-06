@@ -1,0 +1,65 @@
+{
+  "exemplo_1_gasolina_comum_sp": {
+    "anp_semana_id": 1,
+    "uf": "SP",
+    "combustivel": "GASOLINA_COMUM",
+    "preco_minimo": 5.30,
+    "preco_medio": 5.50,
+    "preco_maximo": 5.70
+  },
+  "exemplo_2_etanol_comum_rj": {
+    "anp_semana_id": 1,
+    "uf": "RJ",
+    "combustivel": "ETANOL_COMUM",
+    "preco_minimo": 3.60,
+    "preco_medio": 3.80,
+    "preco_maximo": 4.00
+  },
+  "exemplo_3_diesel_s10_mg": {
+    "anp_semana_id": 1,
+    "uf": "MG",
+    "combustivel": "DIESEL_S10",
+    "preco_medio": 6.20
+  },
+  "exemplo_4_gasolina_aditivada_sc": {
+    "anp_semana_id": 1,
+    "uf": "SC",
+    "combustivel": "GASOLINA_ADITIVADA",
+    "preco_minimo": 5.45,
+    "preco_medio": 5.65,
+    "preco_maximo": 5.85
+  },
+  "exemplo_5_diesel_s500_rs": {
+    "anp_semana_id": 1,
+    "uf": "RS",
+    "combustivel": "DIESEL_S500",
+    "preco_minimo": 6.00,
+    "preco_medio": 6.15,
+    "preco_maximo": 6.30
+  },
+  "exemplo_6_etanol_aditivado_pr": {
+    "anp_semana_id": 1,
+    "uf": "PR",
+    "combustivel": "ETANOL_ADITIVADO",
+    "preco_minimo": 3.70,
+    "preco_medio": 3.90,
+    "preco_maximo": 4.10
+  },
+  "exemplo_7_gnv_go": {
+    "anp_semana_id": 1,
+    "uf": "GO",
+    "combustivel": "GNV",
+    "preco_minimo": 3.20,
+    "preco_medio": 3.40,
+    "preco_maximo": 3.60
+  },
+  "exemplo_8_glp_ba": {
+    "anp_semana_id": 1,
+    "uf": "BA",
+    "combustivel": "GLP",
+    "preco_minimo": 85.00,
+    "preco_medio": 90.00,
+    "preco_maximo": 95.00
+  }
+}
+
