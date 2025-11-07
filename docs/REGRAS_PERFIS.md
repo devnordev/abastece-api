@@ -85,6 +85,7 @@ Todos os dados visualizados são automaticamente filtrados pela prefeitura do co
 - **Usuários da própria empresa** - Pode criar COLABORADOR_EMPRESA
 - Visualizar contratos da própria empresa
 - Visualizar processos da própria empresa
+- **Combustíveis** - Visualizar lista de combustíveis (apenas leitura - GET)
 
 #### ❌ Restrições:
 - Não pode criar outro ADMIN_EMPRESA
@@ -93,6 +94,7 @@ Todos os dados visualizados são automaticamente filtrados pela prefeitura do co
 - Não pode acessar motoristas
 - Não pode acessar órgãos
 - Não pode cadastrar abastecimentos
+- Não pode criar, atualizar ou excluir combustíveis (apenas SUPER_ADMIN pode fazer essas operações)
 
 ---
 
@@ -118,7 +120,7 @@ Todos os dados visualizados são automaticamente filtrados pela prefeitura do co
 | Módulo | SUPER_ADMIN | ADMIN_PREFEITURA | COLABORADOR_PREFEITURA | ADMIN_EMPRESA | COLABORADOR_EMPRESA |
 |--------|-------------|------------------|------------------------|--------------|---------------------|
 | **Usuários** | ✅ CRUD Todos | ✅ CRUD (APENAS COLABORADOR_PREFEITURA da mesma prefeitura) | 👁️ Visualizar (própria prefeitura) | ✅ CRUD (APENAS COLABORADOR_EMPRESA da mesma empresa) | 👁️ Visualizar (própria empresa) |
-| **Combustíveis** | ✅ CRUD | ❌ | ❌ | ❌ | ❌ |
+| **Combustíveis** | ✅ CRUD | ❌ | ❌ | 👁️ Ver (apenas listagem) | ❌ |
 | **Empresas** | ✅ CRUD | ❌ | ❌ | ❌ | ❌ |
 | **Prefeituras** | ✅ CRUD | ❌ | ❌ | ❌ | ❌ |
 | **Processos** | ✅ CRUD | ❌ | ❌ | 👁️ Ver (própria empresa) | 👁️ Ver (própria empresa) |

@@ -529,7 +529,15 @@ GET /contratos
 Authorization: Bearer {seu_accessToken}
 ```
 
-**⚠️ IMPORTANTE**: O sistema **automaticamente filtra** os dados pela empresa do usuário.
+**Exemplo: Listar Combustíveis**
+```http
+GET /combustiveis
+Authorization: Bearer {seu_accessToken}
+```
+
+**⚠️ IMPORTANTE**: 
+- O sistema **automaticamente filtra** os dados pela empresa do usuário.
+- ADMIN_EMPRESA pode **apenas visualizar** combustíveis (GET), mas **não pode criar, atualizar ou excluir** (apenas SUPER_ADMIN pode fazer essas operações).
 
 ##### **Passo 3: Quando o Token Expirar**
 
@@ -557,13 +565,18 @@ Authorization: Bearer {seu_accessToken}
 - `/usuarios` - CRUD (apenas COLABORADOR_EMPRESA da mesma empresa)
 - `/contratos` - Visualizar contratos (apenas da própria empresa)
 - `/processos` - Visualizar processos (apenas da própria empresa)
+- `/combustiveis` - **Listar e visualizar combustíveis** (apenas GET - leitura)
+  - `GET /combustiveis` - Listar todos os combustíveis
+  - `GET /combustiveis/:id` - Ver detalhes de um combustível
 
 **❌ NÃO pode acessar:**
 - `/veiculos` - Retorna erro 403
 - `/motoristas` - Retorna erro 403
 - `/orgaos` - Retorna erro 403
 - `/abastecimentos` - Retorna erro 403
-- `/combustiveis` - Retorna erro 403
+- `POST /combustiveis` - Criar combustível (apenas SUPER_ADMIN)
+- `PATCH /combustiveis/:id` - Atualizar combustível (apenas SUPER_ADMIN)
+- `DELETE /combustiveis/:id` - Excluir combustível (apenas SUPER_ADMIN)
 - `/prefeituras` - Retorna erro 403
 - Dados de outras empresas - Filtrado automaticamente
 
