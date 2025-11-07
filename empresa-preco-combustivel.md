@@ -167,11 +167,11 @@ Content-Type: application/json
 **Body:**
 ```json
 {
-  "combustivel_id": 2,
+  "combustivel_id": 4,
   "preco_atual": 6.38,
-  "teto_vigente": 6.37,
+  "teto_vigente": 5.84,
   "anp_base": "MEDIO",
-  "anp_base_valor": 6.37,
+  "anp_base_valor": 5.84,
   "margem_app_pct": 0.00,
   "uf_referencia": "AL",
   "status": "ACTIVE",
