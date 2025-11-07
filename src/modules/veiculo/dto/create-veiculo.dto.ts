@@ -58,6 +58,7 @@ export class CreateVeiculoDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'Ano deve ser um número inteiro' })
   ano?: number;
 

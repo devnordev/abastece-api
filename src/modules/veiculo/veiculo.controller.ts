@@ -12,6 +12,10 @@ import {
   Request,
   UseInterceptors,
   UploadedFile,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -80,7 +84,7 @@ export class VeiculoController {
           description: 'Arquivo de imagem do CRLV (JPEG, PNG, WEBP)',
         },
       },
-      required: ['prefeituraId', 'orgaoId', 'nome', 'placa', 'ano', 'tipo_abastecimento', 'capacidade_tanque', 'combustivelIds'],
+      required: ['prefeituraId', 'orgaoId', 'nome', 'placa', 'tipo_abastecimento', 'capacidade_tanque', 'combustivelIds'],
     },
   })
   @UseInterceptors(
@@ -96,52 +100,67 @@ export class VeiculoController {
     @Request() req,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    // Converter strings para tipos corretos quando vêm de multipart/form-data
-    const processedDto: CreateVeiculoDto = {
-      ...createVeiculoDto,
-      prefeituraId: createVeiculoDto.prefeituraId ? parseInt(createVeiculoDto.prefeituraId) : undefined,
-      orgaoId: createVeiculoDto.orgaoId ? parseInt(createVeiculoDto.orgaoId) : undefined,
-      contaFaturamentoOrgaoId: createVeiculoDto.contaFaturamentoOrgaoId
-        ? parseInt(createVeiculoDto.contaFaturamentoOrgaoId)
-        : undefined,
-      ano: createVeiculoDto.ano ? parseInt(createVeiculoDto.ano) : undefined,
-      ano_fabricacao: createVeiculoDto.ano_fabricacao ? parseInt(createVeiculoDto.ano_fabricacao) : undefined,
-      capacidade_passageiros: createVeiculoDto.capacidade_passageiros
-        ? parseInt(createVeiculoDto.capacidade_passageiros)
-        : undefined,
-      capacidade_tanque: createVeiculoDto.capacidade_tanque
-        ? parseFloat(createVeiculoDto.capacidade_tanque)
-        : undefined,
-      quantidade: createVeiculoDto.quantidade ? parseFloat(createVeiculoDto.quantidade) : undefined,
-      ativo:
-        createVeiculoDto.ativo === 'true' || createVeiculoDto.ativo === true || createVeiculoDto.ativo === undefined
-          ? true
-          : false,
-      crlv_vencimento: createVeiculoDto.crlv_vencimento ? new Date(createVeiculoDto.crlv_vencimento) : undefined,
-      categoriaIds: createVeiculoDto.categoriaIds
-        ? Array.isArray(createVeiculoDto.categoriaIds)
-          ? createVeiculoDto.categoriaIds.map((id: any) => parseInt(id))
-          : typeof createVeiculoDto.categoriaIds === 'string'
-            ? createVeiculoDto.categoriaIds.split(',').map((id: string) => parseInt(id.trim()))
-            : undefined
-        : undefined,
-      combustivelIds: createVeiculoDto.combustivelIds
-        ? Array.isArray(createVeiculoDto.combustivelIds)
-          ? createVeiculoDto.combustivelIds.map((id: any) => parseInt(id))
-          : typeof createVeiculoDto.combustivelIds === 'string'
-            ? createVeiculoDto.combustivelIds.split(',').map((id: string) => parseInt(id.trim()))
-            : undefined
-        : undefined,
-      motoristaIds: createVeiculoDto.motoristaIds
-        ? Array.isArray(createVeiculoDto.motoristaIds)
-          ? createVeiculoDto.motoristaIds.map((id: any) => parseInt(id))
-          : typeof createVeiculoDto.motoristaIds === 'string'
-            ? createVeiculoDto.motoristaIds.split(',').map((id: string) => parseInt(id.trim()))
-            : undefined
-        : undefined,
-    };
+    try {
+      // Converter strings para tipos corretos quando vêm de multipart/form-data
+      const processedDto: CreateVeiculoDto = {
+        ...createVeiculoDto,
+        prefeituraId: createVeiculoDto.prefeituraId ? parseInt(createVeiculoDto.prefeituraId) : undefined,
+        orgaoId: createVeiculoDto.orgaoId ? parseInt(createVeiculoDto.orgaoId) : undefined,
+        contaFaturamentoOrgaoId: createVeiculoDto.contaFaturamentoOrgaoId
+          ? parseInt(createVeiculoDto.contaFaturamentoOrgaoId)
+          : undefined,
+        ano: createVeiculoDto.ano ? parseInt(createVeiculoDto.ano) : undefined,
+        ano_fabricacao: createVeiculoDto.ano_fabricacao ? parseInt(createVeiculoDto.ano_fabricacao) : undefined,
+        capacidade_passageiros: createVeiculoDto.capacidade_passageiros
+          ? parseInt(createVeiculoDto.capacidade_passageiros)
+          : undefined,
+        capacidade_tanque: createVeiculoDto.capacidade_tanque
+          ? parseFloat(createVeiculoDto.capacidade_tanque)
+          : undefined,
+        quantidade: createVeiculoDto.quantidade ? parseFloat(createVeiculoDto.quantidade) : undefined,
+        ativo:
+          createVeiculoDto.ativo === 'true' || createVeiculoDto.ativo === true || createVeiculoDto.ativo === undefined
+            ? true
+            : false,
+        crlv_vencimento: createVeiculoDto.crlv_vencimento ? new Date(createVeiculoDto.crlv_vencimento) : undefined,
+        categoriaIds: createVeiculoDto.categoriaIds
+          ? Array.isArray(createVeiculoDto.categoriaIds)
+            ? createVeiculoDto.categoriaIds.map((id: any) => parseInt(id))
+            : typeof createVeiculoDto.categoriaIds === 'string'
+              ? createVeiculoDto.categoriaIds.split(',').map((id: string) => parseInt(id.trim()))
+              : undefined
+          : undefined,
+        combustivelIds: createVeiculoDto.combustivelIds
+          ? Array.isArray(createVeiculoDto.combustivelIds)
+            ? createVeiculoDto.combustivelIds.map((id: any) => parseInt(id))
+            : typeof createVeiculoDto.combustivelIds === 'string'
+              ? createVeiculoDto.combustivelIds.split(',').map((id: string) => parseInt(id.trim()))
+              : undefined
+          : undefined,
+        motoristaIds: createVeiculoDto.motoristaIds
+          ? Array.isArray(createVeiculoDto.motoristaIds)
+            ? createVeiculoDto.motoristaIds.map((id: any) => parseInt(id))
+            : typeof createVeiculoDto.motoristaIds === 'string'
+              ? createVeiculoDto.motoristaIds.split(',').map((id: string) => parseInt(id.trim()))
+              : undefined
+          : undefined,
+      };
 
-    return this.veiculoService.create(processedDto, req.user?.id, file);
+      return await this.veiculoService.create(processedDto, req.user?.id, file);
+    } catch (error) {
+      // Re-lançar exceções conhecidas do NestJS
+      if (error instanceof BadRequestException || 
+          error instanceof NotFoundException || 
+          error instanceof ConflictException || 
+          error instanceof ForbiddenException) {
+        throw error;
+      }
+      // Log e relançar como BadRequestException para erros desconhecidos
+      console.error('Erro ao criar veículo:', error);
+      throw new BadRequestException(
+        `Erro ao criar veículo: ${error.message || 'Erro desconhecido'}`,
+      );
+    }
   }
 
   @Get()

@@ -134,10 +134,18 @@ export class VeiculoService {
     // Extrair dados para criação do veículo (sem os arrays de relacionamentos)
     const { categoriaIds, combustivelIds, motoristaIds, cotasPeriodo, ...veiculoData } = restDto;
 
+    // Remover campos undefined para evitar problemas com o Prisma
+    const cleanedVeiculoData = Object.entries(veiculoData).reduce((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {} as any);
+
     // Criar veículo com status ativo por padrão quando não especificado
     const veiculo = await this.prisma.veiculo.create({
       data: {
-        ...veiculoData,
+        ...cleanedVeiculoData,
         placa,
         prefeituraId,
         foto_veiculo: imagemUrl,
