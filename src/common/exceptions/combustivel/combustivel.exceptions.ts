@@ -1,217 +1,380 @@
 import { HttpStatus } from '@nestjs/common';
-import { BaseException } from '../base.exception';
+import { CrudException, CrudExceptionContext } from '../crud.exception';
 
-export class CombustivelNotFoundException extends BaseException {
-  constructor(id?: number, nome?: string) {
-    const message = id 
-      ? `Combustível com ID ${id} não encontrado`
-      : nome 
-        ? `Combustível "${nome}" não encontrado`
-        : 'Combustível não encontrado';
-    
-    super(message, HttpStatus.NOT_FOUND, 'Combustivel Not Found', {
-      id,
-      nome,
-      timestamp: new Date().toISOString(),
+const MODULE = 'Combustíveis';
+
+type CombustivelOperation = 'create' | 'list' | 'detail' | 'update' | 'delete';
+
+type ContextOverrides = Partial<
+  Omit<CrudExceptionContext, 'module' | 'action' | 'operation' | 'route' | 'method' | 'expected' | 'performed'>
+> &
+  Partial<Pick<CrudExceptionContext, 'expected' | 'performed'>>;
+
+const BASE_CONTEXTS: Record<CombustivelOperation, Omit<CrudExceptionContext, 'module'>> = {
+  create: {
+    action: 'CREATE',
+    operation: 'Registrar novo combustível',
+    route: '/combustiveis',
+    method: 'POST',
+    expected: 'Criar um combustível com dados inéditos e válidos.',
+    performed: 'Requisição para criar um novo combustível.',
+  },
+  list: {
+    action: 'LIST',
+    operation: 'Listar combustíveis',
+    route: '/combustiveis',
+    method: 'GET',
+    expected: 'Listar combustíveis conforme filtros informados.',
+    performed: 'Requisição para listar combustíveis.',
+  },
+  detail: {
+    action: 'READ',
+    operation: 'Consultar combustível por ID',
+    route: '/combustiveis/:id',
+    method: 'GET',
+    expected: 'Recuperar combustível existente pelo identificador informado.',
+    performed: 'Requisição para buscar combustível específico.',
+  },
+  update: {
+    action: 'UPDATE',
+    operation: 'Atualizar combustível existente',
+    route: '/combustiveis/:id',
+    method: 'PATCH',
+    expected: 'Atualizar combustível existente com dados válidos.',
+    performed: 'Requisição para atualizar combustível existente.',
+  },
+  delete: {
+    action: 'DELETE',
+    operation: 'Excluir combustível existente',
+    route: '/combustiveis/:id',
+    method: 'DELETE',
+    expected: 'Excluir combustível sem vínculos impeditivos.',
+    performed: 'Requisição para excluir combustível existente.',
+  },
+};
+
+const buildContext = (operation: CombustivelOperation, overrides: ContextOverrides = {}): CrudExceptionContext => {
+  const base = BASE_CONTEXTS[operation];
+  return {
+    module: MODULE,
+    action: overrides.action ?? base.action,
+    operation: overrides.operation ?? base.operation,
+    route: overrides.route ?? base.route,
+    method: overrides.method ?? base.method,
+    expected: overrides.expected ?? base.expected,
+    performed: overrides.performed ?? base.performed,
+    resourceId: overrides.resourceId,
+    payload: overrides.payload,
+    query: overrides.query,
+    user: overrides.user,
+    correlationId: overrides.correlationId,
+    additionalInfo: overrides.additionalInfo,
+  };
+};
+
+type ContextMeta = Partial<
+  Pick<
+    CrudExceptionContext,
+    | 'resourceId'
+    | 'payload'
+    | 'query'
+    | 'user'
+    | 'correlationId'
+    | 'additionalInfo'
+    | 'expected'
+    | 'performed'
+    | 'route'
+    | 'method'
+    | 'action'
+    | 'operation'
+  >
+>;
+
+export class CombustivelNotFoundException extends CrudException {
+  constructor(id?: number, operation: CombustivelOperation = 'detail', overrides: ContextMeta = {}) {
+    super({
+      message: id ? `Combustível com ID ${id} não encontrado.` : 'Combustível não encontrado.',
+      statusCode: HttpStatus.NOT_FOUND,
+      errorCode: 'COMBUSTIVEL_NOT_FOUND',
+      context: buildContext(operation, {
+        resourceId: id,
+        performed: `Tentativa de recuperar combustível ${id ? `com ID ${id}` : 'pelo identificador fornecido'}.`,
+        expected: 'Encontrar combustível existente no banco de dados.',
+        ...overrides,
+      }),
     });
   }
 }
 
-export class CombustivelAlreadyExistsException extends BaseException {
-  constructor(nome: string, sigla?: string) {
-    const message = sigla
-      ? `Já existe um combustível com o nome "${nome}" ou sigla "${sigla}"`
-      : `Já existe um combustível com o nome "${nome}"`;
-    
-    super(message, HttpStatus.CONFLICT, 'Combustivel Already Exists', {
-      nome,
-      sigla,
-      timestamp: new Date().toISOString(),
+export class CombustivelAlreadyExistsException extends CrudException {
+  constructor(nome: string, sigla?: string, overrides: ContextMeta = {}) {
+    const baseMessage = sigla
+      ? `Já existe um combustível com o nome "${nome}" ou sigla "${sigla}".`
+      : `Já existe um combustível com o nome "${nome}".`;
+
+    super({
+      message: baseMessage,
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'COMBUSTIVEL_ALREADY_EXISTS',
+      context: buildContext('create', {
+        payload: {
+          nome,
+          sigla,
+          ...(overrides.payload ?? {}),
+        },
+        expected: 'Cadastrar combustível com nome e sigla únicos.',
+        performed: `Tentativa de criar combustível "${nome}"${sigla ? ` (${sigla})` : ''}.`,
+        ...overrides,
+      }),
     });
   }
 }
 
-export class CombustivelInactiveException extends BaseException {
-  constructor(id?: number, nome?: string) {
-    const message = nome
-      ? `Combustível "${nome}" está inativo`
-      : id
-        ? `Combustível com ID ${id} está inativo`
-        : 'Combustível está inativo';
-    
-    super(message, HttpStatus.FORBIDDEN, 'Combustivel Inactive', {
-      id,
-      nome,
-      timestamp: new Date().toISOString(),
+export class CombustivelInactiveException extends CrudException {
+  constructor(id?: number, nome?: string, overrides: ContextMeta = {}) {
+    const identifier = nome ? `"${nome}"` : id ? `ID ${id}` : 'informado';
+    super({
+      message: `Combustível ${identifier} está inativo.`,
+      statusCode: HttpStatus.FORBIDDEN,
+      errorCode: 'COMBUSTIVEL_INACTIVE',
+      context: buildContext('detail', {
+        resourceId: id,
+        expected: 'Acessar combustível ativo para a operação solicitada.',
+        performed: `Combustível ${identifier} encontrado, porém marcado como inativo.`,
+        additionalInfo: {
+          nome,
+          ...(overrides.additionalInfo ?? {}),
+        },
+        ...overrides,
+      }),
     });
   }
 }
 
-export class CombustivelCannotDeleteWithRelationsException extends BaseException {
-  constructor(relations?: string[]) {
-    const message = relations && relations.length > 0
-      ? `Não é possível excluir combustível com relacionamentos ativos: ${relations.join(', ')}`
-      : 'Não é possível excluir combustível com relacionamentos ativos';
-    
-    super(message, HttpStatus.BAD_REQUEST, 'Cannot Delete With Relations', {
-      relations,
-      timestamp: new Date().toISOString(),
+export class CombustivelCannotDeleteWithRelationsException extends CrudException {
+  constructor(relations: string[], overrides: ContextMeta = {}) {
+    const formattedRelations = relations.length > 0 ? relations.join(', ') : 'relacionamentos ativos';
+    super({
+      message: `Não é possível excluir combustível devido a ${formattedRelations}.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'COMBUSTIVEL_DELETE_WITH_RELATIONS',
+      context: buildContext('delete', {
+        expected: 'Excluir combustível sem vínculos impeditivos.',
+        performed: `Tentativa de exclusão bloqueada por vínculos: ${formattedRelations}.`,
+        additionalInfo: {
+          relations,
+          ...(overrides.additionalInfo ?? {}),
+        },
+        ...overrides,
+      }),
     });
   }
 }
 
-export class CombustivelInvalidNomeException extends BaseException {
-  constructor(nome: string) {
-    super(
-      `Nome do combustível inválido: "${nome}". Deve ter pelo menos 2 caracteres`,
-      HttpStatus.BAD_REQUEST,
-      'Invalid Nome',
-      {
-        nome,
-        timestamp: new Date().toISOString(),
-      }
-    );
-  }
-}
-
-export class CombustivelInvalidSiglaException extends BaseException {
-  constructor(sigla: string) {
-    super(
-      `Sigla inválida: "${sigla}". Deve ter entre 2 e 10 caracteres`,
-      HttpStatus.BAD_REQUEST,
-      'Invalid Sigla',
-      {
-        sigla,
-        timestamp: new Date().toISOString(),
-      }
-    );
-  }
-}
-
-export class CombustivelInvalidTipoException extends BaseException {
-  constructor(tipo: string) {
-    super(
-      `Tipo de combustível inválido: ${tipo}`,
-      HttpStatus.BAD_REQUEST,
-      'Invalid Combustivel Type',
-      {
-        tipo,
-        timestamp: new Date().toISOString(),
-      }
-    );
-  }
-}
-
-export class CombustivelInvalidPrecoException extends BaseException {
-  constructor(preco: number) {
-    super(
-      `Preço inválido: ${preco}. Deve ser maior que zero`,
-      HttpStatus.BAD_REQUEST,
-      'Invalid Preco',
-      {
-        preco,
-        timestamp: new Date().toISOString(),
-      }
-    );
-  }
-}
-
-export class CombustivelInvalidAnpException extends BaseException {
-  constructor(anp: string) {
-    super(
-      `Código ANP inválido: ${anp}`,
-      HttpStatus.BAD_REQUEST,
-      'Invalid ANP',
-      {
-        anp,
-        timestamp: new Date().toISOString(),
-      }
-    );
-  }
-}
-
-export class CombustivelMissingEmpresaException extends BaseException {
-  constructor(empresaId: number) {
-    super(
-      `Empresa com ID ${empresaId} não encontrada para o combustível`,
-      HttpStatus.BAD_REQUEST,
-      'Missing Empresa',
-      {
-        empresaId,
-        timestamp: new Date().toISOString(),
-      }
-    );
-  }
-}
-
-export class CombustivelUnauthorizedException extends BaseException {
-  constructor(action: string, userId?: number) {
-    const message = userId
-      ? `Usuário ${userId} não tem permissão para ${action} combustível`
-      : `Não tem permissão para ${action} combustível`;
-    
-    super(message, HttpStatus.FORBIDDEN, 'Unauthorized Action', {
-      action,
-      userId,
-      timestamp: new Date().toISOString(),
+export class CombustivelInvalidNomeException extends CrudException {
+  constructor(nome: string, overrides: ContextMeta = {}) {
+    super({
+      message: `Nome do combustível inválido: "${nome}". Deve possuir ao menos 2 caracteres.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'COMBUSTIVEL_INVALID_NOME',
+      context: buildContext('create', {
+        expected: 'Informar nome de combustível com tamanho mínimo válido.',
+        performed: `Validação de nome falhou para "${nome}".`,
+        payload: {
+          nome,
+          ...(overrides.payload ?? {}),
+        },
+        ...overrides,
+      }),
     });
   }
 }
 
-export class CombustivelDuplicateNomeException extends BaseException {
-  constructor(nome: string) {
-    super(
-      `Já existe um combustível com o nome "${nome}"`,
-      HttpStatus.CONFLICT,
-      'Duplicate Nome',
-      {
-        nome,
-        timestamp: new Date().toISOString(),
-      }
-    );
+export class CombustivelInvalidSiglaException extends CrudException {
+  constructor(sigla: string, overrides: ContextMeta = {}) {
+    super({
+      message: `Sigla inválida: "${sigla}". Deve conter entre 2 e 10 caracteres.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'COMBUSTIVEL_INVALID_SIGLA',
+      context: buildContext('create', {
+        expected: 'Informar sigla em formato válido.',
+        performed: `Validação de sigla falhou para "${sigla}".`,
+        payload: {
+          sigla,
+          ...(overrides.payload ?? {}),
+        },
+        ...overrides,
+      }),
+    });
   }
 }
 
-export class CombustivelDuplicateSiglaException extends BaseException {
-  constructor(sigla: string) {
-    super(
-      `Já existe um combustível com a sigla "${sigla}"`,
-      HttpStatus.CONFLICT,
-      'Duplicate Sigla',
-      {
-        sigla,
-        timestamp: new Date().toISOString(),
-      }
-    );
+export class CombustivelInvalidTipoException extends CrudException {
+  constructor(tipo: string, overrides: ContextMeta = {}) {
+    super({
+      message: `Tipo de combustível inválido: "${tipo}".`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'COMBUSTIVEL_INVALID_TIPO',
+      context: buildContext('create', {
+        expected: 'Informar tipo de combustível reconhecido pelo sistema.',
+        performed: `Validação de tipo falhou para "${tipo}".`,
+        payload: {
+          tipo,
+          ...(overrides.payload ?? {}),
+        },
+        ...overrides,
+      }),
+    });
   }
 }
 
-export class CombustivelInvalidStatusException extends BaseException {
-  constructor(status: string) {
-    super(
-      `Status inválido: ${status}`,
-      HttpStatus.BAD_REQUEST,
-      'Invalid Status',
-      {
-        status,
-        timestamp: new Date().toISOString(),
-      }
-    );
+export class CombustivelInvalidPrecoException extends CrudException {
+  constructor(preco: number, overrides: ContextMeta = {}) {
+    super({
+      message: `Preço inválido: ${preco}. Deve ser um valor numérico maior que zero.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'COMBUSTIVEL_INVALID_PRECO',
+      context: buildContext('update', {
+        expected: 'Informar preço positivo e válido.',
+        performed: `Validação de preço falhou para valor ${preco}.`,
+        payload: {
+          preco,
+          ...(overrides.payload ?? {}),
+        },
+        ...overrides,
+      }),
+    });
   }
 }
 
-export class CombustivelPriceUpdateException extends BaseException {
-  constructor(combustivelId: number, oldPrice: number, newPrice: number) {
-    super(
-      `Erro ao atualizar preço do combustível ID ${combustivelId}: de ${oldPrice} para ${newPrice}`,
-      HttpStatus.BAD_REQUEST,
-      'Price Update Error',
-      {
-        combustivelId,
-        oldPrice,
-        newPrice,
-        timestamp: new Date().toISOString(),
-      }
-    );
+export class CombustivelInvalidAnpException extends CrudException {
+  constructor(anp: string, overrides: ContextMeta = {}) {
+    super({
+      message: `Código ANP inválido: "${anp}".`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'COMBUSTIVEL_INVALID_ANP',
+      context: buildContext('create', {
+        expected: 'Informar código ANP existente e válido.',
+        performed: `Validação de código ANP falhou para "${anp}".`,
+        payload: {
+          anp,
+          ...(overrides.payload ?? {}),
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class CombustivelMissingEmpresaException extends CrudException {
+  constructor(empresaId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `Empresa com ID ${empresaId} não encontrada para relacionar ao combustível.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'COMBUSTIVEL_EMPRESA_NOT_FOUND',
+      context: buildContext('create', {
+        expected: 'Vincular combustível a empresa válida.',
+        performed: `Empresa ${empresaId} não identificada durante processo de criação/atualização.`,
+        additionalInfo: {
+          empresaId,
+          ...(overrides.additionalInfo ?? {}),
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class CombustivelUnauthorizedException extends CrudException {
+  constructor(action: string, overrides: ContextMeta = {}) {
+    super({
+      message: `Usuário não tem permissão para ${action} combustível.`,
+      statusCode: HttpStatus.FORBIDDEN,
+      errorCode: 'COMBUSTIVEL_UNAUTHORIZED',
+      context: buildContext('detail', {
+        expected: 'Usuário autorizado a executar a operação.',
+        performed: `Bloqueio de permissão ao tentar ${action} combustível.`,
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class CombustivelDuplicateNomeException extends CrudException {
+  constructor(nome: string, overrides: ContextMeta = {}) {
+    super({
+      message: `Já existe um combustível com o nome "${nome}".`,
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'COMBUSTIVEL_DUPLICATE_NOME',
+      context: buildContext('create', {
+        expected: 'Informar nome ainda não cadastrado.',
+        performed: `Detecção de nome duplicado "${nome}".`,
+        payload: {
+          nome,
+          ...(overrides.payload ?? {}),
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class CombustivelDuplicateSiglaException extends CrudException {
+  constructor(sigla: string, overrides: ContextMeta = {}) {
+    super({
+      message: `Já existe um combustível com a sigla "${sigla}".`,
+      statusCode: HttpStatus.CONFLICT,
+      errorCode: 'COMBUSTIVEL_DUPLICATE_SIGLA',
+      context: buildContext('create', {
+        expected: 'Informar sigla ainda não cadastrada.',
+        performed: `Detecção de sigla duplicada "${sigla}".`,
+        payload: {
+          sigla,
+          ...(overrides.payload ?? {}),
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class CombustivelInvalidStatusException extends CrudException {
+  constructor(status: string, overrides: ContextMeta = {}) {
+    super({
+      message: `Status inválido: "${status}".`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'COMBUSTIVEL_INVALID_STATUS',
+      context: buildContext('update', {
+        expected: 'Informar status reconhecido pelo sistema.',
+        performed: `Validação de status falhou para "${status}".`,
+        payload: {
+          status,
+          ...(overrides.payload ?? {}),
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class CombustivelPriceUpdateException extends CrudException {
+  constructor(combustivelId: number, oldPrice: number, newPrice: number, overrides: ContextMeta = {}) {
+    super({
+      message: `Erro ao atualizar preço do combustível ${combustivelId}: ${oldPrice} → ${newPrice}.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'COMBUSTIVEL_PRICE_UPDATE_ERROR',
+      context: buildContext('update', {
+        resourceId: combustivelId,
+        expected: 'Atualizar preço dentro das regras de negócio.',
+        performed: `Falha na atualização de preço de ${oldPrice} para ${newPrice}.`,
+        payload: {
+          combustivelId,
+          oldPrice,
+          newPrice,
+          ...(overrides.payload ?? {}),
+        },
+        ...overrides,
+      }),
+    });
   }
 }

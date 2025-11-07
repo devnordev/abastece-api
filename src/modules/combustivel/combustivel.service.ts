@@ -1,5 +1,10 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import {
+  CombustivelAlreadyExistsException,
+  CombustivelDuplicateSiglaException,
+  CombustivelNotFoundException,
+} from '../../common/exceptions/combustivel/combustivel.exceptions';
 
 @Injectable()
 export class CombustivelService {
@@ -11,7 +16,12 @@ export class CombustivelService {
     });
 
     if (existingCombustivel) {
-      throw new ConflictException('Combustível já existe com esta sigla');
+      throw new CombustivelAlreadyExistsException(data.nome, data.sigla, {
+        payload: data,
+        additionalInfo: {
+          prismaWhere: { sigla: data.sigla },
+        },
+      });
     }
 
     const combustivel = await this.prisma.combustivel.create({
@@ -60,7 +70,12 @@ export class CombustivelService {
     });
 
     if (!combustivel) {
-      throw new NotFoundException('Combustível não encontrado');
+      throw new CombustivelNotFoundException(id, 'detail', {
+        resourceId: id,
+        additionalInfo: {
+          prismaWhere: { id },
+        },
+      });
     }
 
     return {
@@ -75,7 +90,13 @@ export class CombustivelService {
     });
 
     if (!existingCombustivel) {
-      throw new NotFoundException('Combustível não encontrado');
+      throw new CombustivelNotFoundException(id, 'update', {
+        resourceId: id,
+        payload: data,
+        additionalInfo: {
+          prismaWhere: { id },
+        },
+      });
     }
 
     if (data.sigla) {
@@ -84,7 +105,16 @@ export class CombustivelService {
       });
 
       if (conflictingCombustivel) {
-        throw new ConflictException('Sigla já está em uso por outro combustível');
+        throw new CombustivelDuplicateSiglaException(data.sigla, {
+          resourceId: id,
+          payload: data,
+          additionalInfo: {
+            prismaWhere: {
+              sigla: data.sigla,
+              idNot: id,
+            },
+          },
+        });
       }
     }
 
@@ -105,7 +135,12 @@ export class CombustivelService {
     });
 
     if (!existingCombustivel) {
-      throw new NotFoundException('Combustível não encontrado');
+      throw new CombustivelNotFoundException(id, 'delete', {
+        resourceId: id,
+        additionalInfo: {
+          prismaWhere: { id },
+        },
+      });
     }
 
     await this.prisma.combustivel.delete({
