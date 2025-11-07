@@ -22,6 +22,7 @@ import { ParametrosTetoModule } from './modules/parametros-teto/parametros-teto.
 import { AnpSemanaModule } from './modules/anp-semana/anp-semana.module';
 import { AnpPrecosUfModule } from './modules/anp-precos-uf/anp-precos-uf.module';
 import { BackupModule } from './modules/backup/backup.module';
+import { EmpresaPrecoCombustivelModule } from './modules/empresa-preco-combustivel/empresa-preco-combustivel.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { BackupModule } from './modules/backup/backup.module';
     AnpSemanaModule,
     AnpPrecosUfModule,
     BackupModule,
+    EmpresaPrecoCombustivelModule,
   ],
 })
 export class AppModule {}
