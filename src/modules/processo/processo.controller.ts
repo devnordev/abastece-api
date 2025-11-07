@@ -40,6 +40,14 @@ export class ProcessoController {
     );
   }
 
+  @Get('prefeitura/:prefeituraId/detalhado')
+  @ApiOperation({ summary: 'Buscar processo detalhado por prefeitura' })
+  @ApiResponse({ status: 200, description: 'Processo detalhado encontrado com sucesso' })
+  @ApiResponse({ status: 404, description: 'Processo não encontrado para esta prefeitura' })
+  async findByPrefeituraDetalhado(@Param('prefeituraId', ParseIntPipe) prefeituraId: number) {
+    return this.processoService.findByPrefeituraDetalhado(prefeituraId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar processo por ID' })
   @ApiResponse({ status: 200, description: 'Processo encontrado com sucesso' })
