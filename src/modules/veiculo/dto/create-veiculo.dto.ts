@@ -53,11 +53,13 @@ export class CreateVeiculoDto {
   modelo?: string;
 
   @ApiProperty({
-    description: 'Ano do veículo',
+    description: 'Ano do veículo (opcional)',
     example: 2020,
+    required: false,
   })
+  @IsOptional()
   @IsInt({ message: 'Ano deve ser um número inteiro' })
-  ano: number;
+  ano?: number;
 
   @ApiProperty({
     description: 'Tipo de abastecimento do veículo (obrigatório)',
