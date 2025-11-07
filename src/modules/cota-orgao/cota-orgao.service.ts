@@ -188,6 +188,7 @@ export class CotaOrgaoService {
       await this.validateUserPermission(currentUserId, orgao.prefeituraId);
     }
 
+    // Buscar cotas existentes do órgão
     const cotas = await this.prisma.cotaOrgao.findMany({
       where: { orgaoId },
       include: {
@@ -209,6 +210,69 @@ export class CotaOrgaoService {
       orderBy: { id: 'desc' },
     });
 
+    // Buscar processo da prefeitura para cadastro de novas cotas
+    const processo = await this.prisma.processo.findFirst({
+      where: { 
+        prefeituraId: orgao.prefeituraId,
+        ativo: true,
+      },
+      include: {
+        prefeitura: {
+          select: { id: true, nome: true, cnpj: true },
+        },
+        combustiveis: {
+          include: {
+            combustivel: {
+              select: { id: true, nome: true, sigla: true, descricao: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Calcular quantidades disponíveis para cada combustível do processo
+    let combustiveisDisponiveis = [];
+    if (processo) {
+      // Para cada combustível do processo, calcular quanto já foi alocado
+      combustiveisDisponiveis = await Promise.all(
+        processo.combustiveis.map(async (pc) => {
+          // Buscar todas as cotas deste combustível no processo
+          const cotasExistentes = await this.prisma.cotaOrgao.findMany({
+            where: {
+              processoId: processo.id,
+              combustivelId: pc.combustivelId,
+            },
+          });
+
+          // Calcular total alocado
+          const totalAlocado = cotasExistentes.reduce(
+            (sum, cota) => sum + Number(cota.quantidade),
+            0
+          );
+
+          const quantidadeTotal = Number(pc.quantidade_litros);
+          const quantidadeDisponivel = quantidadeTotal - totalAlocado;
+
+          // Verificar se este órgão já tem cota deste combustível
+          const cotaExistenteOrgao = cotasExistentes.find(c => c.orgaoId === orgaoId);
+
+          return {
+            id: pc.id,
+            combustivelId: pc.combustivel.id,
+            nome: pc.combustivel.nome,
+            sigla: pc.combustivel.sigla,
+            descricao: pc.combustivel.descricao,
+            quantidadeTotal,
+            quantidadeAlocada: totalAlocado,
+            quantidadeDisponivel,
+            percentualAlocado: quantidadeTotal > 0 ? (totalAlocado / quantidadeTotal) * 100 : 0,
+            possuiCotaNesteOrgao: !!cotaExistenteOrgao,
+            cotaIdNesteOrgao: cotaExistenteOrgao?.id || null,
+          };
+        })
+      );
+    }
+
     return {
       message: 'Cotas do órgão encontradas com sucesso',
       orgao: {
@@ -218,10 +282,35 @@ export class CotaOrgaoService {
         prefeitura: {
           id: orgao.prefeitura.id,
           nome: orgao.prefeitura.nome,
+          cnpj: orgao.prefeitura.cnpj,
         },
       },
       cotas,
       total: cotas.length,
+      // Dados para cadastro de nova cota
+      dadosParaCadastro: processo ? {
+        processo: {
+          id: processo.id,
+          numero_processo: processo.numero_processo,
+          tipo_contrato: processo.tipo_contrato,
+          status: processo.status,
+          data_abertura: processo.data_abertura,
+          data_encerramento: processo.data_encerramento,
+          objeto: processo.objeto,
+        },
+        combustiveisDisponiveis,
+        totalCombustiveis: combustiveisDisponiveis.length,
+        instrucoes: {
+          titulo: 'Como criar uma nova cota',
+          passos: [
+            '1. Selecione um combustível disponível da lista',
+            '2. Verifique a quantidade disponível para alocação',
+            '3. Defina a quantidade em litros que deseja alocar',
+            '4. A quantidade não pode exceder o disponível no processo',
+            '5. Não é possível criar cota duplicada para o mesmo combustível',
+          ],
+        },
+      } : null,
     };
   }
 
