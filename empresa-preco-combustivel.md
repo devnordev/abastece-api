@@ -167,15 +167,15 @@ Content-Type: application/json
 **Body:**
 ```json
 {
-  "combustivel_id": 1,
-  "preco_atual": 5.89,
-  "teto_vigente": 6.50,
+  "combustivel_id": 2,
+  "preco_atual": 6.38,
+  "teto_vigente": 6.37,
   "anp_base": "MEDIO",
-  "anp_base_valor": 5.50,
-  "margem_app_pct": 7.08,
-  "uf_referencia": "SP",
+  "anp_base_valor": 6.37,
+  "margem_app_pct": 0.00,
+  "uf_referencia": "AL",
   "status": "ACTIVE",
-  "updated_by": "admin@empresa.com"
+  "updated_by": "admin@postoshell.com"
 }
 ```
 
@@ -196,6 +196,12 @@ Content-Type: application/json
 - Não pode existir outro preço **ATIVO** para a mesma empresa e combustível
 - A empresa e o combustível devem existir no banco
 - O `empresa_id` é automaticamente obtido do usuário logado
+- **O `preco_atual` NÃO pode ser superior ao `teto_vigente`**
+- O `teto_vigente` é **automaticamente consultado da ANP** com base na:
+  - Semana ANP ativa (mais recente)
+  - UF da empresa do usuário logado
+  - Tipo de combustível (mapeado do `combustivel_id`)
+- O valor de `teto_vigente` enviado no body será **ignorado** e substituído pelo valor da ANP
 
 **Resposta de Sucesso (201):**
 ```json
@@ -405,6 +411,12 @@ Content-Type: application/json
 - O preço deve existir e pertencer à empresa do usuário logado
 - Se `combustivel_id` for alterado, não pode existir outro preço ativo para a nova combinação empresa+combustível
 - Todos os campos numéricos seguem as mesmas regras de validação do CREATE
+- **O `preco_atual` NÃO pode ser superior ao `teto_vigente`**
+- O `teto_vigente` é **automaticamente atualizado da ANP** quando:
+  - O `preco_atual` for alterado
+  - O `combustivel_id` for alterado
+  - O `teto_vigente` for explicitamente alterado (mas será substituído pelo valor da ANP)
+- O valor de `teto_vigente` enviado no body será **ignorado** e substituído pelo valor da ANP
 
 **Resposta de Sucesso (200):**
 ```json
@@ -480,7 +492,10 @@ Quando você atualiza o `preco_atual` usando esta rota, o sistema:
 3. ✅ **Consulta a semana ANP ativa** mais recente
 4. ✅ **Mapeia o combustível** para o tipo ANP correspondente
 5. ✅ **Busca os preços ANP** para a UF e tipo de combustível
-6. ✅ **Calcula automaticamente**:
+6. ✅ **Valida o preço atual**:
+   - Verifica se `preco_atual` não ultrapassa o `teto_vigente` da ANP
+   - Se ultrapassar, retorna erro 400 com mensagem explicativa
+7. ✅ **Calcula automaticamente**:
    - `teto_vigente`: Usa o `teto_calculado` da ANP
    - `anp_base`: Usa o `base_utilizada` da ANP
    - `anp_base_valor`: Calcula baseado na `base_utilizada` (MINIMO, MEDIO ou MAXIMO)
@@ -599,6 +614,7 @@ Para que esta funcionalidade funcione corretamente, você precisa ter:
   - Dados inválidos
   - Usuário não vinculado a empresa
   - Preço ANP incompleto (faltando `teto_calculado`, `base_utilizada` ou `margem_aplicada`)
+  - **Preço atual superior ao teto vigente da ANP**
   
 - `403 Forbidden`: Usuário não tem permissão (não é ADMIN_EMPRESA)
 
@@ -839,6 +855,30 @@ curl -X PATCH http://localhost:3000/empresa-preco-combustivel/1 \
 1. Verifique se os preços ANP foram importados corretamente
 2. Verifique se o arquivo CSV de importação continha todos os campos necessários
 3. Entre em contato com um `SUPER_ADMIN` para reimportar os preços ANP
+
+---
+
+### Erro 400 - Preço atual superior ao teto vigente
+
+**Erro**: `O preço atual (R$ X.XX) não pode ser superior ao teto vigente (R$ Y.YY). O teto vigente é definido pela ANP com base na semana ativa, UF da empresa e tipo de combustível.`
+
+**Soluções:**
+1. Verifique o teto vigente atual consultando a semana ANP ativa
+2. Reduza o `preco_atual` para um valor igual ou inferior ao teto vigente
+3. O teto vigente é calculado automaticamente pela ANP e não pode ser alterado manualmente
+4. Se o teto vigente estiver incorreto, verifique se:
+   - A semana ANP ativa está correta
+   - Os preços ANP foram importados corretamente para a UF da empresa
+   - O tipo de combustível está mapeado corretamente
+
+**Exemplo de erro:**
+```json
+{
+  "statusCode": 400,
+  "message": "O preço atual (R$ 7.00) não pode ser superior ao teto vigente (R$ 6.50). O teto vigente é definido pela ANP com base na semana ativa, UF da empresa e tipo de combustível.",
+  "error": "Bad Request"
+}
+```
 
 ---
 

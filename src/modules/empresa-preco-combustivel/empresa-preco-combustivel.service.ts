@@ -42,12 +42,21 @@ export class EmpresaPrecoCombustivelService {
       throw new ConflictException('Já existe um preço ativo para esta empresa e combustível');
     }
 
+    // Buscar teto vigente da ANP
+    const { teto_vigente: tetoVigenteAnp } = await this.buscarTetoVigenteAnp(empresaId, data.combustivel_id);
+
+    // Validar se o preço atual não ultrapassa o teto vigente da ANP
+    this.validarPrecoContraTeto(data.preco_atual, tetoVigenteAnp);
+
+    // Usar o teto vigente da ANP (ignorar o valor enviado pelo usuário)
+    const tetoVigenteFinal = tetoVigenteAnp;
+
     const preco = await this.prisma.empresaPrecoCombustivel.create({
       data: {
         empresa_id: empresaId,
         combustivel_id: data.combustivel_id,
         preco_atual: new Prisma.Decimal(data.preco_atual),
-        teto_vigente: new Prisma.Decimal(data.teto_vigente),
+        teto_vigente: tetoVigenteFinal,
         anp_base: data.anp_base,
         anp_base_valor: new Prisma.Decimal(data.anp_base_valor),
         margem_app_pct: new Prisma.Decimal(data.margem_app_pct),
@@ -189,6 +198,9 @@ export class EmpresaPrecoCombustivelService {
       throw new ForbiddenException('Você não tem permissão para atualizar este preço');
     }
 
+    // Determinar qual combustível será usado (novo ou existente)
+    const combustivelIdFinal = data.combustivel_id || existingPreco.combustivel_id;
+
     // Se estiver alterando combustível, verificar se já existe preço ativo para o novo combustível
     if (data.combustivel_id && data.combustivel_id !== existingPreco.combustivel_id) {
       const combustivel = await this.prisma.combustivel.findUnique({
@@ -213,6 +225,31 @@ export class EmpresaPrecoCombustivelService {
       }
     }
 
+    // Buscar teto vigente da ANP se necessário
+    // É necessário buscar se:
+    // 1. O preço atual está sendo alterado
+    // 2. O combustível está sendo alterado
+    // 3. O teto_vigente está sendo alterado
+    let tetoVigenteAnp: Prisma.Decimal | undefined;
+    const precisaValidarPreco = data.preco_atual !== undefined || 
+                                (data.combustivel_id && data.combustivel_id !== existingPreco.combustivel_id);
+    const precisaAtualizarTeto = data.teto_vigente !== undefined || 
+                                 (data.combustivel_id && data.combustivel_id !== existingPreco.combustivel_id) ||
+                                 (data.preco_atual !== undefined);
+
+    if (precisaValidarPreco || precisaAtualizarTeto) {
+      const resultado = await this.buscarTetoVigenteAnp(empresaId, combustivelIdFinal);
+      tetoVigenteAnp = resultado.teto_vigente;
+
+      // Validar o preço atual contra o teto vigente
+      if (precisaValidarPreco) {
+        const precoAtualParaValidar = data.preco_atual !== undefined 
+          ? data.preco_atual 
+          : existingPreco.preco_atual;
+        this.validarPrecoContraTeto(precoAtualParaValidar, tetoVigenteAnp);
+      }
+    }
+
     const updateData: any = {
       updated_at: new Date(),
     };
@@ -220,8 +257,10 @@ export class EmpresaPrecoCombustivelService {
     if (data.preco_atual !== undefined) {
       updateData.preco_atual = new Prisma.Decimal(data.preco_atual);
     }
-    if (data.teto_vigente !== undefined) {
-      updateData.teto_vigente = new Prisma.Decimal(data.teto_vigente);
+    
+    // Sempre usar o teto vigente da ANP (ignorar o valor enviado pelo usuário se houver)
+    if (precisaAtualizarTeto && tetoVigenteAnp) {
+      updateData.teto_vigente = tetoVigenteAnp;
     }
     if (data.anp_base !== undefined) {
       updateData.anp_base = data.anp_base;
@@ -293,6 +332,106 @@ export class EmpresaPrecoCombustivelService {
     return {
       message: 'Preço de combustível excluído com sucesso',
     };
+  }
+
+  /**
+   * Busca o teto vigente da ANP para uma empresa, combustível e semana ANP específica
+   */
+  private async buscarTetoVigenteAnp(
+    empresaId: number,
+    combustivelId: number,
+    anpSemanaId?: number,
+  ): Promise<{ teto_vigente: Prisma.Decimal; anpPreco: any }> {
+    // Buscar empresa para pegar a UF
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: empresaId },
+      select: { id: true, uf: true },
+    });
+
+    if (!empresa) {
+      throw new NotFoundException('Empresa não encontrada');
+    }
+
+    // Buscar combustível
+    const combustivel = await this.prisma.combustivel.findUnique({
+      where: { id: combustivelId },
+    });
+
+    if (!combustivel) {
+      throw new NotFoundException('Combustível não encontrado');
+    }
+
+    // Mapear combustível para TipoCombustivelAnp
+    const tipoCombustivelAnp = this.mapearCombustivelParaTipoAnp(combustivel.nome, combustivel.sigla);
+
+    if (!tipoCombustivelAnp) {
+      throw new BadRequestException(
+        `Não foi possível mapear o combustível "${combustivel.nome}" (${combustivel.sigla}) para um tipo ANP válido.`
+      );
+    }
+
+    // Buscar semana ANP (ativa ou específica)
+    let anpSemana;
+    if (anpSemanaId) {
+      anpSemana = await this.prisma.anpSemana.findUnique({
+        where: { id: anpSemanaId },
+      });
+    } else {
+      anpSemana = await this.prisma.anpSemana.findFirst({
+        where: { ativo: true },
+        orderBy: { semana_ref: 'desc' },
+      });
+    }
+
+    if (!anpSemana) {
+      throw new NotFoundException(
+        anpSemanaId 
+          ? 'Semana ANP não encontrada' 
+          : 'Nenhuma semana ANP ativa encontrada. É necessário ter uma semana ANP ativa.'
+      );
+    }
+
+    // Buscar preço ANP para a UF e tipo de combustível
+    const anpPreco = await this.prisma.anpPrecosUf.findFirst({
+      where: {
+        anp_semana_id: anpSemana.id,
+        uf: empresa.uf,
+        combustivel: tipoCombustivelAnp,
+      },
+    });
+
+    if (!anpPreco) {
+      throw new NotFoundException(
+        `Preço ANP não encontrado para UF ${empresa.uf} e combustível ${tipoCombustivelAnp}. ` +
+        `Verifique se os preços ANP foram importados.`
+      );
+    }
+
+    // Validar se tem teto calculado
+    if (!anpPreco.teto_calculado) {
+      throw new BadRequestException(
+        `O preço ANP encontrado não possui teto calculado. É necessário calcular o teto antes de atualizar preços.`
+      );
+    }
+
+    return {
+      teto_vigente: anpPreco.teto_calculado,
+      anpPreco,
+    };
+  }
+
+  /**
+   * Valida se o preço atual não ultrapassa o teto vigente
+   */
+  private validarPrecoContraTeto(precoAtual: number | Prisma.Decimal, tetoVigente: Prisma.Decimal): void {
+    const preco = typeof precoAtual === 'number' ? new Prisma.Decimal(precoAtual) : precoAtual;
+    
+    if (preco.gt(tetoVigente)) {
+      throw new BadRequestException(
+        `O preço atual (R$ ${preco.toFixed(2)}) não pode ser superior ao teto vigente (R$ ${tetoVigente.toFixed(2)}). ` +
+        `O teto vigente é definido pela ANP com base na semana ativa, UF da empresa e tipo de combustível.`
+      );
+    }
   }
 
   /**
@@ -460,6 +599,9 @@ export class EmpresaPrecoCombustivelService {
     if (!anpPreco.margem_aplicada) {
       throw new BadRequestException('Margem aplicada não encontrada na tabela ANP.');
     }
+
+    // Validar se o preço atual não ultrapassa o teto vigente
+    this.validarPrecoContraTeto(data.preco_atual, anpPreco.teto_calculado);
 
     // Verificar se já existe um preço para esta empresa e combustível
     const existingPreco = await this.prisma.empresaPrecoCombustivel.findFirst({

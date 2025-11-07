@@ -32,7 +32,9 @@
     "prisma:seed:veiculos": "ts-node prisma/seed_veiculos.ts",
     "seed:veiculos": "ts-node prisma/seed_veiculos.ts",
     "prisma:seed:backup": "ts-node prisma/seed-backup.ts",
-    "seed:backup": "ts-node prisma/seed-backup.ts"
+    "seed:backup": "ts-node prisma/seed-backup.ts",
+    "prisma:seed:combustiveis": "ts-node prisma/cadastro_de_combustiveis.ts",
+    "seed:combustiveis": "ts-node prisma/cadastro_de_combustiveis.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
