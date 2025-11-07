@@ -544,9 +544,22 @@ export class VeiculoService {
       throw new NotFoundException('Veículo não encontrado');
     }
 
+    // Formatar combustíveis permitidos
+    const combustiveisPermitidos = veiculo.combustiveis.map(vc => vc.combustivel);
+    const combustivelIds = veiculo.combustiveis.map(vc => vc.combustivel.id);
+
+    // Adicionar nomes e dados formatados diretamente no objeto para facilitar o acesso
+    const veiculoFormatado = {
+      ...veiculo,
+      nomeOrgao: veiculo.orgao?.nome || null,
+      nomeContaFaturamento: veiculo.contaFaturamento?.nome || null,
+      combustiveisPermitidos, // Array de combustíveis formatado
+      combustivelIds, // IDs para formulário de edição
+    };
+
     return {
       message: 'Veículo encontrado com sucesso',
-      veiculo,
+      veiculo: veiculoFormatado,
     };
   }
 
