@@ -412,7 +412,7 @@ model Veiculo {
   nome                      String
   placa                     String    @unique
   modelo                    String?
-  ano                       Int
+  ano                       Int?
   tipo_abastecimento        TipoAbastecimentoVeiculo @default(COTA)
   ativo                     Boolean   @default(true)
   capacidade_tanque         Decimal   @db.Decimal(10, 2)
