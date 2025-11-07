@@ -15,6 +15,7 @@ import { CategoriaModule } from './modules/categoria/categoria.module';
 import { ProcessoModule } from './modules/processo/processo.module';
 import { ContratoModule } from './modules/contrato/contrato.module';
 import { ContaFaturamentoOrgaoModule } from './modules/conta-faturamento-orgao/conta-faturamento-orgao.module';
+import { CotaOrgaoModule } from './modules/cota-orgao/cota-orgao.module';
 import { LogModule } from './modules/log/log.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { ParametrosTetoModule } from './modules/parametros-teto/parametros-teto.module';
@@ -48,6 +49,7 @@ import { BackupModule } from './modules/backup/backup.module';
     ProcessoModule,
     ContratoModule,
     ContaFaturamentoOrgaoModule,
+    CotaOrgaoModule,
     LogModule,
     UploadModule,
     ParametrosTetoModule,
