@@ -10,7 +10,13 @@ export class CombustivelListGuard implements CanActivate {
       throw new ForbiddenException('Usuário não autenticado');
     }
 
-    const allowedRoles = ['SUPER_ADMIN', 'ADMIN_EMPRESA'];
+    const allowedRoles = [
+      'SUPER_ADMIN',
+      'ADMIN_PREFEITURA',
+      'ADMIN_EMPRESA',
+      'COLABORADOR_PREFEITURA',
+      'COLABORADOR_EMPRESA',
+    ];
     
     if (!allowedRoles.includes(user.tipo_usuario)) {
       throw new ForbiddenException('Apenas usuários com perfil SUPER_ADMIN ou ADMIN_EMPRESA têm acesso a este recurso');
