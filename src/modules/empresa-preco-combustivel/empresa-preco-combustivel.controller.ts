@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, ParseIntPipe, Request, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, ParseIntPipe, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { EmpresaPrecoCombustivelService } from './empresa-preco-combustivel.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -7,6 +7,7 @@ import { CreateEmpresaPrecoCombustivelDto } from './dto/create-empresa-preco-com
 import { UpdateEmpresaPrecoCombustivelDto } from './dto/update-empresa-preco-combustivel.dto';
 import { FindEmpresaPrecoCombustivelDto } from './dto/find-empresa-preco-combustivel.dto';
 import { UpdatePrecoAtualDto } from './dto/update-preco-atual.dto';
+import { EmpresaPrecoCombustivelUsuarioSemEmpresaException } from '../../common/exceptions';
 
 @ApiTags('Preços de Combustível por Empresa')
 @Controller('empresa-preco-combustivel')
@@ -24,7 +25,13 @@ export class EmpresaPrecoCombustivelController {
   async create(@Body() createDto: CreateEmpresaPrecoCombustivelDto, @Request() req) {
     const empresaId = req.user.empresa?.id;
     if (!empresaId) {
-      throw new BadRequestException('Usuário não está vinculado a uma empresa');
+      throw new EmpresaPrecoCombustivelUsuarioSemEmpresaException('create', {
+        user: {
+          id: req.user?.id,
+          email: req.user?.email,
+          tipo: req.user?.perfil?.tipo ?? req.user?.perfil,
+        },
+      });
     }
     return this.empresaPrecoCombustivelService.create(createDto, empresaId);
   }
@@ -36,7 +43,13 @@ export class EmpresaPrecoCombustivelController {
   async findAll(@Query() filters: FindEmpresaPrecoCombustivelDto, @Request() req) {
     const empresaId = req.user.empresa?.id;
     if (!empresaId) {
-      throw new BadRequestException('Usuário não está vinculado a uma empresa');
+      throw new EmpresaPrecoCombustivelUsuarioSemEmpresaException('list', {
+        user: {
+          id: req.user?.id,
+          email: req.user?.email,
+          tipo: req.user?.perfil?.tipo ?? req.user?.perfil,
+        },
+      });
     }
     return this.empresaPrecoCombustivelService.findAll(filters, empresaId);
   }
@@ -49,7 +62,13 @@ export class EmpresaPrecoCombustivelController {
   async findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const empresaId = req.user.empresa?.id;
     if (!empresaId) {
-      throw new BadRequestException('Usuário não está vinculado a uma empresa');
+      throw new EmpresaPrecoCombustivelUsuarioSemEmpresaException('detail', {
+        user: {
+          id: req.user?.id,
+          email: req.user?.email,
+          tipo: req.user?.perfil?.tipo ?? req.user?.perfil,
+        },
+      });
     }
     return this.empresaPrecoCombustivelService.findOne(id, empresaId);
   }
@@ -67,7 +86,13 @@ export class EmpresaPrecoCombustivelController {
   async updatePrecoAtual(@Body() updatePrecoDto: UpdatePrecoAtualDto, @Request() req) {
     const empresaId = req.user.empresa?.id;
     if (!empresaId) {
-      throw new BadRequestException('Usuário não está vinculado a uma empresa');
+      throw new EmpresaPrecoCombustivelUsuarioSemEmpresaException('updatePreco', {
+        user: {
+          id: req.user?.id,
+          email: req.user?.email,
+          tipo: req.user?.perfil?.tipo ?? req.user?.perfil,
+        },
+      });
     }
     const userName = req.user.nome || req.user.email;
     return this.empresaPrecoCombustivelService.updatePrecoAtual(updatePrecoDto, empresaId, userName);
@@ -85,7 +110,13 @@ export class EmpresaPrecoCombustivelController {
   ) {
     const empresaId = req.user.empresa?.id;
     if (!empresaId) {
-      throw new BadRequestException('Usuário não está vinculado a uma empresa');
+      throw new EmpresaPrecoCombustivelUsuarioSemEmpresaException('update', {
+        user: {
+          id: req.user?.id,
+          email: req.user?.email,
+          tipo: req.user?.perfil?.tipo ?? req.user?.perfil,
+        },
+      });
     }
     return this.empresaPrecoCombustivelService.update(id, updateDto, empresaId);
   }
@@ -98,7 +129,13 @@ export class EmpresaPrecoCombustivelController {
   async remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
     const empresaId = req.user.empresa?.id;
     if (!empresaId) {
-      throw new BadRequestException('Usuário não está vinculado a uma empresa');
+      throw new EmpresaPrecoCombustivelUsuarioSemEmpresaException('delete', {
+        user: {
+          id: req.user?.id,
+          email: req.user?.email,
+          tipo: req.user?.perfil?.tipo ?? req.user?.perfil,
+        },
+      });
     }
     return this.empresaPrecoCombustivelService.remove(id, empresaId);
   }

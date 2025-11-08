@@ -9,3 +9,4 @@ export * from './veiculo/veiculo.exceptions';
 export * from './motorista/motorista.exceptions';
 export * from './combustivel/combustivel.exceptions';
 export * from './orgao/orgao.exceptions';
+export * from './empresa-preco-combustivel/empresa-preco-combustivel.exceptions';

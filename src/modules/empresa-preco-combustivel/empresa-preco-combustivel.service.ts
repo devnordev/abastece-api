@@ -1,10 +1,30 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateEmpresaPrecoCombustivelDto } from './dto/create-empresa-preco-combustivel.dto';
 import { UpdateEmpresaPrecoCombustivelDto } from './dto/update-empresa-preco-combustivel.dto';
 import { FindEmpresaPrecoCombustivelDto } from './dto/find-empresa-preco-combustivel.dto';
 import { UpdatePrecoAtualDto } from './dto/update-preco-atual.dto';
 import { Prisma, TipoCombustivelAnp, AnpBase, StatusPreco } from '@prisma/client';
+import {
+  EmpresaPrecoCombustivelAcessoNegadoException,
+  EmpresaPrecoCombustivelCombustivelNaoEncontradoException,
+  EmpresaPrecoCombustivelEmpresaNaoEncontradaException,
+  EmpresaPrecoCombustivelMargemAnpAusenteException,
+  EmpresaPrecoCombustivelNaoEncontradoException,
+  EmpresaPrecoCombustivelPrecoAbaixoDoMinimoException,
+  EmpresaPrecoCombustivelPrecoAcimaDoTetoException,
+  EmpresaPrecoCombustivelPrecoAnpNaoEncontradoException,
+  EmpresaPrecoCombustivelPrecoAnpSemBaseUtilizadaException,
+  EmpresaPrecoCombustivelPrecoAnpSemPrecoMinimoException,
+  EmpresaPrecoCombustivelPrecoAnpSemTetoCalculadoException,
+  EmpresaPrecoCombustivelPrecoJaAtivoException,
+  EmpresaPrecoCombustivelPrecoNegativoException,
+  EmpresaPrecoCombustivelStatusInvalidoException,
+  EmpresaPrecoCombustivelTipoCombustivelNaoMapeadoException,
+  EmpresaPrecoCombustivelValorBaseAusenteException,
+  EmpresaPrecoCombustivelSemanaAnpNaoEncontradaException,
+  EmpresaPrecoCombustivelBaseAnpNaoSuportadaException,
+} from '../../common/exceptions';
 
 @Injectable()
 export class EmpresaPrecoCombustivelService {
@@ -17,7 +37,7 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!empresa) {
-      throw new NotFoundException('Empresa não encontrada');
+      throw new EmpresaPrecoCombustivelEmpresaNaoEncontradaException(empresaId);
     }
 
     // Verificar se o combustível existe
@@ -26,7 +46,7 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!combustivel) {
-      throw new NotFoundException('Combustível não encontrado');
+      throw new EmpresaPrecoCombustivelCombustivelNaoEncontradoException(data.combustivel_id);
     }
 
     // Verificar se já existe um preço ativo para esta empresa e combustível
@@ -39,7 +59,7 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (existingPreco) {
-      throw new ConflictException('Já existe um preço ativo para esta empresa e combustível');
+      throw new EmpresaPrecoCombustivelPrecoJaAtivoException(empresaId, data.combustivel_id);
     }
 
     const dadosAnp = await this.buscarTetoVigenteAnp(empresaId, data.combustivel_id);
@@ -47,12 +67,16 @@ export class EmpresaPrecoCombustivelService {
     this.validarPrecoDentroDaFaixa(data.preco_atual, dadosAnp.anpPreco);
 
     if (!dadosAnp.anpPreco.margem_aplicada) {
-      throw new BadRequestException('Margem aplicada não encontrada na tabela ANP para a combinação informada.');
+      throw new EmpresaPrecoCombustivelMargemAnpAusenteException();
     }
 
     const anpBaseValor = this.obterValorBaseAnp(dadosAnp.anpPreco);
     const precoDecimal = new Prisma.Decimal(data.preco_atual);
-    const status: StatusPreco = data.status ?? StatusPreco.ACTIVE;
+    const statusInformado = data.status;
+    if (statusInformado && !(Object.values(StatusPreco) as StatusPreco[]).includes(statusInformado)) {
+      throw new EmpresaPrecoCombustivelStatusInvalidoException(statusInformado);
+    }
+    const status: StatusPreco = statusInformado ?? StatusPreco.ACTIVE;
 
     const preco = await this.prisma.empresaPrecoCombustivel.create({
       data: {
@@ -173,12 +197,12 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!preco) {
-      throw new NotFoundException('Preço de combustível não encontrado');
+      throw new EmpresaPrecoCombustivelNaoEncontradoException(id);
     }
 
     // Verificar se o preço pertence à empresa do usuário
     if (preco.empresa_id !== empresaId) {
-      throw new ForbiddenException('Você não tem permissão para acessar este preço');
+      throw new EmpresaPrecoCombustivelAcessoNegadoException(id, empresaId);
     }
 
     return {
@@ -201,16 +225,16 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!empresa) {
-      throw new NotFoundException('Empresa não encontrada');
+      throw new EmpresaPrecoCombustivelEmpresaNaoEncontradaException(empresaId, 'update');
     }
 
     if (!existingPreco) {
-      throw new NotFoundException('Preço de combustível não encontrado');
+      throw new EmpresaPrecoCombustivelNaoEncontradoException(id);
     }
 
     // Verificar se o preço pertence à empresa do usuário
     if (existingPreco.empresa_id !== empresaId) {
-      throw new ForbiddenException('Você não tem permissão para atualizar este preço');
+      throw new EmpresaPrecoCombustivelAcessoNegadoException(id, empresaId);
     }
 
     // Determinar qual combustível será usado (novo ou existente)
@@ -223,7 +247,7 @@ export class EmpresaPrecoCombustivelService {
       });
 
       if (!combustivel) {
-        throw new NotFoundException('Combustível não encontrado');
+        throw new EmpresaPrecoCombustivelCombustivelNaoEncontradoException(data.combustivel_id, 'update');
       }
 
       const existingPrecoNovoCombustivel = await this.prisma.empresaPrecoCombustivel.findFirst({
@@ -236,7 +260,7 @@ export class EmpresaPrecoCombustivelService {
       });
 
       if (existingPrecoNovoCombustivel) {
-        throw new ConflictException('Já existe um preço ativo para este combustível');
+        throw new EmpresaPrecoCombustivelPrecoJaAtivoException(empresaId, data.combustivel_id);
       }
     }
 
@@ -245,14 +269,14 @@ export class EmpresaPrecoCombustivelService {
     // 1. O preço atual está sendo alterado
     // 2. O combustível está sendo alterado
     // 3. O teto_vigente está sendo alterado
-    const dadosAnp = await this.buscarTetoVigenteAnp(empresaId, combustivelIdFinal);
+    const dadosAnp = await this.buscarTetoVigenteAnp(empresaId, combustivelIdFinal, undefined, 'update');
     const precoParaValidacao =
       data.preco_atual !== undefined ? data.preco_atual : existingPreco.preco_atual;
 
     this.validarPrecoDentroDaFaixa(precoParaValidacao, dadosAnp.anpPreco);
 
     if (!dadosAnp.anpPreco.margem_aplicada) {
-      throw new BadRequestException('Margem aplicada não encontrada na tabela ANP para a combinação informada.');
+      throw new EmpresaPrecoCombustivelMargemAnpAusenteException();
     }
 
     const anpBaseValor = this.obterValorBaseAnp(dadosAnp.anpPreco);
@@ -271,6 +295,9 @@ export class EmpresaPrecoCombustivelService {
     }
 
     if (data.status !== undefined) {
+      if (!(Object.values(StatusPreco) as StatusPreco[]).includes(data.status)) {
+        throw new EmpresaPrecoCombustivelStatusInvalidoException(data.status);
+      }
       updateData.status = data.status;
     }
 
@@ -314,12 +341,12 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!existingPreco) {
-      throw new NotFoundException('Preço de combustível não encontrado');
+      throw new EmpresaPrecoCombustivelNaoEncontradoException(id);
     }
 
     // Verificar se o preço pertence à empresa do usuário
     if (existingPreco.empresa_id !== empresaId) {
-      throw new ForbiddenException('Você não tem permissão para excluir este preço');
+      throw new EmpresaPrecoCombustivelAcessoNegadoException(id, empresaId);
     }
 
     await this.prisma.empresaPrecoCombustivel.delete({
@@ -338,6 +365,7 @@ export class EmpresaPrecoCombustivelService {
     empresaId: number,
     combustivelId: number,
     anpSemanaId?: number,
+    operation: 'create' | 'update' | 'updatePreco' = 'create',
   ): Promise<{ teto_vigente: Prisma.Decimal; anpPreco: any }> {
     // Buscar empresa para pegar a UF
     const empresa = await this.prisma.empresa.findUnique({
@@ -346,7 +374,7 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!empresa) {
-      throw new NotFoundException('Empresa não encontrada');
+      throw new EmpresaPrecoCombustivelEmpresaNaoEncontradaException(empresaId, operation);
     }
 
     // Buscar combustível
@@ -355,16 +383,14 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!combustivel) {
-      throw new NotFoundException('Combustível não encontrado');
+      throw new EmpresaPrecoCombustivelCombustivelNaoEncontradoException(combustivelId, operation);
     }
 
     // Mapear combustível para TipoCombustivelAnp
     const tipoCombustivelAnp = this.mapearCombustivelParaTipoAnp(combustivel.nome, combustivel.sigla);
 
     if (!tipoCombustivelAnp) {
-      throw new BadRequestException(
-        `Não foi possível mapear o combustível "${combustivel.nome}" (${combustivel.sigla}) para um tipo ANP válido.`
-      );
+      throw new EmpresaPrecoCombustivelTipoCombustivelNaoMapeadoException(combustivel.nome, combustivel.sigla);
     }
 
     // Buscar semana ANP (ativa ou específica)
@@ -381,11 +407,7 @@ export class EmpresaPrecoCombustivelService {
     }
 
     if (!anpSemana) {
-      throw new NotFoundException(
-        anpSemanaId 
-          ? 'Semana ANP não encontrada' 
-          : 'Nenhuma semana ANP ativa encontrada. É necessário ter uma semana ANP ativa.'
-      );
+      throw new EmpresaPrecoCombustivelSemanaAnpNaoEncontradaException(anpSemanaId);
     }
 
     // Buscar preço ANP para a UF e tipo de combustível
@@ -398,28 +420,19 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!anpPreco) {
-      throw new NotFoundException(
-        `Preço ANP não encontrado para UF ${empresa.uf} e combustível ${tipoCombustivelAnp}. ` +
-        `Verifique se os preços ANP foram importados.`
-      );
+      throw new EmpresaPrecoCombustivelPrecoAnpNaoEncontradoException(empresa.uf, tipoCombustivelAnp);
     }
 
     if (!anpPreco.teto_calculado) {
-      throw new BadRequestException(
-        `O preço ANP encontrado não possui teto calculado. É necessário calcular o teto antes de atualizar preços.`
-      );
+      throw new EmpresaPrecoCombustivelPrecoAnpSemTetoCalculadoException();
     }
 
     if (!anpPreco.preco_minimo) {
-      throw new BadRequestException(
-        `O preço ANP encontrado não possui preço mínimo configurado.`
-      );
+      throw new EmpresaPrecoCombustivelPrecoAnpSemPrecoMinimoException();
     }
 
     if (!anpPreco.base_utilizada) {
-      throw new BadRequestException(
-        `O preço ANP encontrado não possui base utilizada definida.`
-      );
+      throw new EmpresaPrecoCombustivelPrecoAnpSemBaseUtilizadaException();
     }
 
     return {
@@ -435,24 +448,23 @@ export class EmpresaPrecoCombustivelService {
       preco_minimo: Prisma.Decimal;
     },
   ): void {
-    const preco = typeof precoAtual === 'number' ? new Prisma.Decimal(precoAtual) : precoAtual;
+    const precoDecimal = typeof precoAtual === 'number' ? new Prisma.Decimal(precoAtual) : precoAtual;
+    const precoNumber = Number(precoDecimal.toString());
 
-    if (preco.lt(0)) {
-      throw new BadRequestException('O preço atual deve ser maior ou igual a 0.');
+    if (precoDecimal.lt(0)) {
+      throw new EmpresaPrecoCombustivelPrecoNegativoException(precoNumber);
     }
 
-    const teto = anpPreco.teto_calculado;
-    if (preco.gt(teto)) {
-      throw new BadRequestException(
-        `O preço atual (R$ ${preco.toFixed(2)}) deve ser menor ou igual ao teto vigente (R$ ${teto.toFixed(2)}).`,
-      );
+    const tetoDecimal = anpPreco.teto_calculado;
+    const tetoNumber = Number(tetoDecimal.toString());
+    if (precoDecimal.gt(tetoDecimal)) {
+      throw new EmpresaPrecoCombustivelPrecoAcimaDoTetoException(precoNumber, tetoNumber);
     }
 
-    const minimo = anpPreco.preco_minimo;
-    if (preco.lt(minimo)) {
-      throw new BadRequestException(
-        `O preço atual (R$ ${preco.toFixed(2)}) deve ser maior ou igual ao preço mínimo ANP (R$ ${minimo.toFixed(2)}).`,
-      );
+    const minimoDecimal = anpPreco.preco_minimo;
+    const minimoNumber = Number(minimoDecimal.toString());
+    if (precoDecimal.lt(minimoDecimal)) {
+      throw new EmpresaPrecoCombustivelPrecoAbaixoDoMinimoException(precoNumber, minimoNumber);
     }
   }
 
@@ -465,21 +477,21 @@ export class EmpresaPrecoCombustivelService {
     switch (anpPreco.base_utilizada) {
       case AnpBase.MINIMO:
         if (!anpPreco.preco_minimo) {
-          throw new BadRequestException('Preço mínimo não encontrado na tabela ANP para a base MINIMO.');
+          throw new EmpresaPrecoCombustivelValorBaseAusenteException(AnpBase.MINIMO);
         }
         return anpPreco.preco_minimo;
       case AnpBase.MEDIO:
         if (!anpPreco.preco_medio) {
-          throw new BadRequestException('Preço médio não encontrado na tabela ANP para a base MEDIO.');
+          throw new EmpresaPrecoCombustivelValorBaseAusenteException(AnpBase.MEDIO);
         }
         return anpPreco.preco_medio;
       case AnpBase.MAXIMO:
         if (!anpPreco.preco_maximo) {
-          throw new BadRequestException('Preço máximo não encontrado na tabela ANP para a base MAXIMO.');
+          throw new EmpresaPrecoCombustivelValorBaseAusenteException(AnpBase.MAXIMO);
         }
         return anpPreco.preco_maximo;
       default:
-        throw new BadRequestException(`Base ANP "${anpPreco.base_utilizada}" não é suportada.`);
+        throw new EmpresaPrecoCombustivelBaseAnpNaoSuportadaException(anpPreco.base_utilizada);
     }
   }
 
@@ -559,7 +571,7 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!empresa) {
-      throw new NotFoundException('Empresa não encontrada');
+      throw new EmpresaPrecoCombustivelEmpresaNaoEncontradaException(empresaId, 'updatePreco');
     }
 
     // Buscar combustível
@@ -568,17 +580,18 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!combustivel) {
-      throw new NotFoundException('Combustível não encontrado');
+      throw new EmpresaPrecoCombustivelCombustivelNaoEncontradoException(data.combustivel_id, 'updatePreco');
     }
 
     // Mapear combustível para TipoCombustivelAnp
     const tipoCombustivelAnp = this.mapearCombustivelParaTipoAnp(combustivel.nome, combustivel.sigla);
 
     if (!tipoCombustivelAnp) {
-      throw new BadRequestException(
-        `Não foi possível mapear o combustível "${combustivel.nome}" (${combustivel.sigla}) para um tipo ANP válido. ` +
-        `Tipos válidos: GASOLINA_COMUM, GASOLINA_ADITIVADA, ETANOL_COMUM, ETANOL_ADITIVADO, DIESEL_S10, DIESEL_S500, GNV, GLP`
-      );
+      throw new EmpresaPrecoCombustivelTipoCombustivelNaoMapeadoException(combustivel.nome, combustivel.sigla, {
+        additionalInfo: {
+          tiposValidos: Object.values(TipoCombustivelAnp),
+        },
+      });
     }
 
     // Buscar semana ANP ativa
@@ -592,7 +605,7 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!anpSemana) {
-      throw new NotFoundException('Nenhuma semana ANP ativa encontrada. É necessário ter uma semana ANP ativa para atualizar preços.');
+      throw new EmpresaPrecoCombustivelSemanaAnpNaoEncontradaException();
     }
 
     // Buscar preço ANP para a UF e tipo de combustível
@@ -605,16 +618,25 @@ export class EmpresaPrecoCombustivelService {
     });
 
     if (!anpPreco) {
-      throw new NotFoundException(
-        `Preço ANP não encontrado para UF ${empresa.uf} e combustível ${tipoCombustivelAnp}. ` +
-        `Verifique se os preços ANP foram importados para esta semana.`
-      );
+      throw new EmpresaPrecoCombustivelPrecoAnpNaoEncontradoException(empresa.uf, tipoCombustivelAnp);
+    }
+
+    if (!anpPreco.teto_calculado) {
+      throw new EmpresaPrecoCombustivelPrecoAnpSemTetoCalculadoException();
+    }
+
+    if (!anpPreco.preco_minimo) {
+      throw new EmpresaPrecoCombustivelPrecoAnpSemPrecoMinimoException();
+    }
+
+    if (!anpPreco.base_utilizada) {
+      throw new EmpresaPrecoCombustivelPrecoAnpSemBaseUtilizadaException();
     }
 
     this.validarPrecoDentroDaFaixa(data.preco_atual, anpPreco);
 
     if (!anpPreco.margem_aplicada) {
-      throw new BadRequestException('Margem aplicada não encontrada na tabela ANP para a combinação informada.');
+      throw new EmpresaPrecoCombustivelMargemAnpAusenteException();
     }
 
     const anpBaseValor = this.obterValorBaseAnp(anpPreco);
