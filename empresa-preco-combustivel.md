@@ -766,6 +766,48 @@ curl -X PATCH http://localhost:3000/empresa-preco-combustivel/1 \
 
 ---
 
+## ✅ Testes Práticos (Passam e Falham)
+
+Os cenários abaixo podem ser reproduzidos via Postman, Insomnia ou `curl`. Cada exemplo assume:
+
+- Usuário autenticado com perfil `ADMIN_EMPRESA`
+- Tokens válidos no header `Authorization: Bearer {token}`
+- Base de dados com empresa, combustíveis e preços ANP configurados conforme pré-requisitos
+
+### 🔵 Casos de Sucesso
+
+| ID | Objetivo | Pré-condições | Requisição | Resultado Esperado |
+|----|----------|---------------|------------|--------------------|
+| TS-001 | Criar preço inédito com dados válidos | Não existe registro ativo para o par `empresa_id=5` + `combustivel_id=1` | `POST /empresa-preco-combustivel` com body:<br>`{ "combustivel_id": 1, "preco_atual": 5.79, "teto_vigente": 6.40, "anp_base": "MEDIO", "anp_base_valor": 6.10, "margem_app_pct": 5.00, "uf_referencia": "SP" }` | `201 Created` + corpo contendo o preço persistido com status `ACTIVE` |
+| TS-002 | Listar preços filtrando status | Registro ativo existente para empresa do usuário | `GET /empresa-preco-combustivel?status=ACTIVE` | `200 OK` + array com registros ativos; nenhum registro de outras empresas aparece |
+| TS-003 | Atualizar preço existente reduzindo valor | Preço ID 10 pertence à empresa do usuário | `PATCH /empresa-preco-combustivel/10` body `{ "preco_atual": 5.49 }` | `200 OK` + `preco_atual` atualizado e dados ANP recalculados automaticamente |
+| TS-004 | Atualizar preço via ANP (rota automática) | Semana ANP ativa válida | `PATCH /empresa-preco-combustivel/preco-atual` body `{ "combustivel_id": 2, "preco_atual": 4.39 }` | `200 OK` (ou `201 Created` se não existir) + campos ANP preenchidos a partir da semana ativa |
+| TS-005 | Excluir preço da própria empresa | Preço ID 12 pertence à empresa do usuário | `DELETE /empresa-preco-combustivel/12` | `200 OK` + mensagem “Preço de combustível excluído com sucesso” |
+
+### 🔴 Casos que Devem Falhar
+
+| ID | Objetivo | Pré-condições | Requisição | Erro Esperado |
+|----|----------|---------------|------------|---------------|
+| TF-001 | Bloquear criação duplicada | Já existe preço `ACTIVE` para `combustivel_id=1` | `POST /empresa-preco-combustivel` corpo semelhante ao TS-001 | `409 Conflict` + código `EMPRESA_PRECO_COMBUSTIVEL_ACTIVE_ALREADY_EXISTS` |
+| TF-002 | Rejeitar usuário sem empresa vinculada | Usuário autenticado sem `empresa_id` | `GET /empresa-preco-combustivel` | `400 Bad Request` + código `EMPRESA_PRECO_COMBUSTIVEL_USER_WITHOUT_EMPRESA` |
+| TF-003 | Impedir acesso de outra empresa | Preço ID 10 pertence a empresa diferente | `GET /empresa-preco-combustivel/10` | `403 Forbidden` + código `EMPRESA_PRECO_COMBUSTIVEL_FORBIDDEN` |
+| TF-004 | Validar preço acima do teto | Teto ANP vigente é 6.40 | `PATCH /empresa-preco-combustivel/preco-atual` body `{ "combustivel_id": 1, "preco_atual": 6.90 }` | `400 Bad Request` + código `EMPRESA_PRECO_COMBUSTIVEL_PRICE_ABOVE_TETO` e mensagem explicando teto |
+| TF-005 | Validar preço abaixo do mínimo | Preço mínimo ANP é 4.00 | `PATCH /empresa-preco-combustivel/preco-atual` body `{ "combustivel_id": 2, "preco_atual": 3.20 }` | `400 Bad Request` + código `EMPRESA_PRECO_COMBUSTIVEL_PRICE_BELOW_MIN` |
+| TF-006 | Detectar combustível inválido | `combustivel_id` não existe | `POST /empresa-preco-combustivel` com `combustivel_id`: 999 | `404 Not Found` + código `EMPRESA_PRECO_COMBUSTIVEL_COMBUSTIVEL_NOT_FOUND` |
+| TF-007 | Mapear combustível não reconhecido | Combustível cadastrado sem nome/sigla compatíveis com ANP | `PATCH /empresa-preco-combustivel/preco-atual` | `400 Bad Request` + código `EMPRESA_PRECO_COMBUSTIVEL_UNMAPPED_ANP_TYPE` com nomes no `additionalInfo` |
+| TF-008 | Semana ANP ausente | Não existe semana ativa | `PATCH /empresa-preco-combustivel/preco-atual` | `404 Not Found` + código `EMPRESA_PRECO_COMBUSTIVEL_ANP_WEEK_NOT_FOUND` |
+| TF-009 | Falta de dados ANP (teto/calculado/base) | Registro ANP encontrado mas incompleto | `PATCH /empresa-preco-combustivel/preco-atual` | `400 Bad Request` com códigos `EMPRESA_PRECO_COMBUSTIVEL_ANP_PRICE_WITHOUT_TETO`, `..._WITHOU_MIN` ou `..._WITHOUT_BASE` conforme o campo ausente |
+| TF-010 | Status inválido na criação | Valor `status`: `"ATIVO"` | `POST /empresa-preco-combustivel` com `status` inválido | `400 Bad Request` + código `EMPRESA_PRECO_COMBUSTIVEL_INVALID_STATUS` |
+
+### 📌 Dicas para Automatização
+
+- Armazene os headers comuns (Authorization, Content-Type) em variáveis do Postman/Insomnia.
+- Utilize scripts de pré-teste para gerar tokens automaticamente, se necessário.
+- Para cenários de erro, valide tanto o `statusCode` quanto o `errorCode` retornado.
+- Documente massa de dados utilizada (IDs de empresa, combustíveis, semanas ANP) para reproduzir os testes em diferentes ambientes (dev, staging).
+
+---
+
 ## 🔧 Troubleshooting
 
 ### Erro 403 Forbidden
