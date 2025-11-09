@@ -40,6 +40,15 @@ export class CombustivelController {
     );
   }
 
+  @Get('dados-anp')
+  @UseGuards(AdminEmpresaGuard)
+  @ApiOperation({ summary: 'Listar dados ANP da semana ativa para a UF da empresa do usuário' })
+  @ApiResponse({ status: 200, description: 'Dados ANP retornados com sucesso' })
+  @ApiResponse({ status: 403, description: 'Apenas ADMIN_EMPRESA pode acessar os dados ANP por UF' })
+  async obterDadosAnp(@Req() req: Request & { user: any }) {
+    return this.combustivelService.obterDadosAnpDoUsuario(req.user);
+  }
+
   @Get(':id')
   @UseGuards(CombustivelListGuard)
   @ApiOperation({ summary: 'Buscar combustível por ID' })
@@ -70,12 +79,4 @@ export class CombustivelController {
     return this.combustivelService.remove(id);
   }
 
-  @Get('dados-anp')
-  @UseGuards(AdminEmpresaGuard)
-  @ApiOperation({ summary: 'Listar dados ANP da semana ativa para a UF da empresa do usuário' })
-  @ApiResponse({ status: 200, description: 'Dados ANP retornados com sucesso' })
-  @ApiResponse({ status: 403, description: 'Apenas ADMIN_EMPRESA pode acessar os dados ANP por UF' })
-  async obterDadosAnp(@Req() req: Request & { user: any }) {
-    return this.combustivelService.obterDadosAnpDoUsuario(req.user);
-  }
 }
