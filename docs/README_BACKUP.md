@@ -15,49 +15,35 @@ Este módulo permite gerar e restaurar backups do banco de dados com controle de
 
 ## 🎯 Visão Geral
 
-O módulo de backup permite:
+O módulo de backup foi redesenhado para garantir que apenas usuários autenticados com perfil `SUPER_ADMIN` tenham acesso às rotas de backup. As funcionalidades disponíveis para esse perfil incluem:
 
-- ✅ Gerar backups completos do banco de dados (apenas SUPER_ADMIN)
-- ✅ Gerar backups filtrados por prefeitura (ADMIN_PREFEITURA e COLABORADOR_PREFEITURA)
-- ✅ Gerar backups filtrados por empresa (ADMIN_EMPRESA e COLABORADOR_EMPRESA)
+- ✅ Gerar backups completos do banco de dados
+- ✅ Gerar backups filtrados por prefeitura ou empresa
 - ✅ Listar backups disponíveis
+- ✅ Visualizar o conteúdo bruto de um backup específico
+- ✅ Fazer download dos arquivos gerados
 - ✅ Restaurar backups com validação de permissões
-- ✅ Excluir backups (apenas SUPER_ADMIN)
+- ✅ Excluir backups
+
+Usuários com outros perfis **não possuem acesso** a qualquer rota do módulo.
 
 ## 🔐 Perfis de Usuário e Permissões
 
-### SUPER_ADMIN
-- ✅ Pode gerar backup completo do banco de dados
-- ✅ Pode gerar backup filtrado por prefeitura ou empresa
-- ✅ Pode restaurar qualquer backup
-- ✅ Pode excluir qualquer backup
-- ✅ Pode listar todos os backups
+| Perfil | Gerar | Listar | Visualizar Conteúdo | Download | Restaurar | Excluir |
+|--------|-------|--------|---------------------|----------|-----------|---------|
+| SUPER_ADMIN | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| ADMIN_PREFEITURA / COLABORADOR_PREFEITURA | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| ADMIN_EMPRESA / COLABORADOR_EMPRESA | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-### ADMIN_PREFEITURA / COLABORADOR_PREFEITURA
-- ✅ Pode gerar backup apenas dos dados da sua prefeitura
-- ✅ Pode restaurar apenas backups da sua prefeitura
-- ✅ Pode listar backups (mas só pode restaurar os seus)
-
-### ADMIN_EMPRESA / COLABORADOR_EMPRESA
-- ✅ Pode gerar backup apenas dos dados da sua empresa
-- ✅ Pode restaurar apenas backups da sua empresa
-- ✅ Pode listar backups (mas só pode restaurar os seus)
+> **Importante:** As rotas exigem autenticação (`JwtAuthGuard`) e o `SuperAdminGuard`. Mesmo em rotas que retornam conteúdo do backup, há validação extra para garantir que o arquivo pertence ao usuário, caso futuras flexibilizações sejam consideradas.
 
 ## 🚀 Como Usar
 
 ### Via API (Recomendado)
 
-#### 1. Gerar Backup
-
-**Backup Completo (apenas SUPER_ADMIN):**
+#### 1. Gerar Backup Completo
 ```bash
 POST /backup/generate/full
-Authorization: Bearer <token>
-```
-
-**Backup por Perfil:**
-```bash
-POST /backup/generate
 Authorization: Bearer <token>
 ```
 
@@ -92,7 +78,28 @@ Authorization: Bearer <token>
 }
 ```
 
-#### 3. Restaurar Backup
+#### 3. Visualizar Conteúdo do Backup
+
+```bash
+GET /backup/view/backup_06-11-2025-143022.sql
+Authorization: Bearer <token>
+```
+
+Parâmetro opcional `?format=json` retorna o conteúdo dentro de um objeto `{ filename, content }`.
+
+```bash
+GET /backup/view/backup_06-11-2025-143022.sql?format=json
+Authorization: Bearer <token>
+```
+
+#### 4. Download do Backup
+
+```bash
+GET /backup/download/backup_06-11-2025-143022.sql
+Authorization: Bearer <token>
+```
+
+#### 5. Restaurar Backup
 
 ```bash
 POST /backup/restore/backup_06-11-2025-143022.sql
@@ -106,7 +113,7 @@ Authorization: Bearer <token>
 }
 ```
 
-#### 4. Excluir Backup (apenas SUPER_ADMIN)
+#### 6. Excluir Backup
 
 ```bash
 DELETE /backup/backup_06-11-2025-143022.sql
@@ -289,27 +296,30 @@ Verifique se o usuário tem `prefeituraId` ou `empresaId` configurado no banco d
 
 ## 📚 Endpoints da API
 
-### POST `/backup/generate`
-Gera backup baseado no perfil do usuário autenticado.
-
-**Permissões:** Todos os usuários autenticados
-
 ### POST `/backup/generate/full`
 Gera backup completo do banco de dados.
+
+**Permissões:** Apenas SUPER_ADMIN
+
+### POST `/backup/generate`
+Gera backup filtrado (prefeitura/empresa) conforme relacionamento do usuário SUPER_ADMIN (a rota permanece disponível para retrocompatibilidade).
 
 **Permissões:** Apenas SUPER_ADMIN
 
 ### GET `/backup/list`
 Lista todos os backups disponíveis.
 
-**Permissões:** Todos os usuários autenticados
+**Permissões:** Apenas SUPER_ADMIN
+
+### GET `/backup/view/:filename`
+Retorna o conteúdo do backup em texto puro ou JSON.
+
+**Permissões:** Apenas SUPER_ADMIN (com validação adicional do conteúdo)
 
 ### POST `/backup/restore/:filename`
 Restaura um backup específico.
 
-**Permissões:** 
-- SUPER_ADMIN: qualquer backup
-- Outros: apenas backups da sua prefeitura/empresa
+**Permissões:** Apenas SUPER_ADMIN
 
 ### DELETE `/backup/:filename`
 Exclui um backup.
