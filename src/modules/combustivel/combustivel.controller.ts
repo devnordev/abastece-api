@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, ParseIntPipe, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
 import { CombustivelService } from './combustivel.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 import { CombustivelListGuard } from '../auth/guards/combustivel-list.guard';
+import { AdminEmpresaGuard } from '../auth/guards/admin-empresa.guard';
 
 @ApiTags('Combustíveis')
 @Controller('combustiveis')
@@ -66,5 +68,14 @@ export class CombustivelController {
   @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode excluir combustíveis' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.combustivelService.remove(id);
+  }
+
+  @Get('dados-anp')
+  @UseGuards(AdminEmpresaGuard)
+  @ApiOperation({ summary: 'Listar dados ANP da semana ativa para a UF da empresa do usuário' })
+  @ApiResponse({ status: 200, description: 'Dados ANP retornados com sucesso' })
+  @ApiResponse({ status: 403, description: 'Apenas ADMIN_EMPRESA pode acessar os dados ANP por UF' })
+  async obterDadosAnp(@Req() req: Request & { user: any }) {
+    return this.combustivelService.obterDadosAnpDoUsuario(req.user);
   }
 }

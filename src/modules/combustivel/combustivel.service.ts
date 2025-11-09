@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { AnpBase, Prisma, TipoCombustivelAnp, UF } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   CombustivelAlreadyExistsException,
@@ -150,5 +151,93 @@ export class CombustivelService {
     return {
       message: 'Combustível excluído com sucesso',
     };
+  }
+
+  async obterDadosAnpDoUsuario(user: {
+    id: number;
+    tipo_usuario: string;
+    empresa?: { id: number; nome: string; cnpj: string; uf?: UF | null };
+  }) {
+    if (!user?.empresa?.id || !user.empresa.uf) {
+      throw new NotFoundException('Usuário não possui empresa com UF associada');
+    }
+
+    const anpSemanaAtiva = await this.prisma.anpSemana.findFirst({
+      where: { ativo: true },
+      orderBy: { semana_ref: 'desc' },
+    });
+
+    if (!anpSemanaAtiva) {
+      throw new NotFoundException('Nenhuma semana ANP ativa encontrada');
+    }
+
+    const precosUf = await this.prisma.anpPrecosUf.findMany({
+      where: {
+        anp_semana_id: anpSemanaAtiva.id,
+        uf: user.empresa.uf,
+      },
+      orderBy: { combustivel: 'asc' },
+    });
+
+    const dados = precosUf.map((preco) => {
+      const precoBase = this.obterPrecoBaseParaAnp(preco);
+      return {
+        combustivel: this.mapearTipoCombustivelAnpParaNome(preco.combustivel),
+        tipo_combustivel: preco.combustivel,
+        teto_vigente: preco.teto_calculado,
+        base_utilizada: preco.base_utilizada,
+        preco_base: precoBase,
+        preco_minimo: preco.preco_minimo,
+        preco_medio: preco.preco_medio,
+        preco_maximo: preco.preco_maximo,
+        margem_aplicada: preco.margem_aplicada,
+      };
+    });
+
+    return {
+      message: 'Dados ANP recuperados com sucesso',
+      uf: user.empresa.uf,
+      semana: {
+        id: anpSemanaAtiva.id,
+        semana_ref: anpSemanaAtiva.semana_ref,
+        publicada_em: anpSemanaAtiva.publicada_em,
+      },
+      dados,
+    };
+  }
+
+  private obterPrecoBaseParaAnp(
+    anpPreco: {
+      base_utilizada: AnpBase | null;
+      preco_minimo: Prisma.Decimal | null;
+      preco_medio: Prisma.Decimal;
+      preco_maximo: Prisma.Decimal | null;
+    },
+  ): Prisma.Decimal | null {
+    switch (anpPreco.base_utilizada) {
+      case AnpBase.MINIMO:
+        return anpPreco.preco_minimo ?? null;
+      case AnpBase.MEDIO:
+        return anpPreco.preco_medio ?? null;
+      case AnpBase.MAXIMO:
+        return anpPreco.preco_maximo ?? null;
+      default:
+        return null;
+    }
+  }
+
+  private mapearTipoCombustivelAnpParaNome(tipo: TipoCombustivelAnp): string {
+    const mapa: Record<TipoCombustivelAnp, string> = {
+      [TipoCombustivelAnp.GASOLINA_COMUM]: 'Gasolina Comum',
+      [TipoCombustivelAnp.GASOLINA_ADITIVADA]: 'Gasolina Aditivada',
+      [TipoCombustivelAnp.ETANOL_COMUM]: 'Etanol Comum',
+      [TipoCombustivelAnp.ETANOL_ADITIVADO]: 'Etanol Aditivado',
+      [TipoCombustivelAnp.DIESEL_S10]: 'Diesel S10',
+      [TipoCombustivelAnp.DIESEL_S500]: 'Diesel S500',
+      [TipoCombustivelAnp.GNV]: 'GNV',
+      [TipoCombustivelAnp.GLP]: 'GLP',
+    };
+
+    return mapa[tipo] ?? tipo;
   }
 }

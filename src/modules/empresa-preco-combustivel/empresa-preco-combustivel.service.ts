@@ -305,7 +305,7 @@ export class EmpresaPrecoCombustivelService {
       updateData.updated_by = data.updated_by;
     }
     if (data.combustivel_id !== undefined) {
-      updateData.combustivel_id = data.combustivel_id;
+      updateData.combustivel = { connect: { id: data.combustivel_id } };
     }
 
     const preco = await this.prisma.empresaPrecoCombustivel.update({

@@ -5,10 +5,7 @@ const MODULE = 'Combustíveis';
 
 type CombustivelOperation = 'create' | 'list' | 'detail' | 'update' | 'delete';
 
-type ContextOverrides = Partial<
-  Omit<CrudExceptionContext, 'module' | 'action' | 'operation' | 'route' | 'method' | 'expected' | 'performed'>
-> &
-  Partial<Pick<CrudExceptionContext, 'expected' | 'performed'>>;
+type ContextOverrides = Partial<Omit<CrudExceptionContext, 'module'>>;
 
 const BASE_CONTEXTS: Record<CombustivelOperation, Omit<CrudExceptionContext, 'module'>> = {
   create: {
