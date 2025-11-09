@@ -400,6 +400,38 @@ export class BackupService {
   }
 
   /**
+   * Retorna o conteúdo bruto de um arquivo de backup.
+   */
+  async getBackupContent(filename: string, user: any): Promise<string> {
+    const filepath = path.join(this.backupDir, filename);
+
+    if (!fs.existsSync(filepath)) {
+      throw new NotFoundException('Arquivo de backup não encontrado');
+    }
+
+    if (!filename.endsWith('.sql') || !filename.startsWith('backup_')) {
+      throw new NotFoundException('Arquivo inválido');
+    }
+
+    // Restringir acesso: usuários não SUPER_ADMIN só podem abrir backups associados a si
+    if (user.tipo_usuario !== 'SUPER_ADMIN') {
+      const content = fs.readFileSync(filepath, 'utf8');
+      const possuiPrefeitura = user.prefeituraId
+        ? content.includes(`Prefeitura ID: ${user.prefeituraId}`) || content.includes(`prefeituraId: ${user.prefeituraId}`)
+        : false;
+      const possuiEmpresa = user.empresaId
+        ? content.includes(`Empresa ID: ${user.empresaId}`) || content.includes(`empresaId: ${user.empresaId}`)
+        : false;
+
+      if (!possuiPrefeitura && !possuiEmpresa) {
+        throw new ForbiddenException('Você não tem permissão para visualizar este backup');
+      }
+    }
+
+    return fs.readFileSync(filepath, 'utf8');
+  }
+
+  /**
    * Restaura backup do banco de dados
    */
   async restoreBackup(filename: string, user: any): Promise<void> {

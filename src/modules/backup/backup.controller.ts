@@ -7,6 +7,7 @@ import {
   Delete,
   Res,
   NotFoundException,
+  Query,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
@@ -19,7 +20,7 @@ import * as path from 'path';
 
 @ApiTags('Backup')
 @Controller('backup')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, SuperAdminGuard)
 @ApiBearerAuth()
 export class BackupController {
   constructor(private readonly backupService: BackupService) {}
@@ -38,7 +39,6 @@ export class BackupController {
   }
 
   @Post('generate/full')
-  @UseGuards(SuperAdminGuard)
   @ApiOperation({ summary: 'Gerar backup completo do banco de dados (apenas SUPER_ADMIN)' })
   @ApiResponse({ status: 201, description: 'Backup completo gerado com sucesso' })
   @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode gerar backup completo' })
@@ -60,6 +60,28 @@ export class BackupController {
       message: 'Backups listados com sucesso',
       backups,
     };
+  }
+
+  @Get('view/:filename')
+  @ApiOperation({
+    summary: 'Visualizar conteúdo de um backup em texto',
+    description: 'Retorna o conteúdo bruto do arquivo de backup solicitado (apenas .sql gerados pelo sistema).',
+  })
+  @ApiResponse({ status: 200, description: 'Conteúdo do backup retornado com sucesso' })
+  @ApiResponse({ status: 404, description: 'Arquivo não encontrado' })
+  @ApiResponse({ status: 403, description: 'Usuário não tem permissão para o backup solicitado' })
+  async viewBackup(
+    @Param('filename') filename: string,
+    @CurrentUser() user: any,
+    @Query('format') format?: 'json',
+  ) {
+    const content = await this.backupService.getBackupContent(filename, user);
+
+    if (format === 'json') {
+      return { filename, content };
+    }
+
+    return content;
   }
 
   @Post('restore/:filename')
@@ -101,7 +123,6 @@ export class BackupController {
   }
 
   @Delete(':filename')
-  @UseGuards(SuperAdminGuard)
   @ApiOperation({ summary: 'Excluir backup (apenas SUPER_ADMIN)' })
   @ApiResponse({ status: 200, description: 'Backup excluído com sucesso' })
   @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode excluir backups' })
