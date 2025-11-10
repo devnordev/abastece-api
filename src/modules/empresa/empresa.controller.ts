@@ -21,6 +21,7 @@ import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { UpdateEmpresaDto } from './dto/update-empresa.dto';
 import { FindEmpresaDto } from './dto/find-empresa.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminPrefeituraGuard } from '../auth/guards/admin-prefeitura.guard';
 import { UploadService } from '../upload/upload.service';
 
 @ApiTags('Empresas')
@@ -133,6 +134,16 @@ export class EmpresaController {
       parseFloat(longitude),
       radius ? parseFloat(radius) : 10,
     );
+  }
+
+  @Get('credenciadas')
+  @UseGuards(AdminPrefeituraGuard)
+  @ApiOperation({ summary: 'Listar empresas credenciadas (com contratos válidos)' })
+  @ApiResponse({ status: 200, description: 'Empresas credenciadas encontradas com sucesso' })
+  @ApiResponse({ status: 403, description: 'Apenas ADMIN_PREFEITURA pode acessar empresas credenciadas' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  async findCredenciadas() {
+    return this.empresaService.findCredenciadas();
   }
 
   @Get(':id')

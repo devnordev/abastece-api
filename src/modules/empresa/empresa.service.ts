@@ -340,4 +340,45 @@ export class EmpresaService {
       empresas,
     };
   }
+
+  async findCredenciadas() {
+    const dataAtual = new Date();
+
+    // Buscar empresas que têm contratos válidos
+    // Critérios: ativo = true, vigência válida (data atual dentro do intervalo ou sem data de fim)
+    const empresas = await this.prisma.empresa.findMany({
+      where: {
+        contratos: {
+          some: {
+            ativo: true,
+            AND: [
+              // Se vigencia_inicio existe, deve ser <= data atual
+              {
+                OR: [
+                  { vigencia_inicio: { lte: dataAtual } },
+                  { vigencia_inicio: null },
+                ],
+              },
+              // Se vigencia_fim existe, deve ser >= data atual (não pode ter passado)
+              {
+                OR: [
+                  { vigencia_fim: { gte: dataAtual } },
+                  { vigencia_fim: null },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      orderBy: {
+        nome: 'asc',
+      },
+    });
+
+    return {
+      message: 'Empresas credenciadas encontradas com sucesso',
+      empresas,
+      total: empresas.length,
+    };
+  }
 }
