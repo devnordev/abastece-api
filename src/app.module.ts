@@ -23,6 +23,7 @@ import { AnpSemanaModule } from './modules/anp-semana/anp-semana.module';
 import { AnpPrecosUfModule } from './modules/anp-precos-uf/anp-precos-uf.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { EmpresaPrecoCombustivelModule } from './modules/empresa-preco-combustivel/empresa-preco-combustivel.module';
+import { SolicitacaoAbastecimentoModule } from './modules/solicitacao-abastecimento/solicitacao-abastecimento.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { EmpresaPrecoCombustivelModule } from './modules/empresa-preco-combustiv
     AnpPrecosUfModule,
     BackupModule,
     EmpresaPrecoCombustivelModule,
+    SolicitacaoAbastecimentoModule,
   ],
 })
 export class AppModule {}
