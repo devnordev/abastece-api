@@ -251,6 +251,81 @@ export class SolicitacaoAbastecimentoService {
     };
   }
 
+  async findAllByPrefeitura(
+    user: {
+      id: number;
+      tipo_usuario: string;
+      prefeitura?: { id: number; nome: string; cnpj: string };
+    },
+    query: FindSolicitacaoAbastecimentoDto,
+  ) {
+    const prefeituraId = user?.prefeitura?.id;
+
+    if (!prefeituraId) {
+      throw new UnauthorizedException('Usuário não está vinculado a uma prefeitura ativa.');
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.SolicitacaoAbastecimentoWhereInput = {
+      prefeituraId, // Filtrar sempre pela prefeitura do usuário
+    };
+
+    // Aplicar filtros adicionais se fornecidos
+    if (query.veiculoId !== undefined) {
+      where.veiculoId = query.veiculoId;
+    }
+
+    if (query.motoristaId !== undefined) {
+      where.motoristaId = query.motoristaId;
+    }
+
+    if (query.empresaId !== undefined) {
+      where.empresaId = query.empresaId;
+    }
+
+    if (query.tipo_abastecimento !== undefined) {
+      where.tipo_abastecimento = query.tipo_abastecimento;
+    }
+
+    if (query.status !== undefined) {
+      where.status = query.status;
+    }
+
+    if (query.ativo !== undefined) {
+      where.ativo = query.ativo;
+    }
+
+    const [solicitacoes, total] = await Promise.all([
+      this.prisma.solicitacaoAbastecimento.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { created_at: 'desc' },
+        include: this.solicitacaoInclude,
+      }),
+      this.prisma.solicitacaoAbastecimento.count({ where }),
+    ]);
+
+    return {
+      message: 'Solicitações de abastecimento da prefeitura encontradas com sucesso',
+      prefeitura: {
+        id: user.prefeitura.id,
+        nome: user.prefeitura.nome,
+        cnpj: user.prefeitura.cnpj,
+      },
+      solicitacoes,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   async findOne(id: number) {
     const solicitacao = await this.prisma.solicitacaoAbastecimento.findUnique({
       where: { id },

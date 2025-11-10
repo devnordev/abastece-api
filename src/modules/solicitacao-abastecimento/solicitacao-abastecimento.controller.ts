@@ -37,10 +37,14 @@ export class SolicitacaoAbastecimentoController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar solicitações de abastecimento' })
+  @ApiOperation({ summary: 'Listar solicitações de abastecimento da prefeitura do usuário logado' })
   @ApiResponse({ status: 200, description: 'Lista retornada com sucesso' })
-  async findAll(@Query() query: FindSolicitacaoAbastecimentoDto) {
-    return this.solicitacaoService.findAll(query);
+  @ApiResponse({ status: 401, description: 'Usuário não está vinculado a uma prefeitura ativa' })
+  async findAllByPrefeitura(
+    @Query() query: FindSolicitacaoAbastecimentoDto,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.solicitacaoService.findAllByPrefeitura(req.user, query);
   }
 
   @Get('preco-combustivel')
