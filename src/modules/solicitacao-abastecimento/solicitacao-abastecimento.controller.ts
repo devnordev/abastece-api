@@ -103,5 +103,16 @@ export class SolicitacaoAbastecimentoController {
   async listarEmpresasCredenciadas(@Req() req: Request & { user: any }) {
     return this.solicitacaoService.listarEmpresasCredenciadas(req.user);
   }
+
+  @Get('empresas/:empresaId/combustiveis')
+  @ApiOperation({ summary: 'Listar combustíveis credenciados de uma empresa' })
+  @ApiResponse({ status: 200, description: 'Combustíveis credenciados retornados com sucesso' })
+  @ApiResponse({ status: 404, description: 'Empresa não encontrada ou inativa' })
+  async listarCombustiveisCredenciados(
+    @Param('empresaId', ParseIntPipe) empresaId: number,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.solicitacaoService.listarCombustiveisCredenciados(empresaId, req.user);
+  }
 }
 

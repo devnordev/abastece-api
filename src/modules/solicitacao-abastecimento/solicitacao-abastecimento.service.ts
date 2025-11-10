@@ -568,5 +568,67 @@ export class SolicitacaoAbastecimentoService {
       empresas,
     };
   }
+
+  async listarCombustiveisCredenciados(
+    empresaId: number,
+    user: {
+      id: number;
+      tipo_usuario: string;
+      prefeitura?: { id: number; nome: string; cnpj: string };
+    },
+  ) {
+    const prefeituraId = user?.prefeitura?.id;
+
+    if (!prefeituraId) {
+      throw new UnauthorizedException('Usuário não está vinculado a uma prefeitura ativa.');
+    }
+
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: empresaId },
+      select: {
+        id: true,
+        nome: true,
+        cnpj: true,
+        ativo: true,
+        uf: true,
+      },
+    });
+
+    if (!empresa || !empresa.ativo) {
+      throw new NotFoundException('Empresa não encontrada ou inativa.');
+    }
+
+    const combustiveis = await this.prisma.empresaPrecoCombustivel.findMany({
+      where: {
+        empresa_id: empresaId,
+        status: 'ACTIVE',
+      },
+      include: {
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+            ativo: true,
+          },
+        },
+        empresa: {
+          select: {
+            id: true,
+            nome: true,
+            cnpj: true,
+          },
+        },
+      },
+      orderBy: { updated_at: 'desc' },
+    });
+
+    return {
+      message: 'Combustíveis credenciados recuperados com sucesso',
+      empresa,
+      total: combustiveis.length,
+      combustiveis,
+    };
+  }
 }
 
