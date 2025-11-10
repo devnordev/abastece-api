@@ -530,5 +530,43 @@ export class SolicitacaoAbastecimentoService {
 
     return { inicio, fim };
   }
+
+  async listarEmpresasCredenciadas(user: {
+    id: number;
+    tipo_usuario: string;
+    prefeitura?: { id: number; nome: string; cnpj: string };
+  }) {
+    const prefeituraId = user?.prefeitura?.id;
+
+    if (!prefeituraId) {
+      throw new UnauthorizedException('Usuário não está vinculado a uma prefeitura ativa.');
+    }
+
+    const empresas = await this.prisma.empresa.findMany({
+      where: {
+        ativo: true,
+      },
+      select: {
+        id: true,
+        nome: true,
+        cnpj: true,
+        endereco: true,
+        uf: true,
+        contato: true,
+        telefone: true,
+        email: true,
+        website: true,
+        tipo_empresa: true,
+        isPublic: true,
+      },
+      orderBy: { nome: 'asc' },
+    });
+
+    return {
+      message: 'Empresas credenciadas recuperadas com sucesso',
+      total: empresas.length,
+      empresas,
+    };
+  }
 }
 

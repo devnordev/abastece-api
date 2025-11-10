@@ -96,5 +96,12 @@ export class SolicitacaoAbastecimentoController {
   ) {
     return this.solicitacaoService.listarCotasDoOrgao(orgaoId, req.user);
   }
+
+  @Get('empresas/credenciadas')
+  @ApiOperation({ summary: 'Listar empresas credenciadas da prefeitura do usuário' })
+  @ApiResponse({ status: 200, description: 'Empresas credenciadas retornadas com sucesso' })
+  async listarEmpresasCredenciadas(@Req() req: Request & { user: any }) {
+    return this.solicitacaoService.listarEmpresasCredenciadas(req.user);
+  }
 }
 
