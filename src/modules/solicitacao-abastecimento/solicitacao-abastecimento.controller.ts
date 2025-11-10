@@ -85,5 +85,16 @@ export class SolicitacaoAbastecimentoController {
   ) {
     return this.solicitacaoService.obterTipoAbastecimentoVeiculo(id, req.user);
   }
+
+  @Get('orgao/:orgaoId/cotas')
+  @ApiOperation({ summary: 'Listar cotas de combustível do órgão dentro da prefeitura do usuário' })
+  @ApiResponse({ status: 200, description: 'Cotas retornadas com sucesso' })
+  @ApiResponse({ status: 404, description: 'Órgão não encontrado para a prefeitura do usuário' })
+  async listarCotasDoOrgao(
+    @Param('orgaoId', ParseIntPipe) orgaoId: number,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.solicitacaoService.listarCotasDoOrgao(orgaoId, req.user);
+  }
 }
 

@@ -435,6 +435,70 @@ export class SolicitacaoAbastecimentoService {
     };
   }
 
+  async listarCotasDoOrgao(
+    orgaoId: number,
+    user: {
+      id: number;
+      tipo_usuario: string;
+      prefeitura?: { id: number; nome: string; cnpj: string };
+    },
+  ) {
+    const prefeituraId = user?.prefeitura?.id;
+
+    if (!prefeituraId) {
+      throw new UnauthorizedException('Usuário não está vinculado a uma prefeitura ativa.');
+    }
+
+    const orgao = await this.prisma.orgao.findFirst({
+      where: {
+        id: orgaoId,
+        prefeituraId,
+      },
+      select: {
+        id: true,
+        nome: true,
+        sigla: true,
+      },
+    });
+
+    if (!orgao) {
+      throw new NotFoundException('Órgão não encontrado para a prefeitura do usuário.');
+    }
+
+    const cotas = await this.prisma.cotaOrgao.findMany({
+      where: {
+        orgaoId,
+        processo: {
+          prefeituraId,
+        },
+      },
+      include: {
+        processo: {
+          select: {
+            id: true,
+            numero_processo: true,
+            status: true,
+          },
+        },
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+      },
+      orderBy: { id: 'desc' },
+    });
+
+    return {
+      message: 'Cotas do órgão recuperadas com sucesso',
+      orgao,
+      total: cotas.length,
+      cotas,
+    };
+  }
+
   private obterIntervaloPeriodo(data: Date, periodicidade: Periodicidade) {
     const inicio = new Date(data);
     inicio.setHours(0, 0, 0, 0);
