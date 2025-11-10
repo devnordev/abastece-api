@@ -18,6 +18,7 @@ import { CreateSolicitacaoAbastecimentoDto } from './dto/create-solicitacao-abas
 import { UpdateSolicitacaoAbastecimentoDto } from './dto/update-solicitacao-abastecimento.dto';
 import { FindSolicitacaoAbastecimentoDto } from './dto/find-solicitacao-abastecimento.dto';
 import { GetPrecoCombustivelDto } from './dto/get-preco-combustivel.dto';
+import { ValidarCapacidadeTanqueDto } from './dto/validar-capacidade-tanque.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminPrefeituraGuard } from '../auth/guards/admin-prefeitura.guard';
 
@@ -88,6 +89,23 @@ export class SolicitacaoAbastecimentoController {
   })
   async obterPrecoCombustivelPorId(@Param('combustivelId', ParseIntPipe) combustivelId: number) {
     return this.solicitacaoService.obterPrecoCombustivelPorId(combustivelId);
+  }
+
+  @Post('validar-capacidade-tanque')
+  @ApiOperation({
+    summary: 'Validar se a quantidade é menor ou igual à capacidade do tanque do veículo',
+    description: 'Verifica se a quantidade informada é menor ou igual à capacidade do tanque do veículo. Retorna mensagem positiva se válido, ou mensagem informando que não é possível se a quantidade exceder a capacidade.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Validação realizada com sucesso',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Veículo não encontrado',
+  })
+  async validarCapacidadeTanque(@Body() dto: ValidarCapacidadeTanqueDto) {
+    return this.solicitacaoService.validarCapacidadeTanque(dto.veiculoId, dto.quantidade);
   }
 
   @Get('veiculo/:id/tipo-abastecimento')

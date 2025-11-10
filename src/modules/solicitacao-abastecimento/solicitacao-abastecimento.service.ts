@@ -919,5 +919,56 @@ export class SolicitacaoAbastecimentoService {
       updated_at: precoCombustivel.updated_at,
     };
   }
+
+  /**
+   * Valida se a quantidade é menor ou igual à capacidade do tanque do veículo
+   * Retorna mensagem positiva se válido, ou mensagem informando que não é possível se exceder
+   */
+  async validarCapacidadeTanque(veiculoId: number, quantidade: number) {
+    // Buscar o veículo pelo ID
+    const veiculo = await this.prisma.veiculo.findUnique({
+      where: { id: veiculoId },
+      select: {
+        id: true,
+        nome: true,
+        placa: true,
+        capacidade_tanque: true,
+      },
+    });
+
+    if (!veiculo) {
+      throw new NotFoundException(`Veículo com ID ${veiculoId} não encontrado`);
+    }
+
+    const capacidadeTanque = Number(veiculo.capacidade_tanque);
+    const quantidadeNum = Number(quantidade);
+
+    // Comparar quantidade com capacidade do tanque
+    if (quantidadeNum <= capacidadeTanque) {
+      return {
+        message: 'A quantidade informada é válida e não excede a capacidade do tanque do veículo',
+        valido: true,
+        veiculo: {
+          id: veiculo.id,
+          nome: veiculo.nome,
+          placa: veiculo.placa,
+          capacidade_tanque: capacidadeTanque,
+        },
+        quantidade: quantidadeNum,
+      };
+    } else {
+      return {
+        message: 'Não é possível abastecer esta quantidade. A quantidade informada excede a capacidade do tanque do veículo',
+        valido: false,
+        veiculo: {
+          id: veiculo.id,
+          nome: veiculo.nome,
+          placa: veiculo.placa,
+          capacidade_tanque: capacidadeTanque,
+        },
+        quantidade: quantidadeNum,
+      };
+    }
+  }
 }
 
