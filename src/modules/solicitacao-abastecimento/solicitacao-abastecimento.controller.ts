@@ -17,6 +17,7 @@ import { SolicitacaoAbastecimentoService } from './solicitacao-abastecimento.ser
 import { CreateSolicitacaoAbastecimentoDto } from './dto/create-solicitacao-abastecimento.dto';
 import { UpdateSolicitacaoAbastecimentoDto } from './dto/update-solicitacao-abastecimento.dto';
 import { FindSolicitacaoAbastecimentoDto } from './dto/find-solicitacao-abastecimento.dto';
+import { GetPrecoCombustivelDto } from './dto/get-preco-combustivel.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminPrefeituraGuard } from '../auth/guards/admin-prefeitura.guard';
 
@@ -39,6 +40,23 @@ export class SolicitacaoAbastecimentoController {
   @ApiResponse({ status: 200, description: 'Lista retornada com sucesso' })
   async findAll(@Query() query: FindSolicitacaoAbastecimentoDto) {
     return this.solicitacaoService.findAll(query);
+  }
+
+  @Get('preco-combustivel')
+  @ApiOperation({
+    summary: 'Obter preço atual do combustível para uma empresa',
+    description: 'Retorna o preço atual (preco_atual) do combustível cadastrado no model EmpresaPrecoCombustivel com status ACTIVE',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Preço do combustível recuperado com sucesso',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Combustível, empresa ou preço não encontrado',
+  })
+  async obterPrecoCombustivel(@Query() query: GetPrecoCombustivelDto) {
+    return this.solicitacaoService.obterPrecoCombustivel(query.combustivelId, query.empresaId);
   }
 
   @Get(':id')
