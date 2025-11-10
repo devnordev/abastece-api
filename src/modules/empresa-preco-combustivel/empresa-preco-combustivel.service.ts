@@ -500,20 +500,16 @@ export class EmpresaPrecoCombustivelService {
     const precoDecimal = typeof precoAtual === 'number' ? new Prisma.Decimal(precoAtual) : precoAtual;
     const precoNumber = Number(precoDecimal.toString());
 
+    // Validar se o preço é negativo
     if (precoDecimal.lt(0)) {
       throw new EmpresaPrecoCombustivelPrecoNegativoException(precoNumber);
     }
 
+    // Validar se o preço está acima do teto calculado
     const tetoDecimal = anpPreco.teto_calculado;
     const tetoNumber = Number(tetoDecimal.toString());
     if (precoDecimal.gt(tetoDecimal)) {
       throw new EmpresaPrecoCombustivelPrecoAcimaDoTetoException(precoNumber, tetoNumber);
-    }
-
-    const minimoDecimal = anpPreco.preco_minimo;
-    const minimoNumber = Number(minimoDecimal.toString());
-    if (precoDecimal.lt(minimoDecimal)) {
-      throw new EmpresaPrecoCombustivelPrecoAbaixoDoMinimoException(precoNumber, minimoNumber);
     }
   }
 
