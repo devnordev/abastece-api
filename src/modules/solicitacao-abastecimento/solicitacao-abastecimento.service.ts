@@ -520,6 +520,8 @@ export class SolicitacaoAbastecimentoService {
         nome: true,
         placa: true,
         tipo_abastecimento: true,
+        periodicidade: true,
+        quantidade: true,
         orgao: {
           select: {
             id: true,
@@ -536,8 +538,9 @@ export class SolicitacaoAbastecimentoService {
       );
     }
 
-    return {
+    const resposta: any = {
       message: 'Tipo de abastecimento recuperado com sucesso',
+      veiculoId: veiculo.id,
       veiculo: {
         id: veiculo.id,
         nome: veiculo.nome,
@@ -546,6 +549,89 @@ export class SolicitacaoAbastecimentoService {
         orgao: veiculo.orgao,
       },
     };
+
+    // Se o tipo for COTA ou COM_AUTORIZACAO, incluir periodicidade e quantidade
+    if (
+      veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA ||
+      veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COM_AUTORIZACAO
+    ) {
+      resposta.veiculo.periodicidade = veiculo.periodicidade;
+      resposta.veiculo.quantidade = veiculo.quantidade ? Number(veiculo.quantidade) : null;
+
+      // Verificar se há abastecimentos para este veículo
+      const temAbastecimentos = await this.prisma.abastecimento.findFirst({
+        where: {
+          veiculoId: veiculoId,
+          ativo: true,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (temAbastecimentos && veiculo.periodicidade && veiculo.quantidade) {
+        const dataAtual = new Date();
+        const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, veiculo.periodicidade);
+
+        // Buscar abastecimentos no período (apenas os que têm data_abastecimento)
+        const abastecimentos = await this.prisma.abastecimento.findMany({
+          where: {
+            veiculoId: veiculoId,
+            ativo: true,
+            data_abastecimento: {
+              not: null,
+              gte: inicio,
+              lte: fim,
+            },
+          },
+          select: {
+            quantidade: true,
+            data_abastecimento: true,
+          },
+        });
+
+        // Somar quantidades
+        const totalUtilizado = abastecimentos.reduce((sum, ab) => {
+          return sum + Number(ab.quantidade || 0);
+        }, 0);
+
+        const limite = Number(veiculo.quantidade);
+        const dentroDoLimite = totalUtilizado <= limite;
+        const quantidadeDisponivel = Math.max(limite - totalUtilizado, 0);
+
+        resposta.analise_periodo = {
+          periodicidade: veiculo.periodicidade,
+          limite: limite,
+          total_utilizado: totalUtilizado,
+          quantidade_disponivel: quantidadeDisponivel,
+          dentro_do_limite: dentroDoLimite,
+          ultrapassou_limite: !dentroDoLimite,
+          periodo: {
+            inicio: inicio.toISOString(),
+            fim: fim.toISOString(),
+          },
+          abastecimentos_no_periodo: abastecimentos.length,
+        };
+      } else if (temAbastecimentos && (!veiculo.periodicidade || !veiculo.quantidade)) {
+        resposta.analise_periodo = {
+          mensagem: 'Veículo não possui periodicidade ou quantidade configurada',
+          periodicidade: veiculo.periodicidade,
+          quantidade: veiculo.quantidade ? Number(veiculo.quantidade) : null,
+        };
+      } else {
+        resposta.analise_periodo = {
+          mensagem: 'Nenhum abastecimento encontrado para este veículo',
+          periodicidade: veiculo.periodicidade,
+          limite: veiculo.quantidade ? Number(veiculo.quantidade) : null,
+          total_utilizado: 0,
+          quantidade_disponivel: veiculo.quantidade ? Number(veiculo.quantidade) : null,
+          dentro_do_limite: true,
+          ultrapassou_limite: false,
+        };
+      }
+    }
+
+    return resposta;
   }
 
   async listarCotasDoOrgao(
