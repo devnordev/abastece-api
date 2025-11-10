@@ -179,10 +179,35 @@ export class CombustivelService {
       orderBy: { combustivel: 'asc' },
     });
 
+    // Buscar todos os nomes de combustíveis únicos
+    const nomesCombustiveis = precosUf.map((preco) => 
+      this.mapearTipoCombustivelAnpParaNome(preco.combustivel)
+    );
+
+    // Buscar todos os combustíveis de uma vez
+    const combustiveis = await this.prisma.combustivel.findMany({
+      where: {
+        nome: { in: nomesCombustiveis },
+        ativo: true,
+      },
+      select: {
+        id: true,
+        nome: true,
+      },
+    });
+
+    // Criar um mapa de nome -> id para busca rápida
+    const mapaCombustiveis = new Map(
+      combustiveis.map((c) => [c.nome, c.id])
+    );
+
     const dados = precosUf.map((preco) => {
       const precoBase = this.obterPrecoBaseParaAnp(preco);
+      const nomeCombustivel = this.mapearTipoCombustivelAnpParaNome(preco.combustivel);
+      
       return {
-        combustivel: this.mapearTipoCombustivelAnpParaNome(preco.combustivel),
+        combustivel: nomeCombustivel,
+        combustivel_id: mapaCombustiveis.get(nomeCombustivel) ?? null,
         tipo_combustivel: preco.combustivel,
         teto_vigente: preco.teto_calculado,
         base_utilizada: preco.base_utilizada,
