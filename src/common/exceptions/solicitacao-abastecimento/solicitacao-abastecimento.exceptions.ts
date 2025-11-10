@@ -193,6 +193,23 @@ export class SolicitacaoAbastecimentoCombustivelNaoRelacionadoException extends 
   }
 }
 
+export class SolicitacaoAbastecimentoCombustivelPrecoNaoDefinidoException extends CrudException {
+  constructor(combustivelId: number, empresaId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `O combustível ${combustivelId} não possui preço definido para a empresa ${empresaId}. Cadastre o preço do combustível para esta empresa antes de solicitar o abastecimento.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_COMBUSTIVEL_PRECO_NAO_DEFINIDO',
+      context: buildContext('validate', {
+        resourceId: combustivelId,
+        expected: 'Utilizar combustível com preço cadastrado e ativo para a empresa.',
+        performed: `Validação de preço do combustível ${combustivelId} para a empresa ${empresaId}.`,
+        additionalInfo: { combustivelId, empresaId },
+        ...overrides,
+      }),
+    });
+  }
+}
+
 export class SolicitacaoAbastecimentoMotoristaNaoPertencePrefeituraException extends CrudException {
   constructor(motoristaId: number, prefeituraId: number, overrides: ContextMeta = {}) {
     super({

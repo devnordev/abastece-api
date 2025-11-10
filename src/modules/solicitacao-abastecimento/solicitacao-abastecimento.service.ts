@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   Periodicidade,
   Prisma,
+  StatusPreco,
   StatusSolicitacao,
   TipoAbastecimentoSolicitacao,
   TipoAbastecimentoVeiculo,
@@ -11,7 +12,11 @@ import { CreateSolicitacaoAbastecimentoDto } from './dto/create-solicitacao-abas
 import { UpdateSolicitacaoAbastecimentoDto } from './dto/update-solicitacao-abastecimento.dto';
 import { FindSolicitacaoAbastecimentoDto } from './dto/find-solicitacao-abastecimento.dto';
 import { UnauthorizedException } from '../../common/exceptions/business.exception';
-import { SolicitacaoAbastecimentoQuantidadeInvalidaException } from '../../common/exceptions';
+import {
+  SolicitacaoAbastecimentoCombustivelNaoRelacionadoException,
+  SolicitacaoAbastecimentoCombustivelPrecoNaoDefinidoException,
+  SolicitacaoAbastecimentoQuantidadeInvalidaException,
+} from '../../common/exceptions';
 
 @Injectable()
 export class SolicitacaoAbastecimentoService {
@@ -79,6 +84,18 @@ export class SolicitacaoAbastecimentoService {
     if (!veiculo) {
       throw new NotFoundException(`Veículo ${createDto.veiculoId} não foi encontrado`);
     }
+
+    // Validar se o combustível está liberado para o veículo
+    await this.validarCombustivelLiberadoParaVeiculo(
+      createDto.combustivelId,
+      createDto.veiculoId,
+    );
+
+    // Validar se o combustível tem preço definido na empresa
+    await this.validarPrecoCombustivelEmpresa(
+      createDto.combustivelId,
+      createDto.empresaId,
+    );
 
     if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA) {
       if (!veiculo.periodicidade || !veiculo.quantidade) {
@@ -251,7 +268,34 @@ export class SolicitacaoAbastecimentoService {
   }
 
   async update(id: number, updateDto: UpdateSolicitacaoAbastecimentoDto) {
-    await this.ensureExists(id);
+    const solicitacaoExistente = await this.prisma.solicitacaoAbastecimento.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        veiculoId: true,
+        combustivelId: true,
+        empresaId: true,
+      },
+    });
+
+    if (!solicitacaoExistente) {
+      throw new NotFoundException(`Solicitação de abastecimento com ID ${id} não encontrada`);
+    }
+
+    // Validações condicionais: só valida se os campos forem alterados
+    const veiculoId = updateDto.veiculoId ?? solicitacaoExistente.veiculoId;
+    const combustivelId = updateDto.combustivelId ?? solicitacaoExistente.combustivelId;
+    const empresaId = updateDto.empresaId ?? solicitacaoExistente.empresaId;
+
+    // Se combustivelId ou veiculoId foram alterados, validar relacionamento
+    if (updateDto.combustivelId !== undefined || updateDto.veiculoId !== undefined) {
+      await this.validarCombustivelLiberadoParaVeiculo(combustivelId, veiculoId);
+    }
+
+    // Se combustivelId ou empresaId foram alterados, validar preço
+    if (updateDto.combustivelId !== undefined || updateDto.empresaId !== undefined) {
+      await this.validarPrecoCombustivelEmpresa(combustivelId, empresaId);
+    }
 
     const data: Prisma.SolicitacaoAbastecimentoUncheckedUpdateInput = {
       prefeituraId: updateDto.prefeituraId,
@@ -322,6 +366,75 @@ export class SolicitacaoAbastecimentoService {
 
   private toDecimal(value: number): Prisma.Decimal {
     return new Prisma.Decimal(value);
+  }
+
+  /**
+   * Valida se o combustível está liberado (permitido) para o veículo
+   * Verifica se existe um registro ativo em VeiculoCombustivel
+   */
+  private async validarCombustivelLiberadoParaVeiculo(
+    combustivelId: number,
+    veiculoId: number,
+  ): Promise<void> {
+    const veiculoCombustivel = await this.prisma.veiculoCombustivel.findFirst({
+      where: {
+        veiculoId,
+        combustivelId,
+        ativo: true,
+      },
+    });
+
+    if (!veiculoCombustivel) {
+      throw new SolicitacaoAbastecimentoCombustivelNaoRelacionadoException(
+        combustivelId,
+        veiculoId,
+      );
+    }
+  }
+
+  /**
+   * Valida se o combustível tem preço definido e ativo para a empresa
+   * Verifica se existe um registro em EmpresaPrecoCombustivel com status ACTIVE
+   * e preco_atual válido (maior que zero)
+   */
+  private async validarPrecoCombustivelEmpresa(
+    combustivelId: number,
+    empresaId: number,
+  ): Promise<void> {
+    const precoCombustivel = await this.prisma.empresaPrecoCombustivel.findFirst({
+      where: {
+        empresa_id: empresaId,
+        combustivel_id: combustivelId,
+        status: StatusPreco.ACTIVE,
+      },
+      select: {
+        id: true,
+        preco_atual: true,
+        status: true,
+      },
+    });
+
+    if (!precoCombustivel) {
+      throw new SolicitacaoAbastecimentoCombustivelPrecoNaoDefinidoException(
+        combustivelId,
+        empresaId,
+      );
+    }
+
+    // Verificar se o preço é válido (maior que zero)
+    const precoAtual = Number(precoCombustivel.preco_atual);
+    if (!precoAtual || precoAtual <= 0) {
+      throw new SolicitacaoAbastecimentoCombustivelPrecoNaoDefinidoException(
+        combustivelId,
+        empresaId,
+        {
+          additionalInfo: {
+            motivo: 'Preço inválido (zero ou negativo)',
+            preco_atual: precoAtual,
+          },
+        },
+      );
+    }
   }
 
   async listarVeiculosOrgaosDaPrefeitura(user: {
