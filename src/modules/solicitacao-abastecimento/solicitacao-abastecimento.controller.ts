@@ -59,6 +59,70 @@ export class SolicitacaoAbastecimentoController {
     return this.solicitacaoService.obterPrecoCombustivel(query.combustivelId, query.empresaId);
   }
 
+  @Get('veiculo/orgao/prefeitura')
+  @ApiOperation({ summary: 'Listar veículos vinculados aos órgãos da prefeitura do usuário' })
+  @ApiResponse({ status: 200, description: 'Veículos retornados com sucesso' })
+  async listarVeiculosOrgaosDaPrefeitura(@Req() req: Request & { user: any }) {
+    return this.solicitacaoService.listarVeiculosOrgaosDaPrefeitura(req.user);
+  }
+
+  @Get('empresas/credenciadas')
+  @ApiOperation({ summary: 'Listar empresas credenciadas da prefeitura do usuário' })
+  @ApiResponse({ status: 200, description: 'Empresas credenciadas retornadas com sucesso' })
+  async listarEmpresasCredenciadas(@Req() req: Request & { user: any }) {
+    return this.solicitacaoService.listarEmpresasCredenciadas(req.user);
+  }
+
+  @Get('combustivel/:combustivelId/preco')
+  @ApiOperation({
+    summary: 'Obter preço atual do combustível por ID',
+    description: 'Retorna o preço atual (preco_atual) do combustível cadastrado no model EmpresaPrecoCombustivel com status ACTIVE mais recente',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Preço do combustível recuperado com sucesso',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Combustível ou preço não encontrado',
+  })
+  async obterPrecoCombustivelPorId(@Param('combustivelId', ParseIntPipe) combustivelId: number) {
+    return this.solicitacaoService.obterPrecoCombustivelPorId(combustivelId);
+  }
+
+  @Get('veiculo/:id/tipo-abastecimento')
+  @ApiOperation({ summary: 'Obter tipo de abastecimento de um veículo da prefeitura' })
+  @ApiResponse({ status: 200, description: 'Tipo de abastecimento retornado com sucesso' })
+  @ApiResponse({ status: 404, description: 'Veículo não encontrado ou não vinculado à prefeitura' })
+  async obterTipoAbastecimento(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.solicitacaoService.obterTipoAbastecimentoVeiculo(id, req.user);
+  }
+
+  @Get('orgao/:orgaoId/cotas')
+  @ApiOperation({ summary: 'Listar cotas de combustível do órgão dentro da prefeitura do usuário' })
+  @ApiResponse({ status: 200, description: 'Cotas retornadas com sucesso' })
+  @ApiResponse({ status: 404, description: 'Órgão não encontrado para a prefeitura do usuário' })
+  async listarCotasDoOrgao(
+    @Param('orgaoId', ParseIntPipe) orgaoId: number,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.solicitacaoService.listarCotasDoOrgao(orgaoId, req.user);
+  }
+
+  @Get('empresas/:empresaId/combustiveis')
+  @ApiOperation({ summary: 'Listar combustíveis credenciados de uma empresa' })
+  @ApiResponse({ status: 200, description: 'Combustíveis credenciados retornados com sucesso' })
+  @ApiResponse({ status: 404, description: 'Empresa não encontrada ou inativa' })
+  async listarCombustiveisCredenciados(
+    @Param('empresaId', ParseIntPipe) empresaId: number,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.solicitacaoService.listarCombustiveisCredenciados(empresaId, req.user);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar solicitação de abastecimento por ID' })
   @ApiResponse({ status: 200, description: 'Solicitação encontrada com sucesso' })
@@ -84,53 +148,6 @@ export class SolicitacaoAbastecimentoController {
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.solicitacaoService.remove(id);
-  }
-
-  @Get('veiculo/orgao/prefeitura')
-  @ApiOperation({ summary: 'Listar veículos vinculados aos órgãos da prefeitura do usuário' })
-  @ApiResponse({ status: 200, description: 'Veículos retornados com sucesso' })
-  async listarVeiculosOrgaosDaPrefeitura(@Req() req: Request & { user: any }) {
-    return this.solicitacaoService.listarVeiculosOrgaosDaPrefeitura(req.user);
-  }
-
-  @Get('veiculo/:id/tipo-abastecimento')
-  @ApiOperation({ summary: 'Obter tipo de abastecimento de um veículo da prefeitura' })
-  @ApiResponse({ status: 200, description: 'Tipo de abastecimento retornado com sucesso' })
-  @ApiResponse({ status: 404, description: 'Veículo não encontrado ou não vinculado à prefeitura' })
-  async obterTipoAbastecimento(
-    @Param('id', ParseIntPipe) id: number,
-    @Req() req: Request & { user: any },
-  ) {
-    return this.solicitacaoService.obterTipoAbastecimentoVeiculo(id, req.user);
-  }
-
-  @Get('orgao/:orgaoId/cotas')
-  @ApiOperation({ summary: 'Listar cotas de combustível do órgão dentro da prefeitura do usuário' })
-  @ApiResponse({ status: 200, description: 'Cotas retornadas com sucesso' })
-  @ApiResponse({ status: 404, description: 'Órgão não encontrado para a prefeitura do usuário' })
-  async listarCotasDoOrgao(
-    @Param('orgaoId', ParseIntPipe) orgaoId: number,
-    @Req() req: Request & { user: any },
-  ) {
-    return this.solicitacaoService.listarCotasDoOrgao(orgaoId, req.user);
-  }
-
-  @Get('empresas/credenciadas')
-  @ApiOperation({ summary: 'Listar empresas credenciadas da prefeitura do usuário' })
-  @ApiResponse({ status: 200, description: 'Empresas credenciadas retornadas com sucesso' })
-  async listarEmpresasCredenciadas(@Req() req: Request & { user: any }) {
-    return this.solicitacaoService.listarEmpresasCredenciadas(req.user);
-  }
-
-  @Get('empresas/:empresaId/combustiveis')
-  @ApiOperation({ summary: 'Listar combustíveis credenciados de uma empresa' })
-  @ApiResponse({ status: 200, description: 'Combustíveis credenciados retornados com sucesso' })
-  @ApiResponse({ status: 404, description: 'Empresa não encontrada ou inativa' })
-  async listarCombustiveisCredenciados(
-    @Param('empresaId', ParseIntPipe) empresaId: number,
-    @Req() req: Request & { user: any },
-  ) {
-    return this.solicitacaoService.listarCombustiveisCredenciados(empresaId, req.user);
   }
 }
 

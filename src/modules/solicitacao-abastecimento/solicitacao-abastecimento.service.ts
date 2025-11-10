@@ -850,5 +850,74 @@ export class SolicitacaoAbastecimentoService {
       },
     };
   }
+
+  /**
+   * Busca o preço atual de um combustível pelo ID
+   * Retorna o preço_atual do registro mais recente e ativo em EmpresaPrecoCombustivel
+   */
+  async obterPrecoCombustivelPorId(combustivelId: number) {
+    // Verificar se o combustível existe
+    const combustivel = await this.prisma.combustivel.findUnique({
+      where: { id: combustivelId },
+      select: {
+        id: true,
+        nome: true,
+        sigla: true,
+        ativo: true,
+      },
+    });
+
+    if (!combustivel) {
+      throw new NotFoundException(`Combustível com ID ${combustivelId} não encontrado`);
+    }
+
+    if (!combustivel.ativo) {
+      throw new NotFoundException(`Combustível com ID ${combustivelId} está inativo`);
+    }
+
+    // Buscar o preço ativo mais recente do combustível
+    const precoCombustivel = await this.prisma.empresaPrecoCombustivel.findFirst({
+      where: {
+        combustivel_id: combustivelId,
+        status: StatusPreco.ACTIVE,
+      },
+      select: {
+        id: true,
+        preco_atual: true,
+        empresa: {
+          select: {
+            id: true,
+            nome: true,
+            cnpj: true,
+          },
+        },
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+        updated_at: true,
+      },
+      orderBy: {
+        updated_at: 'desc',
+      },
+    });
+
+    if (!precoCombustivel) {
+      throw new NotFoundException(
+        `Preço ativo não encontrado para o combustível com ID ${combustivelId}`,
+      );
+    }
+
+    return {
+      message: 'Preço do combustível recuperado com sucesso',
+      preco_atual: Number(precoCombustivel.preco_atual),
+      combustivel: precoCombustivel.combustivel,
+      empresa: precoCombustivel.empresa,
+      updated_at: precoCombustivel.updated_at,
+    };
+  }
 }
 
