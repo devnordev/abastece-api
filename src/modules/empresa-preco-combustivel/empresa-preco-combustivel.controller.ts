@@ -54,6 +54,15 @@ export class EmpresaPrecoCombustivelController {
     return this.empresaPrecoCombustivelService.findAll(filters, empresaId);
   }
 
+  @Get('empresa/:empresaId')
+  @ApiOperation({ summary: 'Listar todos os preços de combustível de uma empresa específica' })
+  @ApiResponse({ status: 200, description: 'Lista de preços retornada com sucesso' })
+  @ApiResponse({ status: 404, description: 'Empresa não encontrada' })
+  @ApiResponse({ status: 403, description: 'Apenas ADMIN_EMPRESA pode listar preços' })
+  async findByEmpresaId(@Param('empresaId', ParseIntPipe) empresaId: number) {
+    return this.empresaPrecoCombustivelService.findByEmpresaId(empresaId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar preço de combustível por ID' })
   @ApiResponse({ status: 200, description: 'Preço encontrado com sucesso' })

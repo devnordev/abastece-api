@@ -175,6 +175,55 @@ export class EmpresaPrecoCombustivelService {
     };
   }
 
+  async findByEmpresaId(empresaId: number) {
+    // Verificar se a empresa existe
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: empresaId },
+      select: {
+        id: true,
+        nome: true,
+        cnpj: true,
+      },
+    });
+
+    if (!empresa) {
+      throw new EmpresaPrecoCombustivelEmpresaNaoEncontradaException(empresaId);
+    }
+
+    const precos = await this.prisma.empresaPrecoCombustivel.findMany({
+      where: {
+        empresa_id: empresaId,
+      },
+      include: {
+        empresa: {
+          select: {
+            id: true,
+            nome: true,
+            cnpj: true,
+          },
+        },
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+      },
+      orderBy: { updated_at: 'desc' },
+    });
+
+    return {
+      message: 'Preços de combustível encontrados com sucesso',
+      empresa: {
+        id: empresa.id,
+        nome: empresa.nome,
+        cnpj: empresa.cnpj,
+      },
+      precos,
+    };
+  }
+
   async findOne(id: number, empresaId: number) {
     const preco = await this.prisma.empresaPrecoCombustivel.findUnique({
       where: { id },
