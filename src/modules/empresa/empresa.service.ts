@@ -345,25 +345,31 @@ export class EmpresaService {
     const dataAtual = new Date();
 
     // Buscar empresas que têm contratos válidos
-    // Critérios: ativo = true, vigência válida (data atual dentro do intervalo ou sem data de fim)
+    // Critérios para contrato válido:
+    // 1. ativo = true (obrigatório)
+    // 2. Se vigencia_inicio existe: data atual >= vigencia_inicio (contrato já iniciou)
+    // 3. Se vigencia_fim existe: data atual <= vigencia_fim (contrato não expirou)
+    // 4. Se vigencia_inicio ou vigencia_fim são null, são considerados válidos (sem restrição)
     const empresas = await this.prisma.empresa.findMany({
       where: {
         contratos: {
           some: {
             ativo: true,
             AND: [
-              // Se vigencia_inicio existe, deve ser <= data atual
+              // Validação: se vigencia_inicio existe, deve ser <= dataAtual (contrato já iniciou)
+              // Se for null, não há restrição de início
               {
                 OR: [
-                  { vigencia_inicio: { lte: dataAtual } },
                   { vigencia_inicio: null },
+                  { vigencia_inicio: { lte: dataAtual } },
                 ],
               },
-              // Se vigencia_fim existe, deve ser >= data atual (não pode ter passado)
+              // Validação: se vigencia_fim existe, deve ser >= dataAtual (contrato não expirou)
+              // Se for null, não há restrição de término (vigência indefinida)
               {
                 OR: [
-                  { vigencia_fim: { gte: dataAtual } },
                   { vigencia_fim: null },
+                  { vigencia_fim: { gte: dataAtual } },
                 ],
               },
             ],
