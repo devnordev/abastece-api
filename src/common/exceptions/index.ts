@@ -11,3 +11,4 @@ export * from './combustivel/combustivel.exceptions';
 export * from './orgao/orgao.exceptions';
 export * from './empresa-preco-combustivel/empresa-preco-combustivel.exceptions';
 export * from './solicitacao-abastecimento/solicitacao-abastecimento.exceptions';
+export * from './cota-orgao/cota-orgao.exceptions';
