@@ -74,5 +74,16 @@ export class SolicitacaoAbastecimentoController {
   async listarVeiculosOrgaosDaPrefeitura(@Req() req: Request & { user: any }) {
     return this.solicitacaoService.listarVeiculosOrgaosDaPrefeitura(req.user);
   }
+
+  @Get('veiculo/:id/tipo-abastecimento')
+  @ApiOperation({ summary: 'Obter tipo de abastecimento de um veículo da prefeitura' })
+  @ApiResponse({ status: 200, description: 'Tipo de abastecimento retornado com sucesso' })
+  @ApiResponse({ status: 404, description: 'Veículo não encontrado ou não vinculado à prefeitura' })
+  async obterTipoAbastecimento(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.solicitacaoService.obterTipoAbastecimentoVeiculo(id, req.user);
+  }
 }
 

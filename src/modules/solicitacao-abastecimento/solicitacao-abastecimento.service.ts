@@ -303,5 +303,60 @@ export class SolicitacaoAbastecimentoService {
       veiculos,
     };
   }
+
+  async obterTipoAbastecimentoVeiculo(
+    veiculoId: number,
+    user: {
+      id: number;
+      tipo_usuario: string;
+      prefeitura?: { id: number; nome: string; cnpj: string };
+    },
+  ) {
+    const prefeituraId = user?.prefeitura?.id;
+
+    if (!prefeituraId) {
+      throw new UnauthorizedException('Usuário não está vinculado a uma prefeitura ativa.');
+    }
+
+    const veiculo = await this.prisma.veiculo.findFirst({
+      where: {
+        id: veiculoId,
+        prefeituraId,
+        orgao: {
+          prefeituraId,
+        },
+      },
+      select: {
+        id: true,
+        nome: true,
+        placa: true,
+        tipo_abastecimento: true,
+        orgao: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+      },
+    });
+
+    if (!veiculo) {
+      throw new NotFoundException(
+        `Veículo ${veiculoId} não foi encontrado entre os órgãos da prefeitura do usuário.`,
+      );
+    }
+
+    return {
+      message: 'Tipo de abastecimento recuperado com sucesso',
+      veiculo: {
+        id: veiculo.id,
+        nome: veiculo.nome,
+        placa: veiculo.placa,
+        tipo_abastecimento: veiculo.tipo_abastecimento,
+        orgao: veiculo.orgao,
+      },
+    };
+  }
 }
 
