@@ -1,10 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, StatusSolicitacao, TipoAbastecimentoSolicitacao } from '@prisma/client';
+import {
+  Periodicidade,
+  Prisma,
+  StatusSolicitacao,
+  TipoAbastecimentoSolicitacao,
+  TipoAbastecimentoVeiculo,
+} from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateSolicitacaoAbastecimentoDto } from './dto/create-solicitacao-abastecimento.dto';
 import { UpdateSolicitacaoAbastecimentoDto } from './dto/update-solicitacao-abastecimento.dto';
 import { FindSolicitacaoAbastecimentoDto } from './dto/find-solicitacao-abastecimento.dto';
 import { UnauthorizedException } from '../../common/exceptions/business.exception';
+import { SolicitacaoAbastecimentoQuantidadeInvalidaException } from '../../common/exceptions';
 
 @Injectable()
 export class SolicitacaoAbastecimentoService {
@@ -56,6 +63,75 @@ export class SolicitacaoAbastecimentoService {
   } as const;
 
   async create(createDto: CreateSolicitacaoAbastecimentoDto) {
+    const dataSolicitacao = new Date(createDto.data_solicitacao);
+
+    const veiculo = await this.prisma.veiculo.findUnique({
+      where: { id: createDto.veiculoId },
+      select: {
+        id: true,
+        prefeituraId: true,
+        tipo_abastecimento: true,
+        periodicidade: true,
+        quantidade: true,
+      },
+    });
+
+    if (!veiculo) {
+      throw new NotFoundException(`Veículo ${createDto.veiculoId} não foi encontrado`);
+    }
+
+    if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA) {
+      if (!veiculo.periodicidade || !veiculo.quantidade) {
+        throw new SolicitacaoAbastecimentoQuantidadeInvalidaException(createDto.quantidade, undefined, {
+          additionalInfo: {
+            periodicidade: veiculo.periodicidade,
+            quantidadeConfigurada: veiculo.quantidade,
+          },
+        });
+      }
+
+      const { inicio, fim } = this.obterIntervaloPeriodo(dataSolicitacao, veiculo.periodicidade);
+
+      const statusConsiderados = [
+        StatusSolicitacao.PENDENTE,
+        StatusSolicitacao.APROVADA,
+        StatusSolicitacao.EFETIVADA,
+      ];
+
+      const totalPeriodo = await this.prisma.solicitacaoAbastecimento.aggregate({
+        _sum: { quantidade: true },
+        where: {
+          veiculoId: createDto.veiculoId,
+          data_solicitacao: {
+            gte: inicio,
+            lte: fim,
+          },
+          status: {
+            in: statusConsiderados,
+          },
+        },
+      });
+
+      const totalUtilizado = totalPeriodo._sum.quantidade
+        ? Number(totalPeriodo._sum.quantidade.toString())
+        : 0;
+      const limite = Number(veiculo.quantidade.toString());
+      const quantidadeSolicitada = createDto.quantidade;
+      const novoTotal = totalUtilizado + quantidadeSolicitada;
+
+      if (novoTotal > limite + Number.EPSILON) {
+        const limiteDisponivel = Math.max(limite - totalUtilizado, 0);
+        throw new SolicitacaoAbastecimentoQuantidadeInvalidaException(quantidadeSolicitada, limiteDisponivel, {
+          additionalInfo: {
+            limite,
+            totalUtilizado,
+            periodo: veiculo.periodicidade,
+            intervalo: { inicio, fim },
+          },
+        });
+      }
+    }
+
     const data: Prisma.SolicitacaoAbastecimentoUncheckedCreateInput = {
       prefeituraId: createDto.prefeituraId,
       veiculoId: createDto.veiculoId,
@@ -63,7 +139,7 @@ export class SolicitacaoAbastecimentoService {
       combustivelId: createDto.combustivelId,
       empresaId: createDto.empresaId,
       quantidade: this.toDecimal(createDto.quantidade),
-      data_solicitacao: new Date(createDto.data_solicitacao),
+      data_solicitacao: dataSolicitacao,
       data_expiracao: new Date(createDto.data_expiracao),
       tipo_abastecimento: createDto.tipo_abastecimento,
       status: createDto.status ?? StatusSolicitacao.PENDENTE,
@@ -357,6 +433,38 @@ export class SolicitacaoAbastecimentoService {
         orgao: veiculo.orgao,
       },
     };
+  }
+
+  private obterIntervaloPeriodo(data: Date, periodicidade: Periodicidade) {
+    const inicio = new Date(data);
+    inicio.setHours(0, 0, 0, 0);
+
+    const fim = new Date(data);
+    fim.setHours(23, 59, 59, 999);
+
+    if (periodicidade === Periodicidade.Diario) {
+      return { inicio, fim };
+    }
+
+    if (periodicidade === Periodicidade.Semanal) {
+      const diaSemana = inicio.getDay();
+      const diffParaSegunda = (diaSemana + 6) % 7;
+      inicio.setDate(inicio.getDate() - diffParaSegunda);
+
+      fim.setTime(inicio.getTime());
+      fim.setDate(inicio.getDate() + 6);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+
+    if (periodicidade === Periodicidade.Mensal) {
+      inicio.setDate(1);
+      fim.setMonth(inicio.getMonth() + 1, 0);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+
+    return { inicio, fim };
   }
 }
 
