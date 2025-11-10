@@ -3,7 +3,7 @@ import { CrudException, CrudExceptionContext } from '../crud.exception';
 
 const MODULE = 'Solicitações de Abastecimento';
 
-type SolicitacaoAction = 'create' | 'list' | 'detail' | 'update' | 'delete' | 'approve' | 'reject';
+type SolicitacaoAction = 'create' | 'list' | 'detail' | 'update' | 'delete' | 'approve' | 'reject' | 'validate';
 
 type ContextOverrides = Partial<Omit<CrudExceptionContext, 'module'>>;
 
@@ -47,6 +47,14 @@ const BASE_CONTEXTS: Record<SolicitacaoAction, Omit<CrudExceptionContext, 'modul
     method: 'DELETE',
     expected: 'Remover solicitação não vinculada a abastecimentos efetivados.',
     performed: 'Tentativa de excluir uma solicitação de abastecimento.',
+  },
+  validate: {
+    action: 'CREATE',
+    operation: 'Validar dados para solicitação de abastecimento',
+    route: '/solicitacoes-abastecimento',
+    method: 'POST',
+    expected: 'Preencher todos os campos obrigatórios de acordo com o veículo selecionado.',
+    performed: 'Validação de campos fornecidos pelo usuário.',
   },
   approve: {
     action: 'UPDATE',
@@ -113,6 +121,136 @@ export class SolicitacaoAbastecimentoNotFoundException extends CrudException {
         resourceId: id,
         expected: 'Localizar solicitação previamente cadastrada.',
         performed: `Tentativa de acessar a solicitação ${id}.`,
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoPrefeituraNaoInformadaException extends CrudException {
+  constructor(overrides: ContextMeta = {}) {
+    super({
+      message: 'Não foi possível identificar a prefeitura do usuário. Acesse com um perfil vinculado a uma prefeitura ativa para solicitar abastecimentos.',
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_PREFEITURA_NAO_INFORMADA',
+      context: buildContext('validate', {
+        expected: 'Usuário autenticado vinculado a uma prefeitura válida.',
+        performed: 'Validação da prefeitura do usuário ao iniciar solicitação.',
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoVeiculoNaoPertencePrefeituraException extends CrudException {
+  constructor(veiculoId: number, prefeituraId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `O veículo ${veiculoId} não pertence à prefeitura ${prefeituraId}. Selecionar veículos cadastrados na mesma prefeitura do usuário.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_VEICULO_PREFEITURA_MISMATCH',
+      context: buildContext('validate', {
+        resourceId: veiculoId,
+        expected: 'Utilizar veículo vinculado à prefeitura do solicitante.',
+        performed: `Validação de veículo ${veiculoId} para prefeitura ${prefeituraId}.`,
+        additionalInfo: { veiculoId, prefeituraId },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoEmpresaNaoPertencePrefeituraException extends CrudException {
+  constructor(empresaId: number, prefeituraId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `A empresa ${empresaId} não está autorizada pela prefeitura ${prefeituraId}. Escolha uma empresa contratada pela prefeitura.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_EMPRESA_PREFEITURA_MISMATCH',
+      context: buildContext('validate', {
+        resourceId: empresaId,
+        expected: 'Selecionar empresa com contrato ativo na prefeitura.',
+        performed: `Validação da empresa ${empresaId} para prefeitura ${prefeituraId}.`,
+        additionalInfo: { empresaId, prefeituraId },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoCombustivelNaoRelacionadoException extends CrudException {
+  constructor(combustivelId: number, veiculoId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `O combustível ${combustivelId} não está associado ao veículo ${veiculoId}. Vincule o combustível ao veículo antes de solicitar o abastecimento.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_COMBUSTIVEL_NAO_RELACIONADO',
+      context: buildContext('validate', {
+        resourceId: combustivelId,
+        expected: 'Utilizar combustível previamente liberado para o veículo.',
+        performed: `Validação do combustível ${combustivelId} para o veículo ${veiculoId}.`,
+        additionalInfo: { combustivelId, veiculoId },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoMotoristaNaoPertencePrefeituraException extends CrudException {
+  constructor(motoristaId: number, prefeituraId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `O motorista ${motoristaId} não pertence à prefeitura ${prefeituraId}. Escolha um motorista habilitado pela prefeitura responsável.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_MOTORISTA_PREFEITURA_MISMATCH',
+      context: buildContext('validate', {
+        resourceId: motoristaId,
+        expected: 'Selecionar motorista vinculado à prefeitura do veículo.',
+        performed: `Validação do motorista ${motoristaId} na prefeitura ${prefeituraId}.`,
+        additionalInfo: { motoristaId, prefeituraId },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoTipoVeiculoIncompativelException extends CrudException {
+  constructor(tipoVeiculo: string, tipoSolicitacao: string, overrides: ContextMeta = {}) {
+    super({
+      message: `O veículo configurado com tipo de abastecimento "${tipoVeiculo}" não aceita solicitações do tipo "${tipoSolicitacao}". Ajuste a configuração do veículo ou selecione outro tipo de solicitação.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_TIPO_INCOMPATIVEL',
+      context: buildContext('validate', {
+        expected: 'Alinhar o tipo de solicitação com a configuração do veículo.',
+        performed: 'Verificação de compatibilidade entre tipo do veículo e solicitação.',
+        additionalInfo: { tipoVeiculo, tipoSolicitacao },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoPeriodicidadeNaoConfiguradaException extends CrudException {
+  constructor(veiculoId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `O veículo ${veiculoId} utiliza controle por cota, mas não possui periodicidade configurada. Defina a periodicidade (Diário, Semanal ou Mensal) antes de registrar a solicitação.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_PERIODICIDADE_AUSENTE',
+      context: buildContext('validate', {
+        resourceId: veiculoId,
+        expected: 'Informar periodicidade para veículos com cota.',
+        performed: 'Validação da periodicidade configurada para o veículo.',
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoQuantidadeObrigatoriaException extends CrudException {
+  constructor(overrides: ContextMeta = {}) {
+    super({
+      message: 'Informe a quantidade de litros a ser abastecida. Esse campo é obrigatório para concluir a solicitação.',
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_QUANTIDADE_OBRIGATORIA',
+      context: buildContext('validate', {
+        expected: 'Definir quantidade de litros maior que zero.',
+        performed: 'Validação de quantidade ausente na solicitação.',
         ...overrides,
       }),
     });
