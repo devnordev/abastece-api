@@ -34,7 +34,7 @@ export class SolicitacaoAbastecimentoService {
       select: {
         id: true,
         placa: true,
-        descricao: true,
+        nome: true,
       },
     },
     motorista: {
