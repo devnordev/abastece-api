@@ -256,22 +256,46 @@ export class SolicitacaoAbastecimentoService {
       id: number;
       tipo_usuario: string;
       prefeitura?: { id: number; nome: string; cnpj: string };
+      empresa?: { id: number; nome: string; cnpj: string; uf?: string | null };
     },
     query: FindSolicitacaoAbastecimentoDto,
   ) {
-    const prefeituraId = user?.prefeitura?.id;
-
-    if (!prefeituraId) {
-      throw new UnauthorizedException('Usuário não está vinculado a uma prefeitura ativa.');
-    }
-
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.SolicitacaoAbastecimentoWhereInput = {
-      prefeituraId, // Filtrar sempre pela prefeitura do usuário
-    };
+    const where: Prisma.SolicitacaoAbastecimentoWhereInput = {};
+
+    // Filtrar por prefeitura se for ADMIN_PREFEITURA
+    if (user.tipo_usuario === 'ADMIN_PREFEITURA') {
+      const prefeituraId = user?.prefeitura?.id;
+
+      if (!prefeituraId) {
+        throw new UnauthorizedException('Usuário não está vinculado a uma prefeitura ativa.');
+      }
+
+      where.prefeituraId = prefeituraId;
+    }
+
+    // Filtrar por empresa se for ADMIN_EMPRESA
+    if (user.tipo_usuario === 'ADMIN_EMPRESA') {
+      const empresaId = user?.empresa?.id;
+
+      if (!empresaId) {
+        throw new UnauthorizedException('Usuário não está vinculado a uma empresa ativa.');
+      }
+
+      // Se empresaId foi passado na query, validar se é a mesma empresa do usuário
+      if (query.empresaId !== undefined) {
+        if (query.empresaId !== empresaId) {
+          throw new UnauthorizedException('Você só pode visualizar solicitações da sua própria empresa.');
+        }
+        where.empresaId = query.empresaId;
+      } else {
+        // Se não foi passado, filtrar pela empresa do usuário
+        where.empresaId = empresaId;
+      }
+    }
 
     // Aplicar filtros adicionais se fornecidos
     if (query.veiculoId !== undefined) {
@@ -282,7 +306,8 @@ export class SolicitacaoAbastecimentoService {
       where.motoristaId = query.motoristaId;
     }
 
-    if (query.empresaId !== undefined) {
+    // Para ADMIN_EMPRESA, empresaId já foi tratado acima
+    if (user.tipo_usuario !== 'ADMIN_EMPRESA' && query.empresaId !== undefined) {
       where.empresaId = query.empresaId;
     }
 
@@ -309,13 +334,8 @@ export class SolicitacaoAbastecimentoService {
       this.prisma.solicitacaoAbastecimento.count({ where }),
     ]);
 
-    return {
-      message: 'Solicitações de abastecimento da prefeitura encontradas com sucesso',
-      prefeitura: {
-        id: user.prefeitura.id,
-        nome: user.prefeitura.nome,
-        cnpj: user.prefeitura.cnpj,
-      },
+    const response: any = {
+      message: 'Solicitações de abastecimento encontradas com sucesso',
       solicitacoes,
       pagination: {
         page,
@@ -324,6 +344,24 @@ export class SolicitacaoAbastecimentoService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    // Adicionar informações do contexto (prefeitura ou empresa)
+    if (user.tipo_usuario === 'ADMIN_PREFEITURA' && user.prefeitura) {
+      response.prefeitura = {
+        id: user.prefeitura.id,
+        nome: user.prefeitura.nome,
+        cnpj: user.prefeitura.cnpj,
+      };
+    } else if (user.tipo_usuario === 'ADMIN_EMPRESA' && user.empresa) {
+      response.empresa = {
+        id: user.empresa.id,
+        nome: user.empresa.nome,
+        cnpj: user.empresa.cnpj,
+        uf: user.empresa.uf,
+      };
+    }
+
+    return response;
   }
 
   async findOne(id: number) {
