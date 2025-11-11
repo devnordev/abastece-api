@@ -10,8 +10,21 @@ import { Prisma, StatusAbastecimento, StatusSolicitacao, TipoAbastecimento } fro
 export class AbastecimentoService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createAbastecimentoDto: CreateAbastecimentoDto) {
+  async create(createAbastecimentoDto: CreateAbastecimentoDto, user: any) {
     const { veiculoId, combustivelId, empresaId } = createAbastecimentoDto;
+
+    // Verificar se o usuário pertence à empresa informada (obrigatório para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
+    if (!user?.empresa?.id) {
+      throw new BadRequestException(
+        'Usuário não está vinculado a uma empresa. Apenas usuários de empresa podem criar abastecimentos.'
+      );
+    }
+
+    if (user.empresa.id !== empresaId) {
+      throw new BadRequestException(
+        'Você não pode criar abastecimento para uma empresa diferente da sua. A empresa do abastecimento deve corresponder à empresa do usuário logado.'
+      );
+    }
 
     // Verificar se veículo existe
     const veiculo = await this.prisma.veiculo.findUnique({
@@ -38,6 +51,11 @@ export class AbastecimentoService {
 
     if (!empresa) {
       throw new NotFoundException('Empresa não encontrada');
+    }
+
+    // Verificar se a empresa está ativa
+    if (!empresa.ativo) {
+      throw new BadRequestException('Não é possível criar abastecimento para uma empresa inativa');
     }
 
     // Criar abastecimento
@@ -402,8 +420,15 @@ export class AbastecimentoService {
     };
   }
 
-  async createFromSolicitacao(createDto: CreateAbastecimentoFromSolicitacaoDto, userId?: number) {
+  async createFromSolicitacao(createDto: CreateAbastecimentoFromSolicitacaoDto, user: any) {
     const { solicitacaoId, data_abastecimento, status, odometro, orimetro, validadorId, abastecedorId, desconto, preco_anp, abastecido_por, nfe_link, ativo } = createDto;
+
+    // Verificar se o usuário pertence a uma empresa (obrigatório para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
+    if (!user?.empresa?.id) {
+      throw new BadRequestException(
+        'Usuário não está vinculado a uma empresa. Apenas usuários de empresa podem criar abastecimentos.'
+      );
+    }
 
     // Buscar a solicitação
     const solicitacao = await this.prisma.solicitacaoAbastecimento.findUnique({
@@ -435,6 +460,7 @@ export class AbastecimentoService {
             id: true,
             nome: true,
             cnpj: true,
+            ativo: true,
           },
         },
       },
@@ -442,6 +468,18 @@ export class AbastecimentoService {
 
     if (!solicitacao) {
       throw new NotFoundException(`Solicitação de abastecimento com ID ${solicitacaoId} não encontrada`);
+    }
+
+    // Verificar se a empresa da solicitação corresponde à empresa do usuário
+    if (solicitacao.empresaId !== user.empresa.id) {
+      throw new BadRequestException(
+        'Você não pode criar abastecimento para uma solicitação de outra empresa. A empresa da solicitação deve corresponder à empresa do usuário logado.'
+      );
+    }
+
+    // Verificar se a empresa da solicitação está ativa
+    if (!solicitacao.empresa.ativo) {
+      throw new BadRequestException('Não é possível criar abastecimento para uma empresa inativa');
     }
 
     // Verificar se a solicitação já tem um abastecimento vinculado
@@ -548,10 +586,10 @@ export class AbastecimentoService {
       abastecimentoData.validador = {
         connect: { id: validadorId },
       };
-    } else if (userId) {
-      // Se não houver validadorId explícito, usar userId como validador
+    } else if (user?.id) {
+      // Se não houver validadorId explícito, usar user.id como validador
       abastecimentoData.validador = {
-        connect: { id: userId },
+        connect: { id: user.id },
       };
     }
 
