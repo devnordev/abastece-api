@@ -501,7 +501,13 @@ export class AbastecimentoService {
       throw new BadRequestException('Não é possível criar abastecimento para uma solicitação rejeitada');
     }
 
+    // Verificar se a solicitação não está já efetivada
+    if (solicitacao.status === StatusSolicitacao.EFETIVADA) {
+      throw new BadRequestException('Esta solicitação já foi efetivada e possui um abastecimento vinculado');
+    }
+
     // Se a solicitação estiver PENDENTE, será aprovada automaticamente antes de criar o abastecimento
+    // Fluxo: PENDENTE → APROVADA → Criar Abastecimento → EFETIVADA
     const precisaAprovar = solicitacao.status === StatusSolicitacao.PENDENTE;
 
     // Mapear tipo de abastecimento
@@ -598,9 +604,10 @@ export class AbastecimentoService {
       };
     }
 
-    // Criar abastecimento e atualizar solicitação em transação
+    // Processar solicitação e criar abastecimento em transação
+    // Fluxo: PENDENTE → APROVADA → Criar Abastecimento → EFETIVADA
     const resultado = await this.prisma.$transaction(async (tx) => {
-      // Se a solicitação estiver PENDENTE, aprovar primeiro
+      // PASSO 1: Se a solicitação estiver PENDENTE, alterar status para APROVADA
       if (precisaAprovar) {
         await tx.solicitacaoAbastecimento.update({
           where: { id: solicitacaoId },
@@ -615,7 +622,7 @@ export class AbastecimentoService {
         });
       }
 
-      // Criar abastecimento
+      // PASSO 2: Criar registro na tabela de abastecimento com os dados da solicitação
       const abastecimento = await tx.abastecimento.create({
         data: abastecimentoData,
         include: {
@@ -672,7 +679,7 @@ export class AbastecimentoService {
         },
       });
 
-      // Atualizar solicitação com o ID do abastecimento e marcar como EFETIVADA
+      // PASSO 3: Alterar status da solicitação de APROVADA para EFETIVADA
       const solicitacaoAtualizada = await tx.solicitacaoAbastecimento.update({
         where: { id: solicitacaoId },
         data: {
@@ -691,6 +698,7 @@ export class AbastecimentoService {
           tipo_abastecimento: true,
           aprovado_por: true,
           aprovado_por_email: true,
+          aprovado_por_empresa: true,
         },
       });
 
