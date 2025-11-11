@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateAbastecimentoDto } from './dto/create-abastecimento.dto';
 import { UpdateAbastecimentoDto } from './dto/update-abastecimento.dto';
 import { FindAbastecimentoDto } from './dto/find-abastecimento.dto';
+import { CreateAbastecimentoFromSolicitacaoDto } from './dto/create-abastecimento-from-solicitacao.dto';
+import { Prisma, StatusAbastecimento, StatusSolicitacao, TipoAbastecimento } from '@prisma/client';
 
 @Injectable()
 export class AbastecimentoService {
@@ -397,6 +399,268 @@ export class AbastecimentoService {
 
     return {
       message: 'Abastecimento excluído com sucesso',
+    };
+  }
+
+  async createFromSolicitacao(createDto: CreateAbastecimentoFromSolicitacaoDto, userId?: number) {
+    const { solicitacaoId, data_abastecimento, status, odometro, orimetro, validadorId, abastecedorId, desconto, preco_anp, abastecido_por, nfe_link, ativo } = createDto;
+
+    // Buscar a solicitação
+    const solicitacao = await this.prisma.solicitacaoAbastecimento.findUnique({
+      where: { id: solicitacaoId },
+      include: {
+        veiculo: {
+          select: {
+            id: true,
+            nome: true,
+            placa: true,
+            orgaoId: true,
+            orgao: {
+              select: {
+                id: true,
+                nome: true,
+              },
+            },
+          },
+        },
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+        empresa: {
+          select: {
+            id: true,
+            nome: true,
+            cnpj: true,
+          },
+        },
+      },
+    });
+
+    if (!solicitacao) {
+      throw new NotFoundException(`Solicitação de abastecimento com ID ${solicitacaoId} não encontrada`);
+    }
+
+    // Verificar se a solicitação já tem um abastecimento vinculado
+    if (solicitacao.abastecimento_id) {
+      throw new ConflictException(`A solicitação ${solicitacaoId} já possui um abastecimento vinculado (ID: ${solicitacao.abastecimento_id})`);
+    }
+
+    // Verificar se a solicitação está aprovada ou efetivada
+    if (solicitacao.status !== StatusSolicitacao.APROVADA && solicitacao.status !== StatusSolicitacao.EFETIVADA) {
+      throw new BadRequestException(
+        `Não é possível criar abastecimento para uma solicitação com status ${solicitacao.status}. A solicitação deve estar APROVADA ou EFETIVADA.`
+      );
+    }
+
+    // Verificar se a solicitação está ativa
+    if (!solicitacao.ativo) {
+      throw new BadRequestException('Não é possível criar abastecimento para uma solicitação inativa');
+    }
+
+    // Mapear tipo de abastecimento
+    const tipoAbastecimento: TipoAbastecimento = solicitacao.tipo_abastecimento as TipoAbastecimento;
+
+    // Mapear status (se não informado, usar baseado no status da solicitação)
+    let statusAbastecimento: StatusAbastecimento = status || StatusAbastecimento.Aguardando;
+    if (!status) {
+      if (solicitacao.status === StatusSolicitacao.APROVADA) {
+        statusAbastecimento = StatusAbastecimento.Aprovado;
+      } else if (solicitacao.status === StatusSolicitacao.EFETIVADA) {
+        statusAbastecimento = StatusAbastecimento.Aprovado;
+      }
+    }
+
+    // Calcular valor total se não informado
+    const valorTotal = solicitacao.valor_total 
+      ? Number(solicitacao.valor_total) 
+      : solicitacao.preco_empresa 
+        ? Number(solicitacao.preco_empresa) * Number(solicitacao.quantidade) 
+        : 0;
+
+    // Buscar cota do órgão se necessário (para tipo COM_COTA)
+    let cotaId: number | undefined = undefined;
+    if (tipoAbastecimento === TipoAbastecimento.COM_COTA && solicitacao.veiculo.orgaoId) {
+      // Buscar cota ativa para o órgão e combustível
+      const cota = await this.prisma.cotaOrgao.findFirst({
+        where: {
+          orgaoId: solicitacao.veiculo.orgaoId,
+          combustivelId: solicitacao.combustivelId,
+          ativa: true,
+        },
+        orderBy: { id: 'desc' },
+      });
+      if (cota) {
+        cotaId = cota.id;
+      }
+    }
+
+    // Criar abastecimento
+    const abastecimentoData: Prisma.AbastecimentoCreateInput = {
+      veiculo: {
+        connect: { id: solicitacao.veiculoId },
+      },
+      combustivel: {
+        connect: { id: solicitacao.combustivelId },
+      },
+      empresa: {
+        connect: { id: solicitacao.empresaId },
+      },
+      tipo_abastecimento: tipoAbastecimento,
+      quantidade: new Prisma.Decimal(solicitacao.quantidade),
+      valor_total: new Prisma.Decimal(valorTotal),
+      data_abastecimento: data_abastecimento ? new Date(data_abastecimento) : new Date(),
+      status: statusAbastecimento,
+      ativo: ativo !== undefined ? ativo : true,
+      nfe_chave_acesso: solicitacao.nfe_chave_acesso || undefined,
+      nfe_img_url: solicitacao.nfe_img_url || undefined,
+      nfe_link: nfe_link || undefined,
+      abastecido_por: abastecido_por || solicitacao.abastecido_por || 'Sistema',
+      preco_empresa: solicitacao.preco_empresa ? new Prisma.Decimal(solicitacao.preco_empresa) : undefined,
+      preco_anp: preco_anp ? new Prisma.Decimal(preco_anp) : undefined,
+      desconto: desconto ? new Prisma.Decimal(desconto) : undefined,
+      odometro: odometro || undefined,
+      orimetro: orimetro || undefined,
+      contaFaturamento: solicitacao.conta_faturamento_orgao_id
+        ? {
+            connect: { id: solicitacao.conta_faturamento_orgao_id },
+          }
+        : undefined,
+      cota: cotaId
+        ? {
+            connect: { id: cotaId },
+          }
+        : undefined,
+    };
+
+    // Adicionar relacionamentos opcionais
+    if (solicitacao.motoristaId) {
+      abastecimentoData.motorista = {
+        connect: { id: solicitacao.motoristaId },
+      };
+    }
+
+    // Adicionar validador se fornecido
+    if (validadorId) {
+      abastecimentoData.validador = {
+        connect: { id: validadorId },
+      };
+    } else if (userId) {
+      // Se não houver validadorId explícito, usar userId como validador
+      abastecimentoData.validador = {
+        connect: { id: userId },
+      };
+    }
+
+    if (abastecedorId) {
+      abastecimentoData.abastecedor = {
+        connect: { id: abastecedorId },
+      };
+    }
+
+    // Criar abastecimento e atualizar solicitação em transação
+    const resultado = await this.prisma.$transaction(async (tx) => {
+      // Criar abastecimento
+      const abastecimento = await tx.abastecimento.create({
+        data: abastecimentoData,
+        include: {
+          veiculo: {
+            select: {
+              id: true,
+              nome: true,
+              placa: true,
+              modelo: true,
+            },
+          },
+          motorista: {
+            select: {
+              id: true,
+              nome: true,
+              cpf: true,
+            },
+          },
+          combustivel: {
+            select: {
+              id: true,
+              nome: true,
+              sigla: true,
+            },
+          },
+          empresa: {
+            select: {
+              id: true,
+              nome: true,
+              cnpj: true,
+            },
+          },
+          solicitante: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          },
+          validador: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          },
+          cota: {
+            select: {
+              id: true,
+              quantidade: true,
+              quantidade_utilizada: true,
+            },
+          },
+        },
+      });
+
+      // Atualizar solicitação com o ID do abastecimento
+      const solicitacaoAtualizada = await tx.solicitacaoAbastecimento.update({
+        where: { id: solicitacaoId },
+        data: {
+          abastecimento_id: abastecimento.id,
+          status: StatusSolicitacao.EFETIVADA,
+          updated_at: new Date(),
+        },
+        select: {
+          id: true,
+          status: true,
+          abastecimento_id: true,
+          data_solicitacao: true,
+          data_expiracao: true,
+          quantidade: true,
+          tipo_abastecimento: true,
+        },
+      });
+
+      // Atualizar cota se necessário
+      if (cotaId && tipoAbastecimento === TipoAbastecimento.COM_COTA) {
+        await tx.cotaOrgao.update({
+          where: { id: cotaId },
+          data: {
+            quantidade_utilizada: {
+              increment: Number(solicitacao.quantidade),
+            },
+          },
+        });
+      }
+
+      return {
+        abastecimento,
+        solicitacao: solicitacaoAtualizada,
+      };
+    });
+
+    return {
+      message: 'Abastecimento criado a partir da solicitação com sucesso',
+      abastecimento: resultado.abastecimento,
+      solicitacao: resultado.solicitacao,
     };
   }
 
