@@ -487,30 +487,29 @@ export class AbastecimentoService {
       throw new ConflictException(`A solicitação ${solicitacaoId} já possui um abastecimento vinculado (ID: ${solicitacao.abastecimento_id})`);
     }
 
-    // Verificar se a solicitação está aprovada ou efetivada
-    if (solicitacao.status !== StatusSolicitacao.APROVADA && solicitacao.status !== StatusSolicitacao.EFETIVADA) {
-      throw new BadRequestException(
-        `Não é possível criar abastecimento para uma solicitação com status ${solicitacao.status}. A solicitação deve estar APROVADA ou EFETIVADA.`
-      );
-    }
-
     // Verificar se a solicitação está ativa
     if (!solicitacao.ativo) {
       throw new BadRequestException('Não é possível criar abastecimento para uma solicitação inativa');
     }
 
+    // Verificar se a solicitação não está expirada ou rejeitada
+    if (solicitacao.status === StatusSolicitacao.EXPIRADA) {
+      throw new BadRequestException('Não é possível criar abastecimento para uma solicitação expirada');
+    }
+
+    if (solicitacao.status === StatusSolicitacao.REJEITADA) {
+      throw new BadRequestException('Não é possível criar abastecimento para uma solicitação rejeitada');
+    }
+
+    // Se a solicitação estiver PENDENTE, será aprovada automaticamente antes de criar o abastecimento
+    const precisaAprovar = solicitacao.status === StatusSolicitacao.PENDENTE;
+
     // Mapear tipo de abastecimento
     const tipoAbastecimento: TipoAbastecimento = solicitacao.tipo_abastecimento as TipoAbastecimento;
 
-    // Mapear status (se não informado, usar baseado no status da solicitação)
-    let statusAbastecimento: StatusAbastecimento = status || StatusAbastecimento.Aguardando;
-    if (!status) {
-      if (solicitacao.status === StatusSolicitacao.APROVADA) {
-        statusAbastecimento = StatusAbastecimento.Aprovado;
-      } else if (solicitacao.status === StatusSolicitacao.EFETIVADA) {
-        statusAbastecimento = StatusAbastecimento.Aprovado;
-      }
-    }
+    // Mapear status do abastecimento
+    // Se não informado, usar Aprovado (pois a solicitação será aprovada/efetivada)
+    let statusAbastecimento: StatusAbastecimento = status || StatusAbastecimento.Aprovado;
 
     // Calcular valor total se não informado
     const valorTotal = solicitacao.valor_total 
@@ -601,6 +600,21 @@ export class AbastecimentoService {
 
     // Criar abastecimento e atualizar solicitação em transação
     const resultado = await this.prisma.$transaction(async (tx) => {
+      // Se a solicitação estiver PENDENTE, aprovar primeiro
+      if (precisaAprovar) {
+        await tx.solicitacaoAbastecimento.update({
+          where: { id: solicitacaoId },
+          data: {
+            status: StatusSolicitacao.APROVADA,
+            data_aprovacao: new Date(),
+            aprovado_por: user.nome || user.email || 'Sistema',
+            aprovado_por_email: user.email || null,
+            aprovado_por_empresa: user.empresa?.nome || null,
+            updated_at: new Date(),
+          },
+        });
+      }
+
       // Criar abastecimento
       const abastecimento = await tx.abastecimento.create({
         data: abastecimentoData,
@@ -658,7 +672,7 @@ export class AbastecimentoService {
         },
       });
 
-      // Atualizar solicitação com o ID do abastecimento
+      // Atualizar solicitação com o ID do abastecimento e marcar como EFETIVADA
       const solicitacaoAtualizada = await tx.solicitacaoAbastecimento.update({
         where: { id: solicitacaoId },
         data: {
@@ -672,8 +686,11 @@ export class AbastecimentoService {
           abastecimento_id: true,
           data_solicitacao: true,
           data_expiracao: true,
+          data_aprovacao: true,
           quantidade: true,
           tipo_abastecimento: true,
+          aprovado_por: true,
+          aprovado_por_email: true,
         },
       });
 
@@ -696,9 +713,12 @@ export class AbastecimentoService {
     });
 
     return {
-      message: 'Abastecimento criado a partir da solicitação com sucesso',
+      message: precisaAprovar 
+        ? 'Solicitação aprovada e abastecimento criado com sucesso'
+        : 'Abastecimento criado a partir da solicitação com sucesso',
       abastecimento: resultado.abastecimento,
       solicitacao: resultado.solicitacao,
+      aprovada_automaticamente: precisaAprovar,
     };
   }
 

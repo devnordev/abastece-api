@@ -43,9 +43,12 @@ export class AbastecimentoController {
 
   @Post('from-solicitacao')
   @UseGuards(EmpresaGuard)
-  @ApiOperation({ summary: 'Criar abastecimento a partir de uma solicitação de abastecimento' })
-  @ApiResponse({ status: 201, description: 'Abastecimento criado a partir da solicitação com sucesso' })
-  @ApiResponse({ status: 400, description: 'Dados inválidos ou solicitação não está aprovada' })
+  @ApiOperation({ 
+    summary: 'Criar abastecimento a partir de uma solicitação de abastecimento',
+    description: 'Cria um abastecimento a partir de uma solicitação. Se a solicitação estiver PENDENTE, será automaticamente aprovada antes de criar o abastecimento. Após criar o abastecimento, a solicitação será marcada como EFETIVADA.'
+  })
+  @ApiResponse({ status: 201, description: 'Abastecimento criado a partir da solicitação com sucesso. Se a solicitação estava PENDENTE, foi aprovada automaticamente.' })
+  @ApiResponse({ status: 400, description: 'Dados inválidos, solicitação expirada, rejeitada ou inativa' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
   @ApiResponse({ status: 409, description: 'Solicitação já possui abastecimento vinculado' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
