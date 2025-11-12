@@ -9,7 +9,9 @@ Cada veículo na resposta inclui um objeto `solicitacaoQRCode` com as seguintes 
 - `temSolicitacao`: boolean - Indica se o veículo possui alguma solicitação de QR Code
 - `possuiSolicitacaoSolicitada`: boolean - Indica se o veículo possui uma solicitação com status "Solicitado"
 - `possuiSolicitacaoAprovada`: boolean - Indica se o veículo possui uma solicitação com status "Aprovado"
-- `status`: string | null - Status da solicitação mais relevante (Solicitado > Aprovado > Mais recente)
+- `estaInativo`: boolean - Indica se o veículo possui uma solicitação com status "Inativo" (momentâneo)
+- `estaCancelado`: boolean - Indica se o veículo possui uma solicitação com status "Cancelado" (permanente)
+- `status`: string | null - Status da solicitação mais relevante (Solicitado > Aprovado > Inativo > Cancelado > Mais recente)
 - `mensagem`: string - Mensagem descritiva sobre o status da solicitação
 - `id`: number | null - ID da solicitação mais relevante
 
@@ -66,6 +68,8 @@ Cada veículo na resposta inclui um objeto `solicitacaoQRCode` com as seguintes 
         "temSolicitacao": true,
         "possuiSolicitacaoSolicitada": true,
         "possuiSolicitacaoAprovada": false,
+        "estaInativo": false,
+        "estaCancelado": false,
         "status": "Solicitado",
         "mensagem": "Este veículo possui uma solicitação de QR Code com status Solicitado",
         "id": 1
@@ -142,6 +146,8 @@ Cada veículo na resposta inclui um objeto `solicitacaoQRCode` com as seguintes 
         "temSolicitacao": false,
         "possuiSolicitacaoSolicitada": false,
         "possuiSolicitacaoAprovada": false,
+        "estaInativo": false,
+        "estaCancelado": false,
         "status": null,
         "mensagem": "Não há solicitação de QR Code para este veículo",
         "id": null
@@ -218,6 +224,8 @@ Cada veículo na resposta inclui um objeto `solicitacaoQRCode` com as seguintes 
         "temSolicitacao": true,
         "possuiSolicitacaoSolicitada": false,
         "possuiSolicitacaoAprovada": true,
+        "estaInativo": false,
+        "estaCancelado": false,
         "status": "Aprovado",
         "mensagem": "Este veículo possui uma solicitação de QR Code com status Aprovado",
         "id": 2
@@ -243,15 +251,177 @@ Cada veículo na resposta inclui um objeto `solicitacaoQRCode` com as seguintes 
 
 ---
 
+## 📋 Caso 4: Veículo com Solicitação Status "Inativo" (Momentâneo)
+
+### JSON de Resposta:
+
+```json
+{
+  "message": "Veículos encontrados com sucesso",
+  "veiculos": [
+    {
+      "id": 4,
+      "prefeituraId": 1,
+      "orgaoId": 1,
+      "contaFaturamentoOrgaoId": null,
+      "nome": "Van Assistência 01",
+      "placa": "JKL-3456",
+      "modelo": "Ford Transit",
+      "ano": 2022,
+      "tipo_abastecimento": "COTA",
+      "ativo": true,
+      "capacidade_tanque": "60.00",
+      "tipo_veiculo": "Van",
+      "situacao_veiculo": "Proprio",
+      "observacoes": null,
+      "periodicidade": "Mensal",
+      "quantidade": "300.0",
+      "apelido": null,
+      "ano_fabricacao": 2022,
+      "chassi": null,
+      "renavam": null,
+      "crlv": null,
+      "crlv_vencimento": null,
+      "tacografo": null,
+      "foto_veiculo": null,
+      "foto_crlv": null,
+      "cor": "Branco",
+      "capacidade_passageiros": 8,
+      "prefeitura": {
+        "id": 1,
+        "nome": "Prefeitura Municipal de Campinas",
+        "cnpj": "12.345.678/0001-90"
+      },
+      "orgao": {
+        "id": 1,
+        "nome": "Secretaria de Saúde",
+        "sigla": "SMS"
+      },
+      "contaFaturamento": null,
+      "solicitacaoQRCode": {
+        "temSolicitacao": true,
+        "possuiSolicitacaoSolicitada": false,
+        "possuiSolicitacaoAprovada": false,
+        "estaInativo": true,
+        "estaCancelado": false,
+        "status": "Inativo",
+        "mensagem": "Este veículo possui uma solicitação de QR Code com status Inativo (momentâneo)",
+        "id": 3
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+### Campos Importantes:
+- ✅ `temSolicitacao`: `true` - O veículo possui solicitação
+- ❌ `possuiSolicitacaoSolicitada`: `false` - Não possui solicitação com status "Solicitado"
+- ❌ `possuiSolicitacaoAprovada`: `false` - Não possui solicitação com status "Aprovado"
+- ✅ `estaInativo`: `true` - Possui solicitação com status "Inativo" (momentâneo)
+- ❌ `estaCancelado`: `false` - Não possui solicitação com status "Cancelado"
+- 📝 `status`: `"Inativo"` - Status da solicitação
+- 📝 `mensagem`: `"Este veículo possui uma solicitação de QR Code com status Inativo (momentâneo)"`
+- 🔢 `id`: `3` - ID da solicitação
+
+---
+
+## 📋 Caso 5: Veículo com Solicitação Status "Cancelado" (Permanente)
+
+### JSON de Resposta:
+
+```json
+{
+  "message": "Veículos encontrados com sucesso",
+  "veiculos": [
+    {
+      "id": 5,
+      "prefeituraId": 1,
+      "orgaoId": 2,
+      "contaFaturamentoOrgaoId": null,
+      "nome": "Carro Administrativo 01",
+      "placa": "MNO-7890",
+      "modelo": "Toyota Corolla",
+      "ano": 2020,
+      "tipo_abastecimento": "LIVRE",
+      "ativo": true,
+      "capacidade_tanque": "55.00",
+      "tipo_veiculo": "Carro",
+      "situacao_veiculo": "Proprio",
+      "observacoes": null,
+      "periodicidade": null,
+      "quantidade": null,
+      "apelido": null,
+      "ano_fabricacao": 2020,
+      "chassi": null,
+      "renavam": null,
+      "crlv": null,
+      "crlv_vencimento": null,
+      "tacografo": null,
+      "foto_veiculo": null,
+      "foto_crlv": null,
+      "cor": "Preto",
+      "capacidade_passageiros": 5,
+      "prefeitura": {
+        "id": 1,
+        "nome": "Prefeitura Municipal de Campinas",
+        "cnpj": "12.345.678/0001-90"
+      },
+      "orgao": {
+        "id": 2,
+        "nome": "Secretaria de Obras",
+        "sigla": "SMO"
+      },
+      "contaFaturamento": null,
+      "solicitacaoQRCode": {
+        "temSolicitacao": true,
+        "possuiSolicitacaoSolicitada": false,
+        "possuiSolicitacaoAprovada": false,
+        "estaInativo": false,
+        "estaCancelado": true,
+        "status": "Cancelado",
+        "mensagem": "Este veículo possui uma solicitação de QR Code com status Cancelado (permanente)",
+        "id": 4
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+### Campos Importantes:
+- ✅ `temSolicitacao`: `true` - O veículo possui solicitação
+- ❌ `possuiSolicitacaoSolicitada`: `false` - Não possui solicitação com status "Solicitado"
+- ❌ `possuiSolicitacaoAprovada`: `false` - Não possui solicitação com status "Aprovado"
+- ❌ `estaInativo`: `false` - Não possui solicitação com status "Inativo"
+- ✅ `estaCancelado`: `true` - Possui solicitação com status "Cancelado" (permanente)
+- 📝 `status`: `"Cancelado"` - Status da solicitação
+- 📝 `mensagem`: `"Este veículo possui uma solicitação de QR Code com status Cancelado (permanente)"`
+- 🔢 `id`: `4` - ID da solicitação
+
+---
+
 ## 🔄 Lógica de Prioridade
 
 A lógica de prioridade para determinar qual solicitação mostrar é:
 
 1. **Solicitado** - Prioridade mais alta (mostrado primeiro)
 2. **Aprovado** - Segunda prioridade (mostrado se não houver "Solicitado")
-3. **Mais recente** - Se não houver solicitação com status "Solicitado" ou "Aprovado", mostra a mais recente
+3. **Inativo** - Terceira prioridade (mostrado se não houver "Solicitado" ou "Aprovado")
+4. **Cancelado** - Quarta prioridade (mostrado se não houver "Solicitado", "Aprovado" ou "Inativo")
+5. **Mais recente** - Se não houver solicitação com os status acima, mostra a mais recente
 
-Isso significa que se um veículo tiver múltiplas solicitações, o sistema sempre mostrará primeiro uma solicitação com status "Solicitado", depois "Aprovado", e por último a mais recente.
+Isso significa que se um veículo tiver múltiplas solicitações, o sistema sempre mostrará primeiro uma solicitação com status "Solicitado", depois "Aprovado", depois "Inativo", depois "Cancelado", e por último a mais recente.
 
 ---
 
@@ -260,9 +430,16 @@ Isso significa que se um veículo tiver múltiplas solicitações, o sistema sem
 - O campo `temSolicitacao` é `true` quando existe **qualquer** solicitação de QR Code para o veículo
 - O campo `possuiSolicitacaoSolicitada` é `true` quando existe uma solicitação com status **"Solicitado"**
 - O campo `possuiSolicitacaoAprovada` é `true` quando existe uma solicitação com status **"Aprovado"**
-- O campo `status` pode ser: `"Solicitado"`, `"Aprovado"`, `"Em_Producao"`, `"Integracao"`, `"Concluida"` ou `null`
+- O campo `estaInativo` é `true` quando existe uma solicitação com status **"Inativo"** (momentâneo - pode ser reativado)
+- O campo `estaCancelado` é `true` quando existe uma solicitação com status **"Cancelado"** (permanente - não pode ser reativado)
+- O campo `status` pode ser: `"Solicitado"`, `"Aprovado"`, `"Em_Producao"`, `"Integracao"`, `"Concluida"`, `"Inativo"`, `"Cancelado"` ou `null`
 - O campo `id` contém o ID da solicitação mais relevante ou `null` se não houver solicitação
-- A mensagem é descritiva e informa claramente o status da solicitação
+- A mensagem é descritiva e informa claramente o status da solicitação, incluindo se é momentâneo (Inativo) ou permanente (Cancelado)
+
+### ⚠️ Diferença entre "Inativo" e "Cancelado"
+
+- **Inativo**: Status momentâneo - A solicitação pode ser reativada futuramente
+- **Cancelado**: Status permanente - A solicitação foi cancelada definitivamente e não pode ser reativada
 
 ---
 

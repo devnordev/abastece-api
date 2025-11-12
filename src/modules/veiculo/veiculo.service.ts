@@ -519,6 +519,16 @@ export class VeiculoService {
         (s) => s.status === 'Aprovado'
       );
       
+      // Verificar se existe solicitação com status "Inativo" (momentâneo)
+      const possuiSolicitacaoInativa = solicitacoesDoVeiculo.some(
+        (s) => s.status === 'Inativo'
+      );
+      
+      // Verificar se existe solicitação com status "Cancelado" (permanente)
+      const possuiSolicitacaoCancelada = solicitacoesDoVeiculo.some(
+        (s) => s.status === 'Cancelado'
+      );
+      
       // Buscar solicitação com status "Solicitado" primeiro (prioridade)
       const solicitacaoSolicitada = solicitacoesDoVeiculo.find(
         (s) => s.status === 'Solicitado'
@@ -529,18 +539,36 @@ export class VeiculoService {
         ? solicitacoesDoVeiculo.find((s) => s.status === 'Aprovado')
         : null;
       
-      // Usar a solicitação encontrada (prioridade: Solicitado > Aprovado > Mais recente)
-      const solicitacaoAtiva = solicitacaoSolicitada || solicitacaoAprovada || solicitacoesDoVeiculo[0] || null;
+      // Buscar solicitação com status "Inativo" (se não houver Solicitado ou Aprovado)
+      const solicitacaoInativa = !solicitacaoSolicitada && !solicitacaoAprovada
+        ? solicitacoesDoVeiculo.find((s) => s.status === 'Inativo')
+        : null;
+      
+      // Buscar solicitação com status "Cancelado" (se não houver outras)
+      const solicitacaoCancelada = !solicitacaoSolicitada && !solicitacaoAprovada && !solicitacaoInativa
+        ? solicitacoesDoVeiculo.find((s) => s.status === 'Cancelado')
+        : null;
+      
+      // Usar a solicitação encontrada (prioridade: Solicitado > Aprovado > Inativo > Cancelado > Mais recente)
+      const solicitacaoAtiva = solicitacaoSolicitada || solicitacaoAprovada || solicitacaoInativa || solicitacaoCancelada || solicitacoesDoVeiculo[0] || null;
       
       let temSolicitacaoQRCode = false;
       let statusSolicitacaoQRCode: string | null = null;
       let mensagemSolicitacaoQRCode: string = '';
       let idSolicitacaoQRCode: number | null = null;
+      let estaInativo = false;
+      let estaCancelado = false;
 
       if (solicitacaoAtiva) {
         temSolicitacaoQRCode = true;
         statusSolicitacaoQRCode = solicitacaoAtiva.status;
         idSolicitacaoQRCode = solicitacaoAtiva.id;
+        
+        // Verificar se está inativo (momentâneo)
+        estaInativo = solicitacaoAtiva.status === 'Inativo';
+        
+        // Verificar se está cancelado (permanente)
+        estaCancelado = solicitacaoAtiva.status === 'Cancelado';
 
         // Verificar status da solicitação e definir mensagem
         if (solicitacaoAtiva.status === 'Solicitado') {
@@ -553,6 +581,10 @@ export class VeiculoService {
           mensagemSolicitacaoQRCode = 'Este veículo possui uma solicitação de QR Code em integração';
         } else if (solicitacaoAtiva.status === 'Concluida') {
           mensagemSolicitacaoQRCode = 'Este veículo possui uma solicitação de QR Code concluída';
+        } else if (solicitacaoAtiva.status === 'Inativo') {
+          mensagemSolicitacaoQRCode = 'Este veículo possui uma solicitação de QR Code com status Inativo (momentâneo)';
+        } else if (solicitacaoAtiva.status === 'Cancelado') {
+          mensagemSolicitacaoQRCode = 'Este veículo possui uma solicitação de QR Code com status Cancelado (permanente)';
         } else {
           mensagemSolicitacaoQRCode = `Este veículo possui uma solicitação de QR Code com status ${solicitacaoAtiva.status}`;
         }
@@ -566,6 +598,8 @@ export class VeiculoService {
           temSolicitacao: temSolicitacaoQRCode,
           possuiSolicitacaoSolicitada,
           possuiSolicitacaoAprovada,
+          estaInativo,
+          estaCancelado,
           status: statusSolicitacaoQRCode,
           mensagem: mensagemSolicitacaoQRCode,
           id: idSolicitacaoQRCode,
@@ -964,6 +998,7 @@ export class VeiculoService {
     }
 
     // Verificar se já existe uma solicitação pendente para algum dos veículos
+    // Não considerar solicitações com status "Inativo" ou "Cancelado" como bloqueio
     let solicitacoesExistentes: any[] = [];
     try {
       solicitacoesExistentes = await (this.prisma as any).solicitacoesQrCodeVeiculo.findMany({
@@ -971,7 +1006,7 @@ export class VeiculoService {
           idVeiculo: { in: veiculoIds },
           prefeitura_id: prefeituraId,
           status: {
-            in: ['Solicitado', 'Aprovado', 'Em_Producao', 'Integracao'],
+            in: ['Solicitado', 'Aprovado', 'Em_Producao', 'Integracao', 'Concluida'],
           },
         },
         select: {

@@ -215,6 +215,8 @@ enum StatusSolicitacaoQrCodeVeiculo {
   Em_Producao @map("Em Produção")
   Integracao @map("Integração")
   Concluida @map("Concluída")
+  Inativo
+  Cancelado
 }
 
 // ============================================
