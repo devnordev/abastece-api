@@ -3,7 +3,9 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateVeiculoDto } from './dto/create-veiculo.dto';
 import { UpdateVeiculoDto } from './dto/update-veiculo.dto';
 import { FindVeiculoDto } from './dto/find-veiculo.dto';
+import { CreateSolicitacaoQrCodeDto } from './dto/create-solicitacao-qrcode.dto';
 import { UploadService } from '../upload/upload.service';
+import { StatusSolicitacaoQrCodeVeiculo } from '@prisma/client';
 
 @Injectable()
 export class VeiculoService {
@@ -774,6 +776,153 @@ export class VeiculoService {
     return this.prisma.veiculo.findUnique({
       where: { placa },
     });
+  }
+
+  async createSolicitacoesQrCode(createSolicitacaoQrCodeDto: CreateSolicitacaoQrCodeDto, currentUserId: number) {
+    // Validar permissões do usuário
+    const currentUser = await this.prisma.usuario.findUnique({
+      where: { id: currentUserId },
+    });
+
+    if (!currentUser) {
+      throw new ForbiddenException('Usuário atual não encontrado');
+    }
+
+    // Apenas ADMIN_PREFEITURA e COLABORADOR_PREFEITURA podem criar solicitações
+    if (
+      currentUser.tipo_usuario !== 'ADMIN_PREFEITURA' &&
+      currentUser.tipo_usuario !== 'COLABORADOR_PREFEITURA' &&
+      currentUser.tipo_usuario !== 'SUPER_ADMIN'
+    ) {
+      throw new ForbiddenException('Apenas ADMIN_PREFEITURA e COLABORADOR_PREFEITURA podem criar solicitações de QR Code');
+    }
+
+    // Validar que pelo menos 1 veículo foi fornecido
+    if (!createSolicitacaoQrCodeDto.veiculos || createSolicitacaoQrCodeDto.veiculos.length === 0) {
+      throw new BadRequestException('Deve ser fornecido pelo menos 1 veículo');
+    }
+
+    // Extrair IDs dos veículos
+    const veiculoIds = createSolicitacaoQrCodeDto.veiculos.map((v) => v.idVeiculo);
+
+    // Verificar se os veículos existem
+    const veiculos = await this.prisma.veiculo.findMany({
+      where: {
+        id: { in: veiculoIds },
+      },
+      select: {
+        id: true,
+        nome: true,
+        placa: true,
+        prefeituraId: true,
+      },
+    });
+
+    // Verificar se todos os veículos foram encontrados
+    if (veiculos.length !== veiculoIds.length) {
+      const encontradosIds = veiculos.map((v) => v.id);
+      const naoEncontrados = veiculoIds.filter((id) => !encontradosIds.includes(id));
+      throw new NotFoundException(
+        `Um ou mais veículos não foram encontrados. IDs não encontrados: ${naoEncontrados.join(', ')}`
+      );
+    }
+
+    // Para ADMIN_PREFEITURA e COLABORADOR_PREFEITURA, verificar se têm prefeitura vinculada
+    if (currentUser.tipo_usuario !== 'SUPER_ADMIN') {
+      if (!currentUser.prefeituraId) {
+        throw new ForbiddenException('Usuário sem prefeitura vinculada');
+      }
+
+      // Verificar se todos os veículos pertencem à prefeitura do usuário
+      const veiculosForaPrefeitura = veiculos.filter((v) => v.prefeituraId !== currentUser.prefeituraId);
+      if (veiculosForaPrefeitura.length > 0) {
+        const placasForaPrefeitura = veiculosForaPrefeitura.map((v) => `${v.nome} (${v.placa})`).join(', ');
+        throw new ForbiddenException(
+          `Os seguintes veículos não pertencem à sua prefeitura: ${placasForaPrefeitura}`
+        );
+      }
+    }
+
+    // Obter prefeituraId: do usuário para ADMIN_PREFEITURA/COLABORADOR_PREFEITURA, dos veículos para SUPER_ADMIN
+    let prefeituraId: number;
+    if (currentUser.tipo_usuario === 'SUPER_ADMIN') {
+      // Para SUPER_ADMIN, verificar se todos os veículos pertencem à mesma prefeitura
+      const prefeituraIds = [...new Set(veiculos.map((v) => v.prefeituraId))];
+      if (prefeituraIds.length !== 1) {
+        throw new BadRequestException(
+          'Todos os veículos devem pertencer à mesma prefeitura. Foram encontradas múltiplas prefeituras.'
+        );
+      }
+      prefeituraId = prefeituraIds[0];
+    } else {
+      prefeituraId = currentUser.prefeituraId!;
+    }
+
+    // Verificar se já existe uma solicitação pendente para algum dos veículos
+    const solicitacoesExistentes = await this.prisma.solicitacoesQrCodeVeiculo.findMany({
+      where: {
+        idVeiculo: { in: veiculoIds },
+        prefeitura_id: prefeituraId,
+        status: {
+          in: [StatusSolicitacaoQrCodeVeiculo.Solicitado, StatusSolicitacaoQrCodeVeiculo.Aprovado, StatusSolicitacaoQrCodeVeiculo.Em_Producao, StatusSolicitacaoQrCodeVeiculo.Integracao],
+        },
+      },
+      select: {
+        id: true,
+        idVeiculo: true,
+        status: true,
+        veiculo: {
+          select: {
+            nome: true,
+            placa: true,
+          },
+        },
+      },
+    });
+
+    if (solicitacoesExistentes.length > 0) {
+      const veiculosComSolicitacao = solicitacoesExistentes.map(
+        (s) => `${s.veiculo.nome} (${s.veiculo.placa}) - Status: ${s.status}`
+      );
+      throw new ConflictException(
+        `Já existe uma solicitação em andamento para os seguintes veículos: ${veiculosComSolicitacao.join(', ')}`
+      );
+    }
+
+    // Criar as solicitações para cada veículo
+    const solicitacoes = await Promise.all(
+      veiculoIds.map((idVeiculo) =>
+        this.prisma.solicitacoesQrCodeVeiculo.create({
+          data: {
+            idVeiculo,
+            prefeitura_id: prefeituraId,
+            status: StatusSolicitacaoQrCodeVeiculo.Solicitado,
+            foto: createSolicitacaoQrCodeDto.foto,
+          },
+          include: {
+            veiculo: {
+              select: {
+                id: true,
+                nome: true,
+                placa: true,
+              },
+            },
+            prefeitura: {
+              select: {
+                id: true,
+                nome: true,
+                cnpj: true,
+              },
+            },
+          },
+        })
+      )
+    );
+
+    return {
+      message: `${solicitacoes.length} solicitação(ões) de QR Code criada(s) com sucesso`,
+      solicitacoes,
+    };
   }
 
   private async validateCreateVeiculoPermission(currentUserId: number, prefeituraId: number) {
