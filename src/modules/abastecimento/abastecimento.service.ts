@@ -50,6 +50,59 @@ import {
 export class AbastecimentoService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Atualiza a cota do órgão após um abastecimento
+   * Incrementa quantidade_utilizada e valor_utilizado
+   * Recalcula restante e saldo_disponivel_cota
+   */
+  private async atualizarCotaOrgao(
+    tx: Prisma.TransactionClient,
+    cotaId: number,
+    quantidade: number,
+    valorTotal: number,
+  ): Promise<void> {
+    // Buscar cota atual dentro da transação
+    const cota = await tx.cotaOrgao.findUnique({
+      where: { id: cotaId },
+      select: {
+        id: true,
+        quantidade: true,
+        quantidade_utilizada: true,
+        valor_utilizado: true,
+      },
+    });
+
+    if (!cota) {
+      throw new AbastecimentoCotaNotFoundException(cotaId, {
+        additionalInfo: {
+          cotaId,
+          message: 'Cota não encontrada ao tentar atualizar após abastecimento',
+        },
+      });
+    }
+
+    // Calcular novos valores
+    const quantidadeUtilizadaAtual = Number(cota.quantidade_utilizada?.toString() || '0');
+    const valorUtilizadoAtual = Number(cota.valor_utilizado?.toString() || '0');
+    const quantidadeTotal = Number(cota.quantidade.toString());
+
+    const novaQuantidadeUtilizada = quantidadeUtilizadaAtual + quantidade;
+    const novoValorUtilizado = valorUtilizadoAtual + valorTotal;
+    const restante = quantidadeTotal - novaQuantidadeUtilizada;
+    const saldoDisponivelCota = quantidadeTotal - novaQuantidadeUtilizada;
+
+    // Atualizar cota
+    await tx.cotaOrgao.update({
+      where: { id: cotaId },
+      data: {
+        quantidade_utilizada: new Prisma.Decimal(novaQuantidadeUtilizada),
+        valor_utilizado: new Prisma.Decimal(novoValorUtilizado),
+        restante: new Prisma.Decimal(Math.max(0, restante)),
+        saldo_disponivel_cota: new Prisma.Decimal(Math.max(0, saldoDisponivelCota)),
+      },
+    });
+  }
+
   async create(createAbastecimentoDto: CreateAbastecimentoDto, user: any) {
     const { veiculoId, combustivelId, empresaId, motoristaId, validadorId, abastecedorId, conta_faturamento_orgao_id, cota_id } = createAbastecimentoDto;
 
@@ -334,59 +387,97 @@ export class AbastecimentoService {
       }
     }
 
-    // Criar abastecimento
-    const abastecimento = await this.prisma.abastecimento.create({
-      data: {
-        ...createAbastecimentoDto,
-        data_abastecimento: createAbastecimentoDto.data_abastecimento 
-          ? new Date(createAbastecimentoDto.data_abastecimento) 
-          : new Date(),
-      },
-      include: {
-        veiculo: {
-          select: {
-            id: true,
-            nome: true,
-            placa: true,
-            modelo: true,
+    // Criar abastecimento e atualizar cota em transação
+    const abastecimento = await this.prisma.$transaction(async (tx) => {
+      // Criar abastecimento
+      const abastecimentoCriado = await tx.abastecimento.create({
+        data: {
+          ...createAbastecimentoDto,
+          data_abastecimento: createAbastecimentoDto.data_abastecimento 
+            ? new Date(createAbastecimentoDto.data_abastecimento) 
+            : new Date(),
+        },
+        include: {
+          veiculo: {
+            select: {
+              id: true,
+              nome: true,
+              placa: true,
+              modelo: true,
+            },
+          },
+          motorista: {
+            select: {
+              id: true,
+              nome: true,
+              cpf: true,
+            },
+          },
+          combustivel: {
+            select: {
+              id: true,
+              nome: true,
+              sigla: true,
+            },
+          },
+          empresa: {
+            select: {
+              id: true,
+              nome: true,
+              cnpj: true,
+            },
+          },
+          solicitante: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          },
+          validador: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          },
+          cota: {
+            select: {
+              id: true,
+              quantidade: true,
+              quantidade_utilizada: true,
+              valor_utilizado: true,
+              restante: true,
+              saldo_disponivel_cota: true,
+            },
           },
         },
-        motorista: {
+      });
+
+      // Atualizar cota se informada
+      if (cota_id) {
+        await this.atualizarCotaOrgao(tx, cota_id, quantidade, valor_total);
+        
+        // Buscar cota atualizada para incluir no resultado
+        const cotaAtualizada = await tx.cotaOrgao.findUnique({
+          where: { id: cota_id },
           select: {
             id: true,
-            nome: true,
-            cpf: true,
+            quantidade: true,
+            quantidade_utilizada: true,
+            valor_utilizado: true,
+            restante: true,
+            saldo_disponivel_cota: true,
           },
-        },
-        combustivel: {
-          select: {
-            id: true,
-            nome: true,
-            sigla: true,
-          },
-        },
-        empresa: {
-          select: {
-            id: true,
-            nome: true,
-            cnpj: true,
-          },
-        },
-        solicitante: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-          },
-        },
-        validador: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-          },
-        },
-      },
+        });
+        
+        // Atualizar cota no objeto retornado
+        if (cotaAtualizada) {
+          abastecimentoCriado.cota = cotaAtualizada;
+        }
+      }
+
+      return abastecimentoCriado;
     });
 
     return {
@@ -1013,6 +1104,9 @@ export class AbastecimentoService {
               id: true,
               quantidade: true,
               quantidade_utilizada: true,
+              valor_utilizado: true,
+              restante: true,
+              saldo_disponivel_cota: true,
             },
           },
         },
@@ -1041,16 +1135,28 @@ export class AbastecimentoService {
         },
       });
 
-      // Atualizar cota se necessário
+      // PASSO 4: Atualizar cota se necessário
       if (cotaId && tipoAbastecimento === TipoAbastecimento.COM_COTA) {
-        await tx.cotaOrgao.update({
+        const quantidadeAbastecimento = Number(solicitacao.quantidade.toString());
+        await this.atualizarCotaOrgao(tx, cotaId, quantidadeAbastecimento, valorTotal);
+        
+        // Buscar cota atualizada para incluir no resultado
+        const cotaAtualizada = await tx.cotaOrgao.findUnique({
           where: { id: cotaId },
-          data: {
-            quantidade_utilizada: {
-              increment: Number(solicitacao.quantidade),
-            },
+          select: {
+            id: true,
+            quantidade: true,
+            quantidade_utilizada: true,
+            valor_utilizado: true,
+            restante: true,
+            saldo_disponivel_cota: true,
           },
         });
+        
+        // Atualizar cota no objeto retornado
+        if (cotaAtualizada) {
+          abastecimento.cota = cotaAtualizada;
+        }
       }
 
       return {
