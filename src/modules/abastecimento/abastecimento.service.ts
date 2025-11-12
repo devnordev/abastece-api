@@ -924,11 +924,11 @@ export class AbastecimentoService {
       });
     }
 
-    // Verificar se a solicitação não está já efetivada
-    if (solicitacao.status === StatusSolicitacao.EFETIVADA) {
+    // Verificar se a solicitação já possui abastecimento vinculado
+    if (solicitacao.abastecimento_id) {
       throw new AbastecimentoSolicitacaoEfetivadaException(
         solicitacaoId,
-        solicitacao.abastecimento_id || 0,
+        solicitacao.abastecimento_id,
         {
           user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
           payload: createDto,
@@ -937,14 +937,14 @@ export class AbastecimentoService {
     }
 
     // Se a solicitação estiver PENDENTE, será aprovada automaticamente antes de criar o abastecimento
-    // Fluxo: PENDENTE → APROVADA → Criar Abastecimento → EFETIVADA
+    // Fluxo: PENDENTE → APROVADA → Criar Abastecimento → APROVADA (mantém status)
     const precisaAprovar = solicitacao.status === StatusSolicitacao.PENDENTE;
 
     // Mapear tipo de abastecimento
     const tipoAbastecimento: TipoAbastecimento = solicitacao.tipo_abastecimento as TipoAbastecimento;
 
     // Mapear status do abastecimento
-    // Se não informado, usar Aprovado (pois a solicitação será aprovada/efetivada)
+    // Se não informado, usar Aprovado (pois a solicitação será aprovada)
     let statusAbastecimento: StatusAbastecimento = status || StatusAbastecimento.Aprovado;
 
     // Calcular valor total se não informado
@@ -1035,7 +1035,7 @@ export class AbastecimentoService {
     }
 
     // Processar solicitação e criar abastecimento em transação
-    // Fluxo: PENDENTE → APROVADA → Criar Abastecimento → EFETIVADA
+    // Fluxo: PENDENTE → APROVADA → Criar Abastecimento → APROVADA (mantém status)
     const resultado = await this.prisma.$transaction(async (tx) => {
       // PASSO 1: Se a solicitação estiver PENDENTE, alterar status para APROVADA
       if (precisaAprovar) {
@@ -1112,12 +1112,12 @@ export class AbastecimentoService {
         },
       });
 
-      // PASSO 3: Alterar status da solicitação de APROVADA para EFETIVADA
+      // PASSO 3: Atualizar solicitação vinculando o abastecimento criado e mantendo status APROVADA
       const solicitacaoAtualizada = await tx.solicitacaoAbastecimento.update({
         where: { id: solicitacaoId },
         data: {
           abastecimento_id: abastecimento.id,
-          status: StatusSolicitacao.EFETIVADA,
+          status: StatusSolicitacao.APROVADA,
           updated_at: new Date(),
         },
         select: {

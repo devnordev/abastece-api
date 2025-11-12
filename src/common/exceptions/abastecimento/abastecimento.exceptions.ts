@@ -630,7 +630,7 @@ export class AbastecimentoSolicitacaoRejeitadaException extends CrudException {
 export class AbastecimentoSolicitacaoEfetivadaException extends CrudException {
   constructor(solicitacaoId: number, abastecimentoId: number, context?: ContextOverrides) {
     super({
-      message: `Esta solicitação (ID: ${solicitacaoId}) já foi efetivada e possui um abastecimento vinculado (ID: ${abastecimentoId}). Uma solicitação só pode ser efetivada uma vez.`,
+      message: `Esta solicitação (ID: ${solicitacaoId}) já possui um abastecimento vinculado (ID: ${abastecimentoId}). Uma solicitação só pode gerar um abastecimento.`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_SOLICITACAO_EFETIVADA',
       context: buildContext('createFromSolicitacao', {
@@ -639,7 +639,7 @@ export class AbastecimentoSolicitacaoEfetivadaException extends CrudException {
         additionalInfo: {
           solicitacaoId,
           abastecimentoId,
-          statusAtual: 'EFETIVADA',
+          statusAtual: 'APROVADA',
           suggestion: 'Esta solicitação já possui um abastecimento. Consulte o abastecimento vinculado ou crie uma nova solicitação se necessário.',
         },
       }),

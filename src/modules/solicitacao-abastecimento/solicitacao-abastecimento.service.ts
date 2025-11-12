@@ -132,7 +132,6 @@ export class SolicitacaoAbastecimentoService {
       const statusConsiderados = [
         StatusSolicitacao.PENDENTE,
         StatusSolicitacao.APROVADA,
-        StatusSolicitacao.EFETIVADA,
       ];
 
       const totalPeriodo = await this.prisma.solicitacaoAbastecimento.aggregate({
