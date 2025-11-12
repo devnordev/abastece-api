@@ -1,38 +1,99 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateAbastecimentoDto } from './dto/create-abastecimento.dto';
 import { UpdateAbastecimentoDto } from './dto/update-abastecimento.dto';
 import { FindAbastecimentoDto } from './dto/find-abastecimento.dto';
 import { CreateAbastecimentoFromSolicitacaoDto } from './dto/create-abastecimento-from-solicitacao.dto';
 import { Prisma, StatusAbastecimento, StatusSolicitacao, TipoAbastecimento } from '@prisma/client';
+import {
+  AbastecimentoNotFoundException,
+  AbastecimentoVeiculoNotFoundException,
+  AbastecimentoCombustivelNotFoundException,
+  AbastecimentoEmpresaNotFoundException,
+  AbastecimentoMotoristaNotFoundException,
+  AbastecimentoValidadorNotFoundException,
+  AbastecimentoAbastecedorNotFoundException,
+  AbastecimentoContaFaturamentoNotFoundException,
+  AbastecimentoCotaNotFoundException,
+  AbastecimentoSolicitacaoNotFoundException,
+  AbastecimentoUsuarioSemEmpresaException,
+  AbastecimentoEmpresaDiferenteException,
+  AbastecimentoEmpresaInativaException,
+  AbastecimentoSolicitacaoExpiradaException,
+  AbastecimentoSolicitacaoRejeitadaException,
+  AbastecimentoSolicitacaoEfetivadaException,
+  AbastecimentoSolicitacaoInativaException,
+  AbastecimentoSolicitacaoEmpresaDiferenteException,
+  AbastecimentoSolicitacaoJaPossuiAbastecimentoException,
+  AbastecimentoJaAprovadoException,
+  AbastecimentoJaRejeitadoException,
+  AbastecimentoNaoAguardandoAprovacaoException,
+  AbastecimentoMotivoRejeicaoObrigatorioException,
+  AbastecimentoQuantidadeInvalidaException,
+  AbastecimentoValorTotalInvalidoException,
+  AbastecimentoDataAbastecimentoFuturaException,
+  AbastecimentoQuantidadeMaiorQueCapacidadeTanqueException,
+  AbastecimentoNFEChaveAcessoInvalidaException,
+  AbastecimentoNFEUrlInvalidaException,
+  AbastecimentoDescontoMaiorQueValorException,
+  AbastecimentoVeiculoInativoException,
+  AbastecimentoCombustivelInativoException,
+  AbastecimentoCotaInativaException,
+  AbastecimentoMotoristaNaoPertencePrefeituraException,
+  AbastecimentoValorTotalInconsistenteException,
+  AbastecimentoCombustivelNaoVinculadoVeiculoException,
+  AbastecimentoCanceladoException,
+  AbastecimentoInativoException,
+} from '../../common/exceptions';
 
 @Injectable()
 export class AbastecimentoService {
   constructor(private prisma: PrismaService) {}
 
   async create(createAbastecimentoDto: CreateAbastecimentoDto, user: any) {
-    const { veiculoId, combustivelId, empresaId } = createAbastecimentoDto;
+    const { veiculoId, combustivelId, empresaId, motoristaId, validadorId, abastecedorId, conta_faturamento_orgao_id, cota_id } = createAbastecimentoDto;
 
     // Verificar se o usuário pertence à empresa informada (obrigatório para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
     if (!user?.empresa?.id) {
-      throw new BadRequestException(
-        'Usuário não está vinculado a uma empresa. Apenas usuários de empresa podem criar abastecimentos.'
-      );
+      throw new AbastecimentoUsuarioSemEmpresaException({
+        user: { id: user?.id, tipo: user?.tipo_usuario, email: user?.email },
+        payload: createAbastecimentoDto,
+      });
     }
 
     if (user.empresa.id !== empresaId) {
-      throw new BadRequestException(
-        'Você não pode criar abastecimento para uma empresa diferente da sua. A empresa do abastecimento deve corresponder à empresa do usuário logado.'
-      );
+      throw new AbastecimentoEmpresaDiferenteException(empresaId, user.empresa.id, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
     }
 
     // Verificar se veículo existe
     const veiculo = await this.prisma.veiculo.findUnique({
       where: { id: veiculoId },
+      include: {
+        orgao: {
+          select: {
+            id: true,
+            prefeituraId: true,
+          },
+        },
+      },
     });
 
     if (!veiculo) {
-      throw new NotFoundException('Veículo não encontrado');
+      throw new AbastecimentoVeiculoNotFoundException(veiculoId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
+    // Verificar se veículo está ativo
+    if (!veiculo.ativo) {
+      throw new AbastecimentoVeiculoInativoException(veiculoId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
     }
 
     // Verificar se combustível existe
@@ -41,7 +102,34 @@ export class AbastecimentoService {
     });
 
     if (!combustivel) {
-      throw new NotFoundException('Combustível não encontrado');
+      throw new AbastecimentoCombustivelNotFoundException(combustivelId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
+    // Verificar se combustível está ativo
+    if (!combustivel.ativo) {
+      throw new AbastecimentoCombustivelInativoException(combustivelId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
+    // Verificar se combustível está vinculado ao veículo
+    const combustivelVinculado = await this.prisma.veiculoCombustivel.findFirst({
+      where: {
+        veiculoId: veiculoId,
+        combustivelId: combustivelId,
+        ativo: true,
+      },
+    });
+
+    if (!combustivelVinculado) {
+      throw new AbastecimentoCombustivelNaoVinculadoVeiculoException(veiculoId, combustivelId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
     }
 
     // Verificar se empresa existe
@@ -50,12 +138,200 @@ export class AbastecimentoService {
     });
 
     if (!empresa) {
-      throw new NotFoundException('Empresa não encontrada');
+      throw new AbastecimentoEmpresaNotFoundException(empresaId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
     }
 
     // Verificar se a empresa está ativa
     if (!empresa.ativo) {
-      throw new BadRequestException('Não é possível criar abastecimento para uma empresa inativa');
+      throw new AbastecimentoEmpresaInativaException(empresaId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
+    // Verificar se motorista existe (se informado)
+    if (motoristaId) {
+      const motorista = await this.prisma.motorista.findUnique({
+        where: { id: motoristaId },
+        include: {
+          prefeitura: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+      if (!motorista) {
+        throw new AbastecimentoMotoristaNotFoundException(motoristaId, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createAbastecimentoDto,
+        });
+      }
+
+      // Verificar se motorista pertence à mesma prefeitura do veículo
+      if (veiculo.orgao?.prefeituraId && motorista.prefeituraId !== veiculo.orgao.prefeituraId) {
+        throw new AbastecimentoMotoristaNaoPertencePrefeituraException(motoristaId, veiculoId, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createAbastecimentoDto,
+        });
+      }
+    }
+
+    // Verificar se validador existe (se informado)
+    if (validadorId) {
+      const validador = await this.prisma.usuario.findUnique({
+        where: { id: validadorId },
+      });
+      if (!validador) {
+        throw new AbastecimentoValidadorNotFoundException(validadorId, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createAbastecimentoDto,
+        });
+      }
+    }
+
+    // Verificar se abastecedor existe (se informado)
+    if (abastecedorId) {
+      const abastecedor = await this.prisma.empresa.findUnique({
+        where: { id: abastecedorId },
+      });
+      if (!abastecedor) {
+        throw new AbastecimentoAbastecedorNotFoundException(abastecedorId, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createAbastecimentoDto,
+        });
+      }
+    }
+
+    // Verificar se conta de faturamento existe (se informado)
+    if (conta_faturamento_orgao_id) {
+      const contaFaturamento = await this.prisma.contaFaturamentoOrgao.findUnique({
+        where: { id: conta_faturamento_orgao_id },
+      });
+      if (!contaFaturamento) {
+        throw new AbastecimentoContaFaturamentoNotFoundException(conta_faturamento_orgao_id, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createAbastecimentoDto,
+        });
+      }
+    }
+
+    // Verificar se cota existe (se informado)
+    if (cota_id) {
+      const cota = await this.prisma.cotaOrgao.findUnique({
+        where: { id: cota_id },
+      });
+      if (!cota) {
+        throw new AbastecimentoCotaNotFoundException(cota_id, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createAbastecimentoDto,
+        });
+      }
+
+      // Verificar se cota está ativa
+      if (!cota.ativa) {
+        throw new AbastecimentoCotaInativaException(cota_id, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createAbastecimentoDto,
+        });
+      }
+    }
+
+    // Validações de campos
+    const { quantidade, valor_total, data_abastecimento, nfe_chave_acesso, nfe_img_url, nfe_link, desconto, preco_empresa } = createAbastecimentoDto;
+
+    // Validar quantidade
+    if (!quantidade || quantidade <= 0) {
+      throw new AbastecimentoQuantidadeInvalidaException(quantidade || 0, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
+    // Validar valor total
+    if (!valor_total || valor_total < 0) {
+      throw new AbastecimentoValorTotalInvalidoException(valor_total || 0, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
+    // Validar data de abastecimento (não pode ser futura)
+    if (data_abastecimento) {
+      const dataAbastecimento = new Date(data_abastecimento);
+      const dataAtual = new Date();
+      if (dataAbastecimento > dataAtual) {
+        throw new AbastecimentoDataAbastecimentoFuturaException(dataAbastecimento, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createAbastecimentoDto,
+        });
+      }
+    }
+
+    // Validar quantidade vs capacidade do tanque
+    if (veiculo.capacidade_tanque && quantidade > Number(veiculo.capacidade_tanque)) {
+      throw new AbastecimentoQuantidadeMaiorQueCapacidadeTanqueException(
+        quantidade,
+        Number(veiculo.capacidade_tanque),
+        veiculoId,
+        {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createAbastecimentoDto,
+        }
+      );
+    }
+
+    // Validar chave de acesso NFE (deve ter 44 caracteres se informada)
+    if (nfe_chave_acesso && (nfe_chave_acesso.length !== 44 || !/^\d+$/.test(nfe_chave_acesso))) {
+      throw new AbastecimentoNFEChaveAcessoInvalidaException(nfe_chave_acesso, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
+    // Validar URLs da NFE
+    if (nfe_img_url && !nfe_img_url.match(/^https?:\/\/.+/)) {
+      throw new AbastecimentoNFEUrlInvalidaException('nfe_img_url', nfe_img_url, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
+    if (nfe_link && !nfe_link.match(/^https?:\/\/.+/)) {
+      throw new AbastecimentoNFEUrlInvalidaException('nfe_link', nfe_link, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
+    // Validar desconto (não pode ser maior que valor total)
+    const descontoValor = desconto || 0;
+    if (descontoValor > valor_total) {
+      throw new AbastecimentoDescontoMaiorQueValorException(descontoValor, valor_total, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
+    // Validar consistência do valor total (se preco_empresa e quantidade estiverem informados)
+    if (preco_empresa && quantidade) {
+      const valorCalculado = quantidade * preco_empresa - descontoValor;
+      // Permitir pequena diferença devido a arredondamentos (0.01)
+      if (Math.abs(valor_total - valorCalculado) > 0.01) {
+        throw new AbastecimentoValorTotalInconsistenteException(
+          valor_total,
+          quantidade,
+          preco_empresa,
+          descontoValor,
+          {
+            user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+            payload: createAbastecimentoDto,
+          }
+        );
+      }
     }
 
     // Criar abastecimento
@@ -319,7 +595,9 @@ export class AbastecimentoService {
     });
 
     if (!abastecimento) {
-      throw new NotFoundException('Abastecimento não encontrado');
+      throw new AbastecimentoNotFoundException(id, {
+        resourceId: id,
+      });
     }
 
     return {
@@ -328,14 +606,36 @@ export class AbastecimentoService {
     };
   }
 
-  async update(id: number, updateAbastecimentoDto: UpdateAbastecimentoDto) {
+  async update(id: number, updateAbastecimentoDto: UpdateAbastecimentoDto, user?: any) {
     // Verificar se abastecimento existe
     const existingAbastecimento = await this.prisma.abastecimento.findUnique({
       where: { id },
     });
 
     if (!existingAbastecimento) {
-      throw new NotFoundException('Abastecimento não encontrado');
+      throw new AbastecimentoNotFoundException(id, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : undefined,
+        payload: updateAbastecimentoDto,
+      });
+    }
+
+    // Verificar se abastecimento está cancelado
+    if (existingAbastecimento.status === StatusAbastecimento.Cancelado) {
+      throw new AbastecimentoCanceladoException(id, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : undefined,
+        payload: updateAbastecimentoDto,
+      });
+    }
+
+    // Verificar se abastecimento está inativo
+    if (!existingAbastecimento.ativo) {
+      throw new AbastecimentoInativoException(id, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : undefined,
+        payload: updateAbastecimentoDto,
+      });
     }
 
     // Atualizar abastecimento
@@ -400,14 +700,17 @@ export class AbastecimentoService {
     };
   }
 
-  async remove(id: number) {
+  async remove(id: number, user?: any) {
     // Verificar se abastecimento existe
     const existingAbastecimento = await this.prisma.abastecimento.findUnique({
       where: { id },
     });
 
     if (!existingAbastecimento) {
-      throw new NotFoundException('Abastecimento não encontrado');
+      throw new AbastecimentoNotFoundException(id, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : undefined,
+      });
     }
 
     // Excluir abastecimento
@@ -425,9 +728,10 @@ export class AbastecimentoService {
 
     // Verificar se o usuário pertence a uma empresa (obrigatório para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
     if (!user?.empresa?.id) {
-      throw new BadRequestException(
-        'Usuário não está vinculado a uma empresa. Apenas usuários de empresa podem criar abastecimentos.'
-      );
+      throw new AbastecimentoUsuarioSemEmpresaException({
+        user: { id: user?.id, tipo: user?.tipo_usuario, email: user?.email },
+        payload: createDto,
+      });
     }
 
     // Buscar a solicitação
@@ -467,43 +771,78 @@ export class AbastecimentoService {
     });
 
     if (!solicitacao) {
-      throw new NotFoundException(`Solicitação de abastecimento com ID ${solicitacaoId} não encontrada`);
+      throw new AbastecimentoSolicitacaoNotFoundException(solicitacaoId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
     }
 
     // Verificar se a empresa da solicitação corresponde à empresa do usuário
     if (solicitacao.empresaId !== user.empresa.id) {
-      throw new BadRequestException(
-        'Você não pode criar abastecimento para uma solicitação de outra empresa. A empresa da solicitação deve corresponder à empresa do usuário logado.'
+      throw new AbastecimentoSolicitacaoEmpresaDiferenteException(
+        solicitacaoId,
+        solicitacao.empresaId,
+        user.empresa.id,
+        {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createDto,
+        }
       );
     }
 
     // Verificar se a empresa da solicitação está ativa
     if (!solicitacao.empresa.ativo) {
-      throw new BadRequestException('Não é possível criar abastecimento para uma empresa inativa');
+      throw new AbastecimentoEmpresaInativaException(solicitacao.empresaId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
     }
 
     // Verificar se a solicitação já tem um abastecimento vinculado
     if (solicitacao.abastecimento_id) {
-      throw new ConflictException(`A solicitação ${solicitacaoId} já possui um abastecimento vinculado (ID: ${solicitacao.abastecimento_id})`);
+      throw new AbastecimentoSolicitacaoJaPossuiAbastecimentoException(
+        solicitacaoId,
+        solicitacao.abastecimento_id,
+        {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createDto,
+        }
+      );
     }
 
     // Verificar se a solicitação está ativa
     if (!solicitacao.ativo) {
-      throw new BadRequestException('Não é possível criar abastecimento para uma solicitação inativa');
+      throw new AbastecimentoSolicitacaoInativaException(solicitacaoId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
     }
 
     // Verificar se a solicitação não está expirada ou rejeitada
     if (solicitacao.status === StatusSolicitacao.EXPIRADA) {
-      throw new BadRequestException('Não é possível criar abastecimento para uma solicitação expirada');
+      throw new AbastecimentoSolicitacaoExpiradaException(solicitacaoId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
     }
 
     if (solicitacao.status === StatusSolicitacao.REJEITADA) {
-      throw new BadRequestException('Não é possível criar abastecimento para uma solicitação rejeitada');
+      throw new AbastecimentoSolicitacaoRejeitadaException(solicitacaoId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
     }
 
     // Verificar se a solicitação não está já efetivada
     if (solicitacao.status === StatusSolicitacao.EFETIVADA) {
-      throw new BadRequestException('Esta solicitação já foi efetivada e possui um abastecimento vinculado');
+      throw new AbastecimentoSolicitacaoEfetivadaException(
+        solicitacaoId,
+        solicitacao.abastecimento_id || 0,
+        {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createDto,
+        }
+      );
     }
 
     // Se a solicitação estiver PENDENTE, será aprovada automaticamente antes de criar o abastecimento
@@ -730,23 +1069,43 @@ export class AbastecimentoService {
     };
   }
 
-  async approve(id: number, userId: number, userEmail: string) {
+  async approve(id: number, userId: number, userEmail: string, user?: any) {
     const abastecimento = await this.prisma.abastecimento.findUnique({
       where: { id },
     });
 
     if (!abastecimento) {
-      throw new NotFoundException('Abastecimento não encontrado');
+      throw new AbastecimentoNotFoundException(id, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : { id: userId, email: userEmail },
+      });
     }
 
-    if (abastecimento.status !== 'Aguardando') {
-      throw new BadRequestException('Abastecimento não está aguardando aprovação');
+    if (abastecimento.status === StatusAbastecimento.Aprovado) {
+      throw new AbastecimentoJaAprovadoException(id, abastecimento.status, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : { id: userId, email: userEmail },
+      });
+    }
+
+    if (abastecimento.status === StatusAbastecimento.Rejeitado) {
+      throw new AbastecimentoJaRejeitadoException(id, abastecimento.status, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : { id: userId, email: userEmail },
+      });
+    }
+
+    if (abastecimento.status !== StatusAbastecimento.Aguardando) {
+      throw new AbastecimentoNaoAguardandoAprovacaoException(id, abastecimento.status, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : { id: userId, email: userEmail },
+      });
     }
 
     const updatedAbastecimento = await this.prisma.abastecimento.update({
       where: { id },
       data: {
-        status: 'Aprovado',
+        status: StatusAbastecimento.Aprovado,
         data_aprovacao: new Date(),
         aprovado_por: userEmail,
         validadorId: userId,
@@ -759,23 +1118,51 @@ export class AbastecimentoService {
     };
   }
 
-  async reject(id: number, userId: number, userEmail: string, motivo: string) {
+  async reject(id: number, userId: number, userEmail: string, motivo: string, user?: any) {
+    if (!motivo || motivo.trim().length === 0) {
+      throw new AbastecimentoMotivoRejeicaoObrigatorioException({
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : { id: userId, email: userEmail },
+        payload: { motivo },
+      });
+    }
+
     const abastecimento = await this.prisma.abastecimento.findUnique({
       where: { id },
     });
 
     if (!abastecimento) {
-      throw new NotFoundException('Abastecimento não encontrado');
+      throw new AbastecimentoNotFoundException(id, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : { id: userId, email: userEmail },
+      });
     }
 
-    if (abastecimento.status !== 'Aguardando') {
-      throw new BadRequestException('Abastecimento não está aguardando aprovação');
+    if (abastecimento.status === StatusAbastecimento.Aprovado) {
+      throw new AbastecimentoJaAprovadoException(id, abastecimento.status, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : { id: userId, email: userEmail },
+      });
+    }
+
+    if (abastecimento.status === StatusAbastecimento.Rejeitado) {
+      throw new AbastecimentoJaRejeitadoException(id, abastecimento.status, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : { id: userId, email: userEmail },
+      });
+    }
+
+    if (abastecimento.status !== StatusAbastecimento.Aguardando) {
+      throw new AbastecimentoNaoAguardandoAprovacaoException(id, abastecimento.status, {
+        resourceId: id,
+        user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : { id: userId, email: userEmail },
+      });
     }
 
     const updatedAbastecimento = await this.prisma.abastecimento.update({
       where: { id },
       data: {
-        status: 'Rejeitado',
+        status: StatusAbastecimento.Rejeitado,
         data_rejeicao: new Date(),
         rejeitado_por: userEmail,
         motivo_rejeicao: motivo,

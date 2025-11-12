@@ -97,8 +97,9 @@ export class AbastecimentoController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateAbastecimentoDto: UpdateAbastecimentoDto,
+    @Request() req,
   ) {
-    return this.abastecimentoService.update(id, updateAbastecimentoDto);
+    return this.abastecimentoService.update(id, updateAbastecimentoDto, req.user);
   }
 
   @Delete(':id')
@@ -106,31 +107,31 @@ export class AbastecimentoController {
   @ApiResponse({ status: 200, description: 'Abastecimento excluído com sucesso' })
   @ApiResponse({ status: 404, description: 'Abastecimento não encontrado' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.abastecimentoService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.abastecimentoService.remove(id, req.user);
   }
 
   @Patch(':id/approve')
   @ApiOperation({ summary: 'Aprovar abastecimento' })
   @ApiResponse({ status: 200, description: 'Abastecimento aprovado com sucesso' })
   @ApiResponse({ status: 404, description: 'Abastecimento não encontrado' })
-  @ApiResponse({ status: 400, description: 'Abastecimento não está aguardando aprovação' })
+  @ApiResponse({ status: 400, description: 'Abastecimento não está aguardando aprovação ou já foi processado' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   async approve(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    return this.abastecimentoService.approve(id, req.user.id, req.user.email);
+    return this.abastecimentoService.approve(id, req.user.id, req.user.email, req.user);
   }
 
   @Patch(':id/reject')
   @ApiOperation({ summary: 'Rejeitar abastecimento' })
   @ApiResponse({ status: 200, description: 'Abastecimento rejeitado com sucesso' })
   @ApiResponse({ status: 404, description: 'Abastecimento não encontrado' })
-  @ApiResponse({ status: 400, description: 'Abastecimento não está aguardando aprovação' })
+  @ApiResponse({ status: 400, description: 'Abastecimento não está aguardando aprovação, motivo da rejeição não informado ou já foi processado' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   async reject(
     @Param('id', ParseIntPipe) id: number,
     @Body('motivo') motivo: string,
     @Request() req,
   ) {
-    return this.abastecimentoService.reject(id, req.user.id, req.user.email, motivo);
+    return this.abastecimentoService.reject(id, req.user.id, req.user.email, motivo, req.user);
   }
 }
