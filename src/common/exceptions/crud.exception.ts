@@ -21,15 +21,15 @@ export interface CrudExceptionContext {
   expected: string;
   performed: string;
   resourceId?: string | number;
-  payload?: Record<string, unknown>;
-  query?: Record<string, unknown>;
+  payload?: any;
+  query?: any;
   user?: {
     id?: number | string;
     tipo?: string;
     email?: string;
   };
   correlationId?: string;
-  additionalInfo?: Record<string, unknown>;
+  additionalInfo?: any;
 }
 
 export interface CrudExceptionOptions {
