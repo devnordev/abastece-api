@@ -22,15 +22,17 @@ import { ValidarCapacidadeTanqueDto } from './dto/validar-capacidade-tanque.dto'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminPrefeituraEmpresaGuard } from '../auth/guards/admin-prefeitura-empresa.guard';
 import { AdminPrefeituraEmpresaColaboradorGuard } from '../auth/guards/admin-prefeitura-empresa-colaborador.guard';
+import { AdminPrefeituraGuard } from '../auth/guards/admin-prefeitura.guard';
 
 @ApiTags('Solicitações de Abastecimento')
 @Controller({ path: ['solicitacoes-abastecimento', 'solicitacoes'] })
-@UseGuards(JwtAuthGuard, AdminPrefeituraEmpresaGuard)
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class SolicitacaoAbastecimentoController {
   constructor(private readonly solicitacaoService: SolicitacaoAbastecimentoService) {}
 
   @Post()
+  @UseGuards(AdminPrefeituraEmpresaGuard)
   @ApiOperation({ summary: 'Criar solicitação de abastecimento' })
   @ApiResponse({ status: 201, description: 'Solicitação criada com sucesso' })
   async create(@Body() createDto: CreateSolicitacaoAbastecimentoDto) {
@@ -38,7 +40,7 @@ export class SolicitacaoAbastecimentoController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard, AdminPrefeituraEmpresaColaboradorGuard)
+  @UseGuards(AdminPrefeituraEmpresaColaboradorGuard)
   @ApiOperation({ 
     summary: 'Listar solicitações de abastecimento',
     description: 'Para ADMIN_PREFEITURA: lista solicitações da prefeitura do usuário. Para ADMIN_EMPRESA ou COLABORADOR_EMPRESA: lista solicitações da empresa do usuário. O parâmetro empresaId na query é opcional e, quando fornecido, deve corresponder à empresa do usuário. Exemplo: GET /solicitacoes-abastecimento?empresaId={empresaId}&limit=1000'
@@ -71,6 +73,7 @@ export class SolicitacaoAbastecimentoController {
   }
 
   @Get('veiculo/orgao/prefeitura')
+  @UseGuards(AdminPrefeituraGuard)
   @ApiOperation({ summary: 'Listar veículos vinculados aos órgãos da prefeitura do usuário' })
   @ApiResponse({ status: 200, description: 'Veículos retornados com sucesso' })
   async listarVeiculosOrgaosDaPrefeitura(@Req() req: Request & { user: any }) {
@@ -78,6 +81,7 @@ export class SolicitacaoAbastecimentoController {
   }
 
   @Get('empresas/credenciadas')
+  @UseGuards(AdminPrefeituraGuard)
   @ApiOperation({ summary: 'Listar empresas credenciadas da prefeitura do usuário' })
   @ApiResponse({ status: 200, description: 'Empresas credenciadas retornadas com sucesso' })
   async listarEmpresasCredenciadas(@Req() req: Request & { user: any }) {
@@ -119,6 +123,7 @@ export class SolicitacaoAbastecimentoController {
   }
 
   @Get('veiculo/:id/tipo-abastecimento')
+  @UseGuards(AdminPrefeituraGuard)
   @ApiOperation({ summary: 'Obter tipo de abastecimento de um veículo da prefeitura' })
   @ApiResponse({ status: 200, description: 'Tipo de abastecimento retornado com sucesso' })
   @ApiResponse({ status: 404, description: 'Veículo não encontrado ou não vinculado à prefeitura' })
@@ -130,6 +135,7 @@ export class SolicitacaoAbastecimentoController {
   }
 
   @Get('orgao/:orgaoId/cotas')
+  @UseGuards(AdminPrefeituraGuard)
   @ApiOperation({ summary: 'Listar cotas de combustível do órgão dentro da prefeitura do usuário' })
   @ApiResponse({ status: 200, description: 'Cotas retornadas com sucesso' })
   @ApiResponse({ status: 404, description: 'Órgão não encontrado para a prefeitura do usuário' })
@@ -152,6 +158,7 @@ export class SolicitacaoAbastecimentoController {
   }
 
   @Get(':id')
+  @UseGuards(AdminPrefeituraEmpresaColaboradorGuard)
   @ApiOperation({ summary: 'Buscar solicitação de abastecimento por ID' })
   @ApiResponse({ status: 200, description: 'Solicitação encontrada com sucesso' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
@@ -160,6 +167,7 @@ export class SolicitacaoAbastecimentoController {
   }
 
   @Patch(':id')
+  @UseGuards(AdminPrefeituraEmpresaGuard)
   @ApiOperation({ summary: 'Atualizar solicitação de abastecimento' })
   @ApiResponse({ status: 200, description: 'Solicitação atualizada com sucesso' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
@@ -171,6 +179,7 @@ export class SolicitacaoAbastecimentoController {
   }
 
   @Delete(':id')
+  @UseGuards(AdminPrefeituraEmpresaGuard)
   @ApiOperation({ summary: 'Excluir solicitação de abastecimento' })
   @ApiResponse({ status: 200, description: 'Solicitação excluída com sucesso' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
