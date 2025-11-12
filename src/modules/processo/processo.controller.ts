@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, ParseIntPipe, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ProcessoService } from './processo.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -26,14 +26,22 @@ export class ProcessoController {
   @ApiResponse({ status: 200, description: 'Lista de processos retornada com sucesso' })
   @ApiQuery({ name: 'page', required: false, description: 'Número da página para paginação', example: 1 })
   @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens por página', example: 10 })
-  @ApiQuery({ name: 'prefeituraId', required: false, description: 'ID da prefeitura para filtrar processos (opcional)', example: 1 })
+  @ApiQuery({ name: 'prefeituraId', required: false, description: 'ID da prefeitura para filtrar processos (opcional). Para ADMIN_PREFEITURA, se não informado, usa automaticamente a prefeitura do usuário.', example: 1 })
   @ApiQuery({ name: 'status', required: false, description: 'Status do processo para filtrar', enum: ['ATIVO', 'INATIVO', 'ENCERRADO'] })
   @ApiQuery({ name: 'ativo', required: false, description: 'Filtrar por processos ativos/inativos', example: true })
-  async findAll(@Query() query: FindProcessoDto) {
+  async findAll(@Query() query: FindProcessoDto, @Request() req) {
+    const user = req.user;
+    
+    // Se for ADMIN_PREFEITURA e não tiver prefeituraId na query, usar a prefeitura do usuário
+    let prefeituraId = query.prefeituraId;
+    if (user?.tipo_usuario === 'ADMIN_PREFEITURA' && !prefeituraId && user?.prefeitura?.id) {
+      prefeituraId = user.prefeitura.id;
+    }
+    
     return this.processoService.findAll(
       query.page || 1,
       query.limit || 10,
-      query.prefeituraId,
+      prefeituraId,
       query.status,
       query.ativo,
     );
