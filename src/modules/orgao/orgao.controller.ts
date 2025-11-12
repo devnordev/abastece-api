@@ -2,11 +2,10 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Pa
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { OrgaoService } from './orgao.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RoleBlockGuard } from '../auth/guards/role-block.guard';
 
 @ApiTags('Órgãos')
 @Controller('orgaos')
-@UseGuards(JwtAuthGuard, new RoleBlockGuard(['SUPER_ADMIN']))
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class OrgaoController {
   constructor(private readonly orgaoService: OrgaoService) {}

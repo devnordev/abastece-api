@@ -266,7 +266,7 @@ export class OrgaoService {
 
     // Apenas ADMIN_PREFEITURA e SUPER_ADMIN podem cadastrar órgãos
     if (currentUser.tipo_usuario !== 'ADMIN_PREFEITURA' && currentUser.tipo_usuario !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('Apenas ADMIN_PREFEITURA pode cadastrar órgãos');
+      throw new ForbiddenException('Apenas ADMIN_PREFEITURA ou SUPER_ADMIN podem cadastrar órgãos');
     }
 
     // Verificar se o órgão está sendo criado para a própria prefeitura
