@@ -19,6 +19,7 @@ import { FindAbastecimentoDto } from './dto/find-abastecimento.dto';
 import { CreateAbastecimentoFromSolicitacaoDto } from './dto/create-abastecimento-from-solicitacao.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { EmpresaGuard } from '../auth/guards/empresa.guard';
+import { BadRequestException } from '@nestjs/common';
 
 @ApiTags('Abastecimentos')
 @Controller('abastecimentos')
@@ -77,6 +78,58 @@ export class AbastecimentoController {
   @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens por página' })
   async findAll(@Query() findAbastecimentoDto: FindAbastecimentoDto) {
     return this.abastecimentoService.findAll(findAbastecimentoDto);
+  }
+
+  @Get('veiculo/tipo/abastecimento/:veiculoId/:qntLitros')
+  @ApiOperation({ 
+    summary: 'Verificar tipo de abastecimento e cota do veículo',
+    description: 'Verifica se a quantidade de litros informada excede a cota do veículo. Retorna informações sobre o consumo no período (diário, semanal ou mensal) baseado na periodicidade configurada no veículo. Considera apenas abastecimentos aprovados ou efetivados no período.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Informações sobre a cota do veículo retornadas com sucesso',
+    schema: {
+      example: {
+        message: 'A quantidade solicitada (30.0 litros) está dentro da cota diária do veículo. Cota disponível: 70.00 litros. Limite: 100.00 litros. Quantidade já utilizada no período: 30.00 litros. Após este abastecimento, restará: 40.00 litros.',
+        excedeu: false,
+        veiculo: {
+          id: 1,
+          nome: 'Veículo 1',
+          placa: 'ABC-1234',
+          tipo_abastecimento: 'COTA',
+          periodicidade: 'Diario',
+          periodicidadeNome: 'Diária'
+        },
+        cota: {
+          quantidadeLimite: 100,
+          quantidadeUtilizada: 30,
+          quantidadeDisponivel: 70,
+          quantidadeSolicitada: 30,
+          novaQuantidadeTotal: 60,
+          excedeuPor: 0
+        },
+        periodo: {
+          inicio: '2025-01-15T00:00:00.000Z',
+          fim: '2025-01-15T23:59:59.999Z',
+          tipo: 'Diária'
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Veículo não encontrado' })
+  @ApiResponse({ status: 400, description: 'Quantidade de litros inválida' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  async verificarTipoAbastecimentoVeiculo(
+    @Param('veiculoId', ParseIntPipe) veiculoId: number,
+    @Param('qntLitros') qntLitrosParam: string,
+  ) {
+    const qntLitros = parseFloat(qntLitrosParam);
+    
+    if (isNaN(qntLitros) || qntLitros <= 0) {
+      throw new BadRequestException('Quantidade de litros deve ser um número positivo maior que zero');
+    }
+    
+    return this.abastecimentoService.verificarTipoAbastecimentoVeiculo(veiculoId, qntLitros);
   }
 
   @Get(':id')

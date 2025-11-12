@@ -4,7 +4,7 @@ import { CreateAbastecimentoDto } from './dto/create-abastecimento.dto';
 import { UpdateAbastecimentoDto } from './dto/update-abastecimento.dto';
 import { FindAbastecimentoDto } from './dto/find-abastecimento.dto';
 import { CreateAbastecimentoFromSolicitacaoDto } from './dto/create-abastecimento-from-solicitacao.dto';
-import { Prisma, StatusAbastecimento, StatusSolicitacao, TipoAbastecimento } from '@prisma/client';
+import { Prisma, StatusAbastecimento, StatusSolicitacao, TipoAbastecimento, Periodicidade, TipoAbastecimentoVeiculo } from '@prisma/client';
 import {
   AbastecimentoNotFoundException,
   AbastecimentoVeiculoNotFoundException,
@@ -1280,5 +1280,177 @@ export class AbastecimentoService {
       message: 'Abastecimento rejeitado com sucesso',
       abastecimento: updatedAbastecimento,
     };
+  }
+
+  /**
+   * Verifica se a quantidade de litros informada excede a cota do veículo
+   * Retorna informações sobre o consumo no período (diário, semanal ou mensal)
+   */
+  async verificarTipoAbastecimentoVeiculo(veiculoId: number, qntLitros: number) {
+    // Buscar veículo com suas configurações
+    const veiculo = await this.prisma.veiculo.findUnique({
+      where: { id: veiculoId },
+      select: {
+        id: true,
+        nome: true,
+        placa: true,
+        tipo_abastecimento: true,
+        periodicidade: true,
+        quantidade: true,
+      },
+    });
+
+    if (!veiculo) {
+      throw new AbastecimentoVeiculoNotFoundException(veiculoId, {
+        resourceId: veiculoId,
+        additionalInfo: {
+          veiculoId,
+          qntLitros,
+        },
+      });
+    }
+
+    // Verificar se o veículo tem tipo de abastecimento com cota
+    if (veiculo.tipo_abastecimento !== TipoAbastecimentoVeiculo.COTA) {
+      return {
+        message: 'Veículo não possui controle de cota',
+        veiculo: {
+          id: veiculo.id,
+          nome: veiculo.nome,
+          placa: veiculo.placa,
+          tipo_abastecimento: veiculo.tipo_abastecimento,
+        },
+        possuiCota: false,
+        quantidadeSolicitada: qntLitros,
+      };
+    }
+
+    // Verificar se tem periodicidade e quantidade configuradas
+    if (!veiculo.periodicidade || !veiculo.quantidade) {
+      return {
+        message: 'Veículo possui controle de cota, mas não possui periodicidade ou quantidade configurada',
+        veiculo: {
+          id: veiculo.id,
+          nome: veiculo.nome,
+          placa: veiculo.placa,
+          tipo_abastecimento: veiculo.tipo_abastecimento,
+          periodicidade: veiculo.periodicidade,
+          quantidade: veiculo.quantidade ? Number(veiculo.quantidade.toString()) : null,
+        },
+        possuiCota: true,
+        configuracaoIncompleta: true,
+        quantidadeSolicitada: qntLitros,
+      };
+    }
+
+    // Calcular intervalo de período baseado na periodicidade
+    const dataAtual = new Date();
+    const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, veiculo.periodicidade);
+
+    // Buscar abastecimentos do veículo no período
+    const abastecimentosPeriodo = await this.prisma.abastecimento.aggregate({
+      _sum: {
+        quantidade: true,
+      },
+      where: {
+        veiculoId: veiculoId,
+        data_abastecimento: {
+          gte: inicio,
+          lte: fim,
+        },
+        ativo: true,
+        // Considerar apenas abastecimentos aprovados ou efetivados
+        status: {
+          in: [StatusAbastecimento.Aprovado, StatusAbastecimento.Efetivado],
+        },
+      },
+    });
+
+    const quantidadeUtilizada = abastecimentosPeriodo._sum.quantidade
+      ? Number(abastecimentosPeriodo._sum.quantidade.toString())
+      : 0;
+
+    const quantidadeLimite = Number(veiculo.quantidade.toString());
+    const novaQuantidadeTotal = quantidadeUtilizada + qntLitros;
+    // Verificar se excedeu (maior ou igual ao limite)
+    const excedeu = novaQuantidadeTotal >= quantidadeLimite;
+    const quantidadeDisponivel = Math.max(0, quantidadeLimite - quantidadeUtilizada);
+    const excedeuPor = excedeu ? novaQuantidadeTotal - quantidadeLimite : 0;
+
+    // Formatar nome da periodicidade
+    const periodicidadeNome = {
+      [Periodicidade.Diario]: 'Diária',
+      [Periodicidade.Semanal]: 'Semanal',
+      [Periodicidade.Mensal]: 'Mensal',
+    }[veiculo.periodicidade] || veiculo.periodicidade;
+
+    // Formatar mensagem
+    let mensagem = '';
+    if (excedeu) {
+      mensagem = `A quantidade solicitada (${qntLitros} litros) excede a cota ${periodicidadeNome.toLowerCase()} do veículo. Cota disponível: ${quantidadeDisponivel.toFixed(2)} litros. Limite: ${quantidadeLimite.toFixed(2)} litros. Quantidade já utilizada no período: ${quantidadeUtilizada.toFixed(2)} litros. Excesso: ${excedeuPor.toFixed(2)} litros.`;
+    } else {
+      mensagem = `A quantidade solicitada (${qntLitros} litros) está dentro da cota ${periodicidadeNome.toLowerCase()} do veículo. Cota disponível: ${quantidadeDisponivel.toFixed(2)} litros. Limite: ${quantidadeLimite.toFixed(2)} litros. Quantidade já utilizada no período: ${quantidadeUtilizada.toFixed(2)} litros. Após este abastecimento, restará: ${(quantidadeDisponivel - qntLitros).toFixed(2)} litros.`;
+    }
+
+    return {
+      message: mensagem,
+      excedeu,
+      veiculo: {
+        id: veiculo.id,
+        nome: veiculo.nome,
+        placa: veiculo.placa,
+        tipo_abastecimento: veiculo.tipo_abastecimento,
+        periodicidade: veiculo.periodicidade,
+        periodicidadeNome,
+      },
+      cota: {
+        quantidadeLimite: quantidadeLimite,
+        quantidadeUtilizada: quantidadeUtilizada,
+        quantidadeDisponivel: quantidadeDisponivel,
+        quantidadeSolicitada: qntLitros,
+        novaQuantidadeTotal: novaQuantidadeTotal,
+        excedeuPor: excedeuPor,
+      },
+      periodo: {
+        inicio: inicio.toISOString(),
+        fim: fim.toISOString(),
+        tipo: periodicidadeNome,
+      },
+    };
+  }
+
+  /**
+   * Calcula o intervalo de período baseado na periodicidade
+   */
+  private obterIntervaloPeriodo(data: Date, periodicidade: Periodicidade) {
+    const inicio = new Date(data);
+    inicio.setHours(0, 0, 0, 0);
+
+    const fim = new Date(data);
+    fim.setHours(23, 59, 59, 999);
+
+    if (periodicidade === Periodicidade.Diario) {
+      return { inicio, fim };
+    }
+
+    if (periodicidade === Periodicidade.Semanal) {
+      const diaSemana = inicio.getDay();
+      const diffParaSegunda = (diaSemana + 6) % 7;
+      inicio.setDate(inicio.getDate() - diffParaSegunda);
+
+      fim.setTime(inicio.getTime());
+      fim.setDate(inicio.getDate() + 6);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+
+    if (periodicidade === Periodicidade.Mensal) {
+      inicio.setDate(1);
+      fim.setMonth(inicio.getMonth() + 1, 0);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+
+    return { inicio, fim };
   }
 }
