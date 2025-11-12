@@ -5,7 +5,6 @@ import { UpdateVeiculoDto } from './dto/update-veiculo.dto';
 import { FindVeiculoDto } from './dto/find-veiculo.dto';
 import { CreateSolicitacaoQrCodeDto } from './dto/create-solicitacao-qrcode.dto';
 import { UploadService } from '../upload/upload.service';
-import { StatusSolicitacaoQrCodeVeiculo } from '@prisma/client';
 
 @Injectable()
 export class VeiculoService {
@@ -468,9 +467,115 @@ export class VeiculoService {
       this.prisma.veiculo.count({ where }),
     ]);
 
+    // Buscar IDs dos veículos
+    const veiculoIds = veiculos.map((v) => v.id);
+
+    // Buscar solicitações de QR Code para os veículos
+    let solicitacoesQrCode: any[] = [];
+    if (veiculoIds.length > 0) {
+      try {
+        // Usar Prisma Client (funciona após aplicar migration e regenerar Prisma Client)
+        solicitacoesQrCode = await (this.prisma as any).solicitacoesQrCodeVeiculo.findMany({
+          where: {
+            idVeiculo: { in: veiculoIds },
+          },
+          select: {
+            id: true,
+            idVeiculo: true,
+            status: true,
+            data_cadastro: true,
+          },
+          orderBy: {
+            data_cadastro: 'desc',
+          },
+        });
+      } catch (error) {
+        // Se o modelo não existir, retornar array vazio (tabela ainda não foi criada)
+        console.warn('Tabela solicitacoes_qrcode_veiculo não encontrada. Aplique a migration primeiro.');
+        solicitacoesQrCode = [];
+      }
+    }
+
+    // Agrupar solicitações por veículo
+    const solicitacoesPorVeiculo = new Map<number, any[]>();
+    solicitacoesQrCode.forEach((solicitacao) => {
+      if (!solicitacoesPorVeiculo.has(solicitacao.idVeiculo)) {
+        solicitacoesPorVeiculo.set(solicitacao.idVeiculo, []);
+      }
+      solicitacoesPorVeiculo.get(solicitacao.idVeiculo)!.push(solicitacao);
+    });
+
+    // Processar veículos para adicionar informações sobre solicitações de QR Code
+    const veiculosComSolicitacao = veiculos.map((veiculo) => {
+      const solicitacoesDoVeiculo = solicitacoesPorVeiculo.get(veiculo.id) || [];
+      
+      // Verificar se existe solicitação com status "Solicitado" (independente de outras)
+      const possuiSolicitacaoSolicitada = solicitacoesDoVeiculo.some(
+        (s) => s.status === 'Solicitado'
+      );
+      
+      // Verificar se existe solicitação com status "Aprovado" (independente de outras)
+      const possuiSolicitacaoAprovada = solicitacoesDoVeiculo.some(
+        (s) => s.status === 'Aprovado'
+      );
+      
+      // Buscar solicitação com status "Solicitado" primeiro (prioridade)
+      const solicitacaoSolicitada = solicitacoesDoVeiculo.find(
+        (s) => s.status === 'Solicitado'
+      );
+      
+      // Se não houver solicitação com status "Solicitado", buscar com status "Aprovado"
+      const solicitacaoAprovada = !solicitacaoSolicitada
+        ? solicitacoesDoVeiculo.find((s) => s.status === 'Aprovado')
+        : null;
+      
+      // Usar a solicitação encontrada (prioridade: Solicitado > Aprovado > Mais recente)
+      const solicitacaoAtiva = solicitacaoSolicitada || solicitacaoAprovada || solicitacoesDoVeiculo[0] || null;
+      
+      let temSolicitacaoQRCode = false;
+      let statusSolicitacaoQRCode: string | null = null;
+      let mensagemSolicitacaoQRCode: string = '';
+      let idSolicitacaoQRCode: number | null = null;
+
+      if (solicitacaoAtiva) {
+        temSolicitacaoQRCode = true;
+        statusSolicitacaoQRCode = solicitacaoAtiva.status;
+        idSolicitacaoQRCode = solicitacaoAtiva.id;
+
+        // Verificar status da solicitação e definir mensagem
+        if (solicitacaoAtiva.status === 'Solicitado') {
+          mensagemSolicitacaoQRCode = 'Este veículo possui uma solicitação de QR Code com status Solicitado';
+        } else if (solicitacaoAtiva.status === 'Aprovado') {
+          mensagemSolicitacaoQRCode = 'Este veículo possui uma solicitação de QR Code com status Aprovado';
+        } else if (solicitacaoAtiva.status === 'Em_Producao') {
+          mensagemSolicitacaoQRCode = 'Este veículo possui uma solicitação de QR Code em produção';
+        } else if (solicitacaoAtiva.status === 'Integracao') {
+          mensagemSolicitacaoQRCode = 'Este veículo possui uma solicitação de QR Code em integração';
+        } else if (solicitacaoAtiva.status === 'Concluida') {
+          mensagemSolicitacaoQRCode = 'Este veículo possui uma solicitação de QR Code concluída';
+        } else {
+          mensagemSolicitacaoQRCode = `Este veículo possui uma solicitação de QR Code com status ${solicitacaoAtiva.status}`;
+        }
+      } else {
+        mensagemSolicitacaoQRCode = 'Não há solicitação de QR Code para este veículo';
+      }
+
+      return {
+        ...veiculo,
+        solicitacaoQRCode: {
+          temSolicitacao: temSolicitacaoQRCode,
+          possuiSolicitacaoSolicitada,
+          possuiSolicitacaoAprovada,
+          status: statusSolicitacaoQRCode,
+          mensagem: mensagemSolicitacaoQRCode,
+          id: idSolicitacaoQRCode,
+        },
+      };
+    });
+
     return {
       message: 'Veículos encontrados com sucesso',
-      veiculos,
+      veiculos: veiculosComSolicitacao,
       pagination: {
         page,
         limit,
@@ -859,26 +964,33 @@ export class VeiculoService {
     }
 
     // Verificar se já existe uma solicitação pendente para algum dos veículos
-    const solicitacoesExistentes = await this.prisma.solicitacoesQrCodeVeiculo.findMany({
-      where: {
-        idVeiculo: { in: veiculoIds },
-        prefeitura_id: prefeituraId,
-        status: {
-          in: [StatusSolicitacaoQrCodeVeiculo.Solicitado, StatusSolicitacaoQrCodeVeiculo.Aprovado, StatusSolicitacaoQrCodeVeiculo.Em_Producao, StatusSolicitacaoQrCodeVeiculo.Integracao],
-        },
-      },
-      select: {
-        id: true,
-        idVeiculo: true,
-        status: true,
-        veiculo: {
-          select: {
-            nome: true,
-            placa: true,
+    let solicitacoesExistentes: any[] = [];
+    try {
+      solicitacoesExistentes = await (this.prisma as any).solicitacoesQrCodeVeiculo.findMany({
+        where: {
+          idVeiculo: { in: veiculoIds },
+          prefeitura_id: prefeituraId,
+          status: {
+            in: ['Solicitado', 'Aprovado', 'Em_Producao', 'Integracao'],
           },
         },
-      },
-    });
+        select: {
+          id: true,
+          idVeiculo: true,
+          status: true,
+          veiculo: {
+            select: {
+              nome: true,
+              placa: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      // Se o modelo não existir, continuar sem verificação (tabela ainda não foi criada)
+      console.warn('Tabela solicitacoes_qrcode_veiculo não encontrada. Aplique a migration primeiro.');
+      solicitacoesExistentes = [];
+    }
 
     if (solicitacoesExistentes.length > 0) {
       const veiculosComSolicitacao = solicitacoesExistentes.map(
@@ -892,11 +1004,11 @@ export class VeiculoService {
     // Criar as solicitações para cada veículo
     const solicitacoes = await Promise.all(
       veiculoIds.map((idVeiculo) =>
-        this.prisma.solicitacoesQrCodeVeiculo.create({
+        (this.prisma as any).solicitacoesQrCodeVeiculo.create({
           data: {
             idVeiculo,
             prefeitura_id: prefeituraId,
-            status: StatusSolicitacaoQrCodeVeiculo.Solicitado,
+            status: 'Solicitado',
             foto: createSolicitacaoQrCodeDto.foto,
           },
           include: {
