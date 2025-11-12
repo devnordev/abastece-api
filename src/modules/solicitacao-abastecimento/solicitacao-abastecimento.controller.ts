@@ -41,10 +41,10 @@ export class SolicitacaoAbastecimentoController {
   @UseGuards(JwtAuthGuard, AdminPrefeituraEmpresaColaboradorGuard)
   @ApiOperation({ 
     summary: 'Listar solicitações de abastecimento',
-    description: 'Para ADMIN_PREFEITURA: lista solicitações da prefeitura do usuário. Para ADMIN_EMPRESA ou COLABORADOR_EMPRESA: lista solicitações da empresa do usuário (pode filtrar por empresaId na query).'
+    description: 'Para ADMIN_PREFEITURA: lista solicitações da prefeitura do usuário. Para ADMIN_EMPRESA ou COLABORADOR_EMPRESA: lista solicitações da empresa do usuário. O parâmetro empresaId na query é opcional e, quando fornecido, deve corresponder à empresa do usuário. Exemplo: GET /solicitacoes-abastecimento?empresaId={empresaId}&limit=1000'
   })
   @ApiResponse({ status: 200, description: 'Lista retornada com sucesso' })
-  @ApiResponse({ status: 401, description: 'Usuário não está vinculado a uma prefeitura/empresa ativa' })
+  @ApiResponse({ status: 401, description: 'Usuário não está vinculado a uma prefeitura/empresa ativa ou empresaId fornecido não corresponde à empresa do usuário' })
   @ApiResponse({ status: 403, description: 'Apenas ADMIN_PREFEITURA, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar' })
   async findAllByPrefeitura(
     @Query() query: FindSolicitacaoAbastecimentoDto,
