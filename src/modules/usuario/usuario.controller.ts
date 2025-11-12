@@ -49,6 +49,12 @@ export class UsuarioController {
         tipo_usuario: { type: 'string', enum: Object.values(TipoUsuario) },
         prefeituraId: { type: 'number' },
         empresaId: { type: 'number' },
+        orgaoIds: { 
+          type: 'array', 
+          items: { type: 'number' },
+          description: 'IDs dos órgãos (apenas para COLABORADOR_PREFEITURA). Permite múltiplos órgãos.',
+          example: [1, 2, 3]
+        },
         phone: { type: 'string' },
         statusAcess: { type: 'string', enum: Object.values(StatusAcesso) },
         ativo: { type: 'boolean' },
@@ -74,11 +80,50 @@ export class UsuarioController {
     @Request() req,
     @UploadedFile() file?: Express.Multer.File,
   ) {
+    // Processar orgaoIds - pode vir como string JSON, array ou string separada por vírgula
+    let orgaoIds: number[] | undefined = undefined;
+    if (createUsuarioDto.orgaoIds !== undefined && createUsuarioDto.orgaoIds !== null) {
+      if (Array.isArray(createUsuarioDto.orgaoIds)) {
+        // Array vazio [] = sem órgãos
+        // Array com valores = vincular órgãos
+        orgaoIds = createUsuarioDto.orgaoIds.length > 0
+          ? createUsuarioDto.orgaoIds.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id))
+          : undefined;
+      } else if (typeof createUsuarioDto.orgaoIds === 'string') {
+        if (createUsuarioDto.orgaoIds === '') {
+          // String vazia = sem órgãos
+          orgaoIds = undefined;
+        } else {
+          try {
+            // Tentar parsear como JSON primeiro
+            const parsed = JSON.parse(createUsuarioDto.orgaoIds);
+            if (Array.isArray(parsed)) {
+              orgaoIds = parsed.length > 0
+                ? parsed.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id))
+                : undefined;
+            } else {
+              // Se não for array, pode ser número único
+              const num = parseInt(parsed);
+              orgaoIds = !isNaN(num) ? [num] : undefined;
+            }
+          } catch {
+            // Se não for JSON, pode ser string separada por vírgula
+            const ids = createUsuarioDto.orgaoIds
+              .split(',')
+              .map((id: string) => parseInt(id.trim()))
+              .filter((id: number) => !isNaN(id));
+            orgaoIds = ids.length > 0 ? ids : undefined;
+          }
+        }
+      }
+    }
+
     // Converter strings para tipos corretos quando vêm de multipart/form-data
     const processedDto: CreateUsuarioDto = {
       ...createUsuarioDto,
       prefeituraId: createUsuarioDto.prefeituraId ? parseInt(createUsuarioDto.prefeituraId) : undefined,
       empresaId: createUsuarioDto.empresaId ? parseInt(createUsuarioDto.empresaId) : undefined,
+      orgaoIds: orgaoIds,
       ativo:
         createUsuarioDto.ativo === 'true' || createUsuarioDto.ativo === true || createUsuarioDto.ativo === undefined
           ? true
@@ -134,6 +179,12 @@ export class UsuarioController {
         tipo_usuario: { type: 'string', enum: Object.values(TipoUsuario) },
         prefeituraId: { type: 'number' },
         empresaId: { type: 'number' },
+        orgaoIds: { 
+          type: 'array', 
+          items: { type: 'number' },
+          description: 'IDs dos órgãos (apenas para COLABORADOR_PREFEITURA). Permite múltiplos órgãos. Enviar array vazio para remover todos.',
+          example: [1, 2, 3]
+        },
         phone: { type: 'string' },
         statusAcess: { type: 'string', enum: Object.values(StatusAcesso) },
         ativo: { type: 'boolean' },
@@ -158,11 +209,45 @@ export class UsuarioController {
     @Body() updateUsuarioDto: any,
     @UploadedFile() file?: Express.Multer.File,
   ) {
+    // Processar orgaoIds - pode vir como string JSON, array ou string separada por vírgula
+    let orgaoIds: number[] | undefined = undefined;
+    if (updateUsuarioDto.orgaoIds !== undefined && updateUsuarioDto.orgaoIds !== null) {
+      if (Array.isArray(updateUsuarioDto.orgaoIds)) {
+        // Array vazio [] = remover todos os órgãos
+        // Array com valores = atualizar órgãos
+        orgaoIds = updateUsuarioDto.orgaoIds.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id));
+      } else if (typeof updateUsuarioDto.orgaoIds === 'string') {
+        if (updateUsuarioDto.orgaoIds === '') {
+          // String vazia = remover todos os órgãos
+          orgaoIds = [];
+        } else {
+          try {
+            // Tentar parsear como JSON primeiro
+            const parsed = JSON.parse(updateUsuarioDto.orgaoIds);
+            if (Array.isArray(parsed)) {
+              orgaoIds = parsed.map((id: any) => parseInt(id)).filter((id: number) => !isNaN(id));
+            } else {
+              // Se não for array, pode ser número único
+              const num = parseInt(parsed);
+              orgaoIds = !isNaN(num) ? [num] : [];
+            }
+          } catch {
+            // Se não for JSON, pode ser string separada por vírgula
+            orgaoIds = updateUsuarioDto.orgaoIds
+              .split(',')
+              .map((id: string) => parseInt(id.trim()))
+              .filter((id: number) => !isNaN(id));
+          }
+        }
+      }
+    }
+
     // Converter strings para tipos corretos quando vêm de multipart/form-data
     const processedDto: UpdateUsuarioDto = {
       ...updateUsuarioDto,
       prefeituraId: updateUsuarioDto.prefeituraId ? parseInt(updateUsuarioDto.prefeituraId) : undefined,
       empresaId: updateUsuarioDto.empresaId ? parseInt(updateUsuarioDto.empresaId) : undefined,
+      orgaoIds: orgaoIds !== undefined ? orgaoIds : undefined,
       ativo:
         updateUsuarioDto.ativo !== undefined
           ? updateUsuarioDto.ativo === 'true' || updateUsuarioDto.ativo === true

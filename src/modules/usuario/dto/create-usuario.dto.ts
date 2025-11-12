@@ -1,6 +1,7 @@
-import { IsEmail, IsString, MinLength, IsOptional, IsEnum, IsBoolean, IsInt } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, IsEnum, IsBoolean, IsInt, IsArray } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { TipoUsuario, StatusAcesso } from '@prisma/client';
+import { Type } from 'class-transformer';
 
 export class CreateUsuarioDto {
   @ApiProperty({
@@ -48,6 +49,7 @@ export class CreateUsuarioDto {
   })
   @IsOptional()
   @IsInt({ message: 'ID da prefeitura deve ser um número inteiro' })
+  @Type(() => Number)
   prefeituraId?: number;
 
   @ApiProperty({
@@ -57,7 +59,20 @@ export class CreateUsuarioDto {
   })
   @IsOptional()
   @IsInt({ message: 'ID da empresa deve ser um número inteiro' })
+  @Type(() => Number)
   empresaId?: number;
+
+  @ApiProperty({
+    description: 'IDs dos órgãos (opcional, permitido apenas para COLABORADOR_PREFEITURA). Permite múltiplos órgãos.',
+    example: [1, 2, 3],
+    required: false,
+    type: [Number],
+  })
+  @IsOptional()
+  @IsArray({ message: 'orgaoIds deve ser um array' })
+  @IsInt({ each: true, message: 'Cada ID de órgão deve ser um número inteiro' })
+  @Type(() => Number)
+  orgaoIds?: number[];
 
   @ApiProperty({
     description: 'Telefone do usuário (opcional)',

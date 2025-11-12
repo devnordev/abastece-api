@@ -19,7 +19,7 @@ export class UsuarioService {
     if (currentUserId) {
       await this.validateCreatePermission(currentUserId, createUsuarioDto);
     }
-    const { email, senha, cpf, imagem_perfil, ...restDto } = createUsuarioDto;
+    const { email, senha, cpf, imagem_perfil, orgaoIds, ...restDto } = createUsuarioDto;
 
     // Verificar se usuário já existe
     const existingEmail = await this.prisma.usuario.findFirst({
@@ -36,6 +36,22 @@ export class UsuarioService {
 
     if (existingCpf) {
       throw new ConflictException('Este CPF já está cadastrado no sistema. Por favor, verifique os dados e tente novamente.');
+    }
+
+    // Validar e processar órgãos se fornecido
+    if (orgaoIds && orgaoIds.length > 0) {
+      // Apenas COLABORADOR_PREFEITURA pode ter múltiplos órgãos
+      if (createUsuarioDto.tipo_usuario !== TipoUsuario.COLABORADOR_PREFEITURA) {
+        throw new BadRequestException('Apenas usuários do tipo COLABORADOR_PREFEITURA podem ser vinculados a órgãos');
+      }
+
+      // Validar que prefeituraId foi informado
+      if (!createUsuarioDto.prefeituraId) {
+        throw new BadRequestException('Para vincular órgãos, o usuário deve ter uma prefeitura associada');
+      }
+
+      // Validar que todos os órgãos existem e pertencem à mesma prefeitura
+      await this.validateOrgaos(orgaoIds, createUsuarioDto.prefeituraId);
     }
 
     // Hash da senha
@@ -83,6 +99,15 @@ export class UsuarioService {
         data_cadastro: new Date(),
         statusAcess: defaultStatusAcess,
         ativo: createUsuarioDto.ativo !== undefined ? createUsuarioDto.ativo : true,
+        // Vincular órgãos se fornecido
+        orgaos: orgaoIds && orgaoIds.length > 0
+          ? {
+              create: orgaoIds.map((orgaoId) => ({
+                orgaoId,
+                ativo: true,
+              })),
+            }
+          : undefined,
       } as any,
       include: {
         prefeitura: {
@@ -97,6 +122,18 @@ export class UsuarioService {
             id: true,
             nome: true,
             cnpj: true,
+          },
+        },
+        orgaos: {
+          include: {
+            orgao: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+                ativo: true,
+              },
+            },
           },
         },
       },
@@ -208,6 +245,21 @@ export class UsuarioService {
               cnpj: true,
             },
           },
+          orgaos: {
+            where: {
+              ativo: true,
+            },
+            include: {
+              orgao: {
+                select: {
+                  id: true,
+                  nome: true,
+                  sigla: true,
+                  ativo: true,
+                },
+              },
+            },
+          },
         },
         orderBy: {
           data_cadastro: 'desc',
@@ -249,6 +301,21 @@ export class UsuarioService {
             cnpj: true,
           },
         },
+        orgaos: {
+          where: {
+            ativo: true,
+          },
+          include: {
+            orgao: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+                ativo: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -269,6 +336,13 @@ export class UsuarioService {
     // Verificar se usuário existe
     const existingUsuario = await this.prisma.usuario.findUnique({
       where: { id },
+      include: {
+        prefeitura: {
+          select: {
+            id: true,
+          },
+        },
+      },
     });
 
     if (!existingUsuario) {
@@ -300,6 +374,36 @@ export class UsuarioService {
       }
     }
 
+    // Extrair orgaoIds do DTO
+    const { orgaoIds, ...restUpdateDto } = updateUsuarioDto;
+
+    // Validar e processar órgãos se fornecido
+    // IMPORTANTE: orgaoIds pode ser undefined (não alterar), [] (remover todos) ou [1,2,3] (atualizar)
+    if (orgaoIds !== undefined) {
+      if (orgaoIds.length === 0) {
+        // Array vazio - apenas validar se é COLABORADOR_PREFEITURA
+        // A validação e remoção serão feitas após atualizar o usuário
+        if (existingUsuario.tipo_usuario !== TipoUsuario.COLABORADOR_PREFEITURA) {
+          throw new BadRequestException('Apenas usuários do tipo COLABORADOR_PREFEITURA podem ter órgãos vinculados');
+        }
+      } else {
+        // Array com IDs - validar
+        // Apenas COLABORADOR_PREFEITURA pode ter múltiplos órgãos
+        if (existingUsuario.tipo_usuario !== TipoUsuario.COLABORADOR_PREFEITURA) {
+          throw new BadRequestException('Apenas usuários do tipo COLABORADOR_PREFEITURA podem ser vinculados a órgãos');
+        }
+
+        // Validar que prefeituraId existe (pode estar sendo atualizado ou já existir)
+        const prefeituraIdParaValidar = updateUsuarioDto.prefeituraId || existingUsuario.prefeituraId;
+        if (!prefeituraIdParaValidar) {
+          throw new BadRequestException('Para vincular órgãos, o usuário deve ter uma prefeitura associada');
+        }
+
+        // Validar que todos os órgãos existem e pertencem à mesma prefeitura
+        await this.validateOrgaos(orgaoIds, prefeituraIdParaValidar);
+      }
+    }
+
     // Se arquivo foi enviado, fazer upload
     let imagemUrl = updateUsuarioDto.imagem_perfil;
     if (file) {
@@ -328,12 +432,12 @@ export class UsuarioService {
     }
 
     // Se estiver atualizando a senha, fazer hash
-    if (updateUsuarioDto.senha) {
-      updateUsuarioDto.senha = await bcrypt.hash(updateUsuarioDto.senha, 12);
+    if (restUpdateDto.senha) {
+      restUpdateDto.senha = await bcrypt.hash(restUpdateDto.senha, 12);
     }
 
     // Preparar dados para atualização
-    const { imagem_perfil, ...restUpdateData } = updateUsuarioDto;
+    const { imagem_perfil, ...restUpdateData } = restUpdateDto;
     const updateData: any = {
       ...restUpdateData,
     };
@@ -343,10 +447,80 @@ export class UsuarioService {
       updateData.imagem_perfil = imagemUrl;
     }
 
+    // Atualizar relacionamentos de órgãos se fornecido
+    // IMPORTANTE: orgaoIds pode ser undefined (não alterar), [] (remover todos) ou [1,2,3] (atualizar)
+    if (orgaoIds !== undefined) {
+      if (orgaoIds.length === 0) {
+        // Array vazio - remover todos os relacionamentos de órgãos
+        if (existingUsuario.tipo_usuario === TipoUsuario.COLABORADOR_PREFEITURA) {
+          await this.prisma.usuarioOrgao.deleteMany({
+            where: { usuarioId: id },
+          });
+        }
+      } else {
+        // Array com IDs - atualizar relacionamentos
+        // Remover relacionamentos antigos que não estão na nova lista
+        await this.prisma.usuarioOrgao.deleteMany({
+          where: {
+            usuarioId: id,
+            orgaoId: {
+              notIn: orgaoIds,
+            },
+          },
+        });
+
+        // Buscar relacionamentos existentes
+        const existingOrgaos = await this.prisma.usuarioOrgao.findMany({
+          where: {
+            usuarioId: id,
+            orgaoId: {
+              in: orgaoIds,
+            },
+          },
+          select: {
+            orgaoId: true,
+          },
+        });
+
+        const existingOrgaoIds = existingOrgaos.map((uo) => uo.orgaoId);
+        const newOrgaoIds = orgaoIds.filter((orgaoId) => !existingOrgaoIds.includes(orgaoId));
+
+        // Adicionar novos relacionamentos que não existem
+        if (newOrgaoIds.length > 0) {
+          await this.prisma.usuarioOrgao.createMany({
+            data: newOrgaoIds.map((orgaoId) => ({
+              usuarioId: id,
+              orgaoId,
+              ativo: true,
+            })),
+          });
+        }
+
+        // Reativar relacionamentos que estavam inativos
+        await this.prisma.usuarioOrgao.updateMany({
+          where: {
+            usuarioId: id,
+            orgaoId: {
+              in: orgaoIds,
+            },
+            ativo: false,
+          },
+          data: {
+            ativo: true,
+          },
+        });
+      }
+    }
+
     // Atualizar usuário
-    const usuario = await this.prisma.usuario.update({
+    await this.prisma.usuario.update({
       where: { id },
       data: updateData,
+    });
+
+    // Buscar usuário atualizado com órgãos atualizados
+    const usuarioAtualizado = await this.prisma.usuario.findUnique({
+      where: { id },
       include: {
         prefeitura: {
           select: {
@@ -362,11 +536,30 @@ export class UsuarioService {
             cnpj: true,
           },
         },
+        orgaos: {
+          where: {
+            ativo: true,
+          },
+          include: {
+            orgao: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+                ativo: true,
+              },
+            },
+          },
+        },
       },
     });
 
+    if (!usuarioAtualizado) {
+      throw new NotFoundException('Usuário não encontrado após atualização');
+    }
+
     // Remover senha do retorno
-    const { senha, ...usuarioSemSenha } = usuario;
+    const { senha: _, ...usuarioSemSenha } = usuarioAtualizado;
 
     return {
       message: 'Usuário atualizado com sucesso',
@@ -418,6 +611,53 @@ export class UsuarioService {
     return this.prisma.usuario.findUnique({
       where: { cpf },
     });
+  }
+
+  /**
+   * Valida que os órgãos existem e pertencem à mesma prefeitura
+   */
+  private async validateOrgaos(orgaoIds: number[], prefeituraId: number): Promise<void> {
+    if (!orgaoIds || orgaoIds.length === 0) {
+      return;
+    }
+
+    // Buscar todos os órgãos informados
+    const orgaos = await this.prisma.orgao.findMany({
+      where: {
+        id: {
+          in: orgaoIds,
+        },
+      },
+      select: {
+        id: true,
+        nome: true,
+        prefeituraId: true,
+        ativo: true,
+      },
+    });
+
+    // Verificar se todos os órgãos foram encontrados
+    if (orgaos.length !== orgaoIds.length) {
+      const encontradosIds = orgaos.map((o) => o.id);
+      const naoEncontrados = orgaoIds.filter((id) => !encontradosIds.includes(id));
+      throw new NotFoundException(`Órgãos não encontrados: ${naoEncontrados.join(', ')}`);
+    }
+
+    // Verificar se todos os órgãos pertencem à mesma prefeitura
+    const orgaosDeOutraPrefeitura = orgaos.filter((o) => o.prefeituraId !== prefeituraId);
+    if (orgaosDeOutraPrefeitura.length > 0) {
+      const nomesOrgaos = orgaosDeOutraPrefeitura.map((o) => o.nome).join(', ');
+      throw new BadRequestException(
+        `Os seguintes órgãos não pertencem à prefeitura informada: ${nomesOrgaos}. Todos os órgãos devem pertencer à mesma prefeitura do usuário.`
+      );
+    }
+
+    // Verificar se todos os órgãos estão ativos
+    const orgaosInativos = orgaos.filter((o) => !o.ativo);
+    if (orgaosInativos.length > 0) {
+      const nomesOrgaos = orgaosInativos.map((o) => o.nome).join(', ');
+      throw new BadRequestException(`Os seguintes órgãos estão inativos: ${nomesOrgaos}`);
+    }
   }
 
   private async validateCreatePermission(currentUserId: number, createUsuarioDto: CreateUsuarioDto) {
