@@ -24,6 +24,7 @@ import { AnpPrecosUfModule } from './modules/anp-precos-uf/anp-precos-uf.module'
 import { BackupModule } from './modules/backup/backup.module';
 import { EmpresaPrecoCombustivelModule } from './modules/empresa-preco-combustivel/empresa-preco-combustivel.module';
 import { SolicitacaoAbastecimentoModule } from './modules/solicitacao-abastecimento/solicitacao-abastecimento.module';
+import { ProcessoCombustivelModule } from './modules/processo-combustivel/processo-combustivel.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { SolicitacaoAbastecimentoModule } from './modules/solicitacao-abastecime
     BackupModule,
     EmpresaPrecoCombustivelModule,
     SolicitacaoAbastecimentoModule,
+    ProcessoCombustivelModule,
   ],
 })
 export class AppModule {}
