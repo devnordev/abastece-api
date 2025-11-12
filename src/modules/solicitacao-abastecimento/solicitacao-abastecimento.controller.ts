@@ -21,6 +21,7 @@ import { GetPrecoCombustivelDto } from './dto/get-preco-combustivel.dto';
 import { ValidarCapacidadeTanqueDto } from './dto/validar-capacidade-tanque.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminPrefeituraEmpresaGuard } from '../auth/guards/admin-prefeitura-empresa.guard';
+import { AdminPrefeituraEmpresaColaboradorGuard } from '../auth/guards/admin-prefeitura-empresa-colaborador.guard';
 
 @ApiTags('Solicitações de Abastecimento')
 @Controller({ path: ['solicitacoes-abastecimento', 'solicitacoes'] })
@@ -37,13 +38,14 @@ export class SolicitacaoAbastecimentoController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard, AdminPrefeituraEmpresaColaboradorGuard)
   @ApiOperation({ 
     summary: 'Listar solicitações de abastecimento',
-    description: 'Para ADMIN_PREFEITURA: lista solicitações da prefeitura do usuário. Para ADMIN_EMPRESA: lista solicitações da empresa do usuário (pode filtrar por empresaId na query).'
+    description: 'Para ADMIN_PREFEITURA: lista solicitações da prefeitura do usuário. Para ADMIN_EMPRESA ou COLABORADOR_EMPRESA: lista solicitações da empresa do usuário (pode filtrar por empresaId na query).'
   })
   @ApiResponse({ status: 200, description: 'Lista retornada com sucesso' })
   @ApiResponse({ status: 401, description: 'Usuário não está vinculado a uma prefeitura/empresa ativa' })
-  @ApiResponse({ status: 403, description: 'Apenas ADMIN_PREFEITURA ou ADMIN_EMPRESA podem acessar' })
+  @ApiResponse({ status: 403, description: 'Apenas ADMIN_PREFEITURA, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar' })
   async findAllByPrefeitura(
     @Query() query: FindSolicitacaoAbastecimentoDto,
     @Req() req: Request & { user: any },

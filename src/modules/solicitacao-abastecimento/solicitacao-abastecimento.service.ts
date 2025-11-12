@@ -296,8 +296,8 @@ export class SolicitacaoAbastecimentoService {
       where.prefeituraId = prefeituraId;
     }
 
-    // Filtrar por empresa se for ADMIN_EMPRESA
-    if (user.tipo_usuario === 'ADMIN_EMPRESA') {
+    // Filtrar por empresa se for ADMIN_EMPRESA ou COLABORADOR_EMPRESA
+    if (user.tipo_usuario === 'ADMIN_EMPRESA' || user.tipo_usuario === 'COLABORADOR_EMPRESA') {
       const empresaId = user?.empresa?.id;
 
       if (!empresaId) {
@@ -325,8 +325,8 @@ export class SolicitacaoAbastecimentoService {
       where.motoristaId = query.motoristaId;
     }
 
-    // Para ADMIN_EMPRESA, empresaId já foi tratado acima
-    if (user.tipo_usuario !== 'ADMIN_EMPRESA' && query.empresaId !== undefined) {
+    // Para ADMIN_EMPRESA ou COLABORADOR_EMPRESA, empresaId já foi tratado acima
+    if (user.tipo_usuario !== 'ADMIN_EMPRESA' && user.tipo_usuario !== 'COLABORADOR_EMPRESA' && query.empresaId !== undefined) {
       where.empresaId = query.empresaId;
     }
 
@@ -371,7 +371,7 @@ export class SolicitacaoAbastecimentoService {
         nome: user.prefeitura.nome,
         cnpj: user.prefeitura.cnpj,
       };
-    } else if (user.tipo_usuario === 'ADMIN_EMPRESA' && user.empresa) {
+    } else if ((user.tipo_usuario === 'ADMIN_EMPRESA' || user.tipo_usuario === 'COLABORADOR_EMPRESA') && user.empresa) {
       response.empresa = {
         id: user.empresa.id,
         nome: user.empresa.nome,
