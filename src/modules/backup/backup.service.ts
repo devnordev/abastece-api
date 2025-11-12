@@ -571,5 +571,138 @@ export class BackupService {
 
     fs.unlinkSync(filepath);
   }
+
+  /**
+   * Gera backup geral por tabela, criando uma pasta com data_hora e um arquivo SQL para cada tabela
+   */
+  async generateBackupByTable(): Promise<{
+    folderName: string;
+    folderPath: string;
+    tables: Array<{ table: string; filename: string; records: number; size: number }>;
+    totalFiles: number;
+    totalSize: number;
+  }> {
+    const timestamp = this.getTimestamp();
+    const folderName = `backup-${timestamp}`;
+    const folderPath = path.join(this.backupDir, folderName);
+
+    try {
+      // Criar pasta se não existir
+      if (!fs.existsSync(folderPath)) {
+        fs.mkdirSync(folderPath, { recursive: true });
+      }
+
+      const tables: Array<{ table: string; filename: string; records: number; size: number }> = [];
+      let totalSize = 0;
+
+      // Gerar arquivo SQL para cada tabela
+      for (const { model, table } of this.FULL_BACKUP_MODELS) {
+        try {
+          // Buscar todos os registros da tabela
+          const records = await this.fetchAllRecords(model);
+          
+          // Gerar SQL INSERT
+          const sqlContent = this.generateInsertSQLWithHeader(table, records);
+          
+          // Nome do arquivo: nome da tabela + .sql
+          const filename = `${table}.sql`;
+          const filepath = path.join(folderPath, filename);
+          
+          // Salvar arquivo
+          fs.writeFileSync(filepath, sqlContent, 'utf8');
+          
+          // Obter tamanho do arquivo
+          const stats = fs.statSync(filepath);
+          const fileSize = stats.size;
+          totalSize += fileSize;
+          
+          // Adicionar à lista de tabelas processadas
+          tables.push({
+            table,
+            filename,
+            records: records.length,
+            size: fileSize,
+          });
+        } catch (error: any) {
+          // Se houver erro ao processar uma tabela, registrar mas continuar com as outras
+          console.error(`Erro ao processar tabela ${table}:`, error.message);
+          // Criar arquivo vazio ou com mensagem de erro
+          const filename = `${table}.sql`;
+          const filepath = path.join(folderPath, filename);
+          const errorContent = `-- Erro ao gerar backup da tabela ${table}\n-- ${error.message}\n`;
+          fs.writeFileSync(filepath, errorContent, 'utf8');
+          
+          const stats = fs.statSync(filepath);
+          tables.push({
+            table,
+            filename,
+            records: 0,
+            size: stats.size,
+          });
+        }
+      }
+
+      return {
+        folderName,
+        folderPath,
+        tables,
+        totalFiles: tables.length,
+        totalSize,
+      };
+    } catch (error: any) {
+      throw new BadRequestException(`Erro ao gerar backup por tabela: ${error.message}`);
+    }
+  }
+
+  /**
+   * Gera SQL INSERT com cabeçalho para uma tabela
+   */
+  private generateInsertSQLWithHeader(tableName: string, records: any[]): string {
+    let sql = `-- ============================================
+-- BACKUP DA TABELA: ${tableName}
+-- Data/Hora: ${new Date().toLocaleString('pt-BR')}
+-- Total de registros: ${records.length}
+-- ============================================
+
+`;
+
+    if (records.length === 0) {
+      sql += `-- Tabela ${tableName} está vazia. Nenhum registro para inserir.\n\n`;
+      return sql;
+    }
+
+    sql += `-- Inserir dados na tabela ${tableName}\n`;
+    sql += `-- Total de registros: ${records.length}\n\n`;
+
+    for (const record of records) {
+      const keys = Object.keys(record).filter((key) => record[key] !== undefined);
+      const values = keys.map((key) => {
+        const value = record[key];
+        if (value === null) return 'NULL';
+        if (value instanceof Date) return `'${value.toISOString()}'`;
+        if (typeof value === 'boolean') return value ? 'true' : 'false';
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`;
+        // Tratar Decimal do Prisma (objeto com toString que retorna número)
+        if (typeof value === 'object' && value !== null && typeof value.toString === 'function') {
+          const stringValue = value.toString();
+          // Tentar converter para número (Decimal do Prisma retorna string numérica)
+          const numValue = parseFloat(stringValue);
+          if (!isNaN(numValue) && isFinite(numValue)) {
+            return numValue;
+          }
+          // Se não for número, tratar como string
+          return `'${stringValue.replace(/'/g, "''")}'`;
+        }
+        // Para outros tipos, converter para string
+        return `'${String(value).replace(/'/g, "''")}'`;
+      });
+
+      sql += `INSERT INTO ${tableName} (${keys.map((k) => `"${k}"`).join(', ')}) VALUES (${values.join(', ')});\n`;
+    }
+
+    sql += '\n';
+    return sql;
+  }
 }
 

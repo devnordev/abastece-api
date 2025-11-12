@@ -51,6 +51,53 @@ export class BackupController {
     };
   }
 
+  @Post('backup-geral-por-tabela')
+  @ApiOperation({
+    summary: 'Gerar backup geral por tabela (apenas SUPER_ADMIN)',
+    description: 'Cria uma pasta com data_hora do backup e gera um arquivo SQL para cada tabela do banco de dados. Cada arquivo contém os INSERTs da respectiva tabela, facilitando a análise e restauração por partes.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Backup por tabela gerado com sucesso',
+    schema: {
+      example: {
+        message: 'Backup por tabela gerado com sucesso',
+        folderName: 'backup-15-01-2025-143022',
+        folderPath: '/path/to/backups/backup-15-01-2025-143022',
+        totalFiles: 35,
+        totalSize: 1024000,
+        tables: [
+          {
+            table: 'usuario',
+            filename: 'usuario.sql',
+            records: 10,
+            size: 5120,
+          },
+          {
+            table: 'abastecimento',
+            filename: 'abastecimento.sql',
+            records: 50,
+            size: 25600,
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode gerar backup por tabela' })
+  @ApiResponse({ status: 400, description: 'Erro ao gerar backup por tabela' })
+  async generateBackupByTable(@CurrentUser() user: any) {
+    const result = await this.backupService.generateBackupByTable();
+    return {
+      message: 'Backup por tabela gerado com sucesso',
+      folderName: result.folderName,
+      folderPath: result.folderPath,
+      totalFiles: result.totalFiles,
+      totalSize: result.totalSize,
+      tables: result.tables,
+      downloadUrl: `/backup/download-folder/${result.folderName}`,
+    };
+  }
+
   @Get('list')
   @ApiOperation({ summary: 'Listar todos os backups disponíveis' })
   @ApiResponse({ status: 200, description: 'Lista de backups retornada com sucesso' })
