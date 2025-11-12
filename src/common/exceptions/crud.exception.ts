@@ -21,6 +21,7 @@ export interface CrudExceptionContext {
   expected: string;
   performed: string;
   resourceId?: string | number;
+  // Using 'any' instead of 'Record<string, unknown>' to allow DTOs and other complex types
   payload?: any;
   query?: any;
   user?: {
@@ -29,6 +30,7 @@ export interface CrudExceptionContext {
     email?: string;
   };
   correlationId?: string;
+  // Using 'any' instead of 'Record<string, unknown>' to allow flexible additional information
   additionalInfo?: any;
 }
 
