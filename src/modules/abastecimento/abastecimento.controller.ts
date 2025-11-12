@@ -83,7 +83,7 @@ export class AbastecimentoController {
   @Get('veiculo/tipo/abastecimento/:veiculoId/:qntLitros')
   @ApiOperation({ 
     summary: 'Verificar tipo de abastecimento e cota do veículo',
-    description: 'Verifica se a quantidade de litros informada excede a cota do veículo. Retorna informações sobre o consumo no período (diário, semanal ou mensal) baseado na periodicidade configurada no veículo. Considera apenas abastecimentos aprovados ou efetivados no período.'
+    description: 'Verifica se a quantidade de litros informada excede a cota do veículo. Retorna informações sobre o consumo no período (diário, semanal ou mensal) baseado na periodicidade configurada no veículo. Considera apenas abastecimentos aprovados no período.'
   })
   @ApiResponse({ 
     status: 200, 

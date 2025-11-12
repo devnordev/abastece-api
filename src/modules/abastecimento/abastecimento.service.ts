@@ -1359,9 +1359,9 @@ export class AbastecimentoService {
           lte: fim,
         },
         ativo: true,
-        // Considerar apenas abastecimentos aprovados ou efetivados
+        // Considerar apenas abastecimentos aprovados
         status: {
-          in: [StatusAbastecimento.Aprovado, StatusAbastecimento.Efetivado],
+          in: [StatusAbastecimento.Aprovado],
         },
       },
     });
