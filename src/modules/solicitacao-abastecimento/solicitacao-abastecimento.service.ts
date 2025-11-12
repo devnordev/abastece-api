@@ -16,6 +16,7 @@ import {
   SolicitacaoAbastecimentoCombustivelNaoRelacionadoException,
   SolicitacaoAbastecimentoCombustivelPrecoNaoDefinidoException,
   SolicitacaoAbastecimentoQuantidadeInvalidaException,
+  SolicitacaoAbastecimentoQuantidadeExcedeCapacidadeTanqueException,
 } from '../../common/exceptions';
 
 @Injectable()
@@ -78,11 +79,30 @@ export class SolicitacaoAbastecimentoService {
         tipo_abastecimento: true,
         periodicidade: true,
         quantidade: true,
+        capacidade_tanque: true,
       },
     });
 
     if (!veiculo) {
       throw new NotFoundException(`Veículo ${createDto.veiculoId} não foi encontrado`);
+    }
+
+    // Validar se a quantidade solicitada excede a capacidade do tanque do veículo
+    if (veiculo.capacidade_tanque) {
+      const capacidadeTanque = Number(veiculo.capacidade_tanque.toString());
+      const quantidadeSolicitada = createDto.quantidade;
+
+      // Validar apenas se a capacidade do tanque for maior que zero
+      if (capacidadeTanque > 0 && quantidadeSolicitada > capacidadeTanque) {
+        throw new SolicitacaoAbastecimentoQuantidadeExcedeCapacidadeTanqueException(
+          quantidadeSolicitada,
+          capacidadeTanque,
+          createDto.veiculoId,
+          {
+            payload: createDto,
+          }
+        );
+      }
     }
 
     // Validar se o combustível está liberado para o veículo
@@ -399,6 +419,35 @@ export class SolicitacaoAbastecimentoService {
     const veiculoId = updateDto.veiculoId ?? solicitacaoExistente.veiculoId;
     const combustivelId = updateDto.combustivelId ?? solicitacaoExistente.combustivelId;
     const empresaId = updateDto.empresaId ?? solicitacaoExistente.empresaId;
+
+    // Se quantidade ou veiculoId foram alterados, validar capacidade do tanque
+    if (updateDto.quantidade !== undefined || updateDto.veiculoId !== undefined) {
+      const veiculo = await this.prisma.veiculo.findUnique({
+        where: { id: veiculoId },
+        select: {
+          id: true,
+          capacidade_tanque: true,
+        },
+      });
+
+      if (veiculo && veiculo.capacidade_tanque && updateDto.quantidade !== undefined) {
+        const capacidadeTanque = Number(veiculo.capacidade_tanque.toString());
+        const quantidadeSolicitada = updateDto.quantidade;
+
+        // Validar apenas se a capacidade do tanque for maior que zero
+        if (capacidadeTanque > 0 && quantidadeSolicitada > capacidadeTanque) {
+          throw new SolicitacaoAbastecimentoQuantidadeExcedeCapacidadeTanqueException(
+            quantidadeSolicitada,
+            capacidadeTanque,
+            veiculoId,
+            {
+              resourceId: id,
+              payload: updateDto,
+            }
+          );
+        }
+      }
+    }
 
     // Se combustivelId ou veiculoId foram alterados, validar relacionamento
     if (updateDto.combustivelId !== undefined || updateDto.veiculoId !== undefined) {

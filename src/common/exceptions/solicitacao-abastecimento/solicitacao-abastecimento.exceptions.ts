@@ -377,6 +377,32 @@ export class SolicitacaoAbastecimentoQuantidadeInvalidaException extends CrudExc
   }
 }
 
+export class SolicitacaoAbastecimentoQuantidadeExcedeCapacidadeTanqueException extends CrudException {
+  constructor(quantidade: number, capacidadeTanque: number, veiculoId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `Não é possível solicitar abastecimento. A quantidade solicitada (${quantidade} litros) excede a quantidade suportada no tanque do veículo (${capacidadeTanque} litros). A capacidade máxima do tanque deste veículo é de ${capacidadeTanque} litros. Por favor, ajuste a quantidade solicitada para um valor igual ou inferior a ${capacidadeTanque} litros.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_QUANTIDADE_EXCEDE_CAPACIDADE_TANQUE',
+      context: buildContext('create', {
+        resourceId: veiculoId,
+        expected: 'Informar quantidade de litros que não exceda a capacidade física do tanque do veículo. A quantidade solicitada deve ser igual ou menor que a capacidade do tanque.',
+        performed: `Validação de capacidade do tanque do veículo. Quantidade solicitada: ${quantidade} litros, Capacidade máxima do tanque: ${capacidadeTanque} litros.`,
+        additionalInfo: {
+          quantidade,
+          capacidadeTanque,
+          veiculoId,
+          campo: 'quantidade',
+          unidade: 'litros',
+          quantidadeMaximaPermitida: capacidadeTanque,
+          diferenca: quantidade - capacidadeTanque,
+          suggestion: `Para realizar a solicitação, a quantidade deve ser ajustada para no máximo ${capacidadeTanque} litros, que corresponde à capacidade total do tanque deste veículo.`,
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
 export class SolicitacaoAbastecimentoDataExpiracaoInvalidaException extends CrudException {
   constructor(dataSolicitacao: Date, dataExpiracao: Date, overrides: ContextMeta = {}) {
     super({
