@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AnpBase, Prisma, UF, TipoCombustivelAnp } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class AnpPrecosUfService {
@@ -23,12 +24,12 @@ export class AnpPrecosUfService {
 
     // Calcular o fator de multiplicação (1 + margem_pct/100)
     const fatorMultiplicacao = 1 + Number(margemPct) / 100;
-    const margemDecimal = new Prisma.Decimal(margemPct);
+    const margemDecimal = new Decimal(margemPct);
 
     // Usar transação com callback para garantir tipo correto
     await this.prisma.$transaction(async (tx) => {
       for (const preco of precosAnp) {
-        let precoBase: Prisma.Decimal | null = null;
+        let precoBase: Decimal | null = null;
 
         // Selecionar o preço base de acordo com anp_base
         switch (anpBase) {
@@ -45,7 +46,7 @@ export class AnpPrecosUfService {
 
         // Calcular teto_calculado apenas se o preço base existir
         if (precoBase !== null) {
-          const tetoCalculado = new Prisma.Decimal(Number(precoBase) * fatorMultiplicacao);
+          const tetoCalculado = new Decimal(Number(precoBase) * fatorMultiplicacao);
 
           await tx.anpPrecosUf.update({
             where: { id: preco.id },
@@ -299,9 +300,9 @@ export class AnpPrecosUfService {
   /**
    * Calcula o teto_calculado baseado no preço base e margem
    */
-  private calcularTeto(precoBase: number, margemPct: number): Prisma.Decimal {
+  private calcularTeto(precoBase: number, margemPct: number): Decimal {
     const fatorMultiplicacao = 1 + Number(margemPct) / 100;
-    return new Prisma.Decimal(precoBase * fatorMultiplicacao);
+    return new Decimal(precoBase * fatorMultiplicacao);
   }
 
   /**
@@ -665,12 +666,12 @@ export class AnpPrecosUfService {
           anp_semana_id: anpSemanaId,
           uf,
           combustivel,
-          preco_minimo: precoMinimo && !isNaN(precoMinimo) && precoMinimo > 0 ? new Prisma.Decimal(precoMinimo) : null,
-          preco_medio: new Prisma.Decimal(precoMedio),
-          preco_maximo: precoMaximo && !isNaN(precoMaximo) && precoMaximo > 0 ? new Prisma.Decimal(precoMaximo) : null,
+          preco_minimo: precoMinimo && !isNaN(precoMinimo) && precoMinimo > 0 ? new Decimal(precoMinimo) : null,
+          preco_medio: new Decimal(precoMedio),
+          preco_maximo: precoMaximo && !isNaN(precoMaximo) && precoMaximo > 0 ? new Decimal(precoMaximo) : null,
           teto_calculado: tetoCalculado,
           base_utilizada: anpBase,
-          margem_aplicada: new Prisma.Decimal(margemPct),
+          margem_aplicada: new Decimal(margemPct),
         });
       } catch (error) {
         erros.push(`Linha ${i + 1} (linha ${i + 1 + indiceCabecalho} do arquivo): ${error.message}`);

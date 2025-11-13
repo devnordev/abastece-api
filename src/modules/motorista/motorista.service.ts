@@ -168,6 +168,24 @@ export class MotoristaService {
               cnpj: true,
             },
           },
+          solicitacoesQrCode: {
+            select: {
+              id: true,
+              idMotorista: true,
+              data_cadastro: true,
+              status: true,
+              data_cancelamento: true,
+              motivo_cancelamento: true,
+              cancelamento_solicitado_por: true,
+              cancelamento_efetuado_por: true,
+              prefeitura_id: true,
+              foto: true,
+            },
+            orderBy: {
+              data_cadastro: 'desc',
+            },
+            take: 1, // Pegar apenas a mais recente
+          },
         },
         orderBy: {
           nome: 'asc',
@@ -210,6 +228,23 @@ export class MotoristaService {
                 tipo_veiculo: true,
               },
             },
+          },
+        },
+        solicitacoesQrCode: {
+          select: {
+            id: true,
+            idMotorista: true,
+            data_cadastro: true,
+            status: true,
+            data_cancelamento: true,
+            motivo_cancelamento: true,
+            cancelamento_solicitado_por: true,
+            cancelamento_efetuado_por: true,
+            prefeitura_id: true,
+            foto: true,
+          },
+          orderBy: {
+            data_cadastro: 'desc',
           },
         },
         _count: {

@@ -5,6 +5,7 @@ import { UpdateEmpresaPrecoCombustivelDto } from './dto/update-empresa-preco-com
 import { FindEmpresaPrecoCombustivelDto } from './dto/find-empresa-preco-combustivel.dto';
 import { UpdatePrecoAtualDto } from './dto/update-preco-atual.dto';
 import { Prisma, TipoCombustivelAnp, AnpBase, StatusPreco } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import {
   EmpresaPrecoCombustivelAcessoNegadoException,
   EmpresaPrecoCombustivelCombustivelNaoEncontradoException,
@@ -71,7 +72,7 @@ export class EmpresaPrecoCombustivelService {
     }
 
     const anpBaseValor = this.obterValorBaseAnp(dadosAnp.anpPreco);
-    const precoDecimal = new Prisma.Decimal(data.preco_atual);
+    const precoDecimal = new Decimal(data.preco_atual);
     const statusInformado = data.status;
     if (statusInformado && !(Object.values(StatusPreco) as StatusPreco[]).includes(statusInformado)) {
       throw new EmpresaPrecoCombustivelStatusInvalidoException(statusInformado);
@@ -82,7 +83,7 @@ export class EmpresaPrecoCombustivelService {
       data: {
         empresa_id: empresaId,
         combustivel_id: data.combustivel_id,
-        preco_atual: new Prisma.Decimal(data.preco_atual),
+        preco_atual: new Decimal(data.preco_atual),
         teto_vigente: dadosAnp.teto_vigente,
         anp_base: dadosAnp.anpPreco.base_utilizada,
         anp_base_valor: anpBaseValor,
@@ -340,7 +341,7 @@ export class EmpresaPrecoCombustivelService {
     };
 
     if (data.preco_atual !== undefined) {
-      updateData.preco_atual = new Prisma.Decimal(data.preco_atual);
+      updateData.preco_atual = new Decimal(data.preco_atual);
     }
 
     if (data.status !== undefined) {
@@ -415,7 +416,7 @@ export class EmpresaPrecoCombustivelService {
     combustivelId: number,
     anpSemanaId?: number,
     operation: 'create' | 'update' | 'updatePreco' = 'create',
-  ): Promise<{ teto_vigente: Prisma.Decimal; anpPreco: any }> {
+  ): Promise<{ teto_vigente: Decimal; anpPreco: any }> {
     // Buscar empresa para pegar a UF
     const empresa = await this.prisma.empresa.findUnique({
       where: { id: empresaId },
@@ -491,13 +492,13 @@ export class EmpresaPrecoCombustivelService {
   }
 
   private validarPrecoDentroDaFaixa(
-    precoAtual: number | Prisma.Decimal,
+    precoAtual: number | Decimal,
     anpPreco: {
-      teto_calculado: Prisma.Decimal;
-      preco_minimo: Prisma.Decimal;
+      teto_calculado: Decimal;
+      preco_minimo: Decimal;
     },
   ): void {
-    const precoDecimal = typeof precoAtual === 'number' ? new Prisma.Decimal(precoAtual) : precoAtual;
+    const precoDecimal = typeof precoAtual === 'number' ? new Decimal(precoAtual) : precoAtual;
     const precoNumber = Number(precoDecimal.toString());
 
     // Validar se o preço é negativo
@@ -515,10 +516,10 @@ export class EmpresaPrecoCombustivelService {
 
   private obterValorBaseAnp(anpPreco: {
     base_utilizada: AnpBase;
-    preco_minimo: Prisma.Decimal | null;
-    preco_medio: Prisma.Decimal;
-    preco_maximo: Prisma.Decimal | null;
-  }): Prisma.Decimal {
+    preco_minimo: Decimal | null;
+    preco_medio: Decimal;
+    preco_maximo: Decimal | null;
+  }): Decimal {
     switch (anpPreco.base_utilizada) {
       case AnpBase.MINIMO:
         if (!anpPreco.preco_minimo) {
@@ -700,7 +701,7 @@ export class EmpresaPrecoCombustivelService {
       const preco = await this.prisma.empresaPrecoCombustivel.update({
         where: { id: existingPreco.id },
         data: {
-          preco_atual: new Prisma.Decimal(data.preco_atual),
+          preco_atual: new Decimal(data.preco_atual),
           teto_vigente: anpPreco.teto_calculado,
           anp_base: anpPreco.base_utilizada,
           anp_base_valor: anpBaseValor,
@@ -738,7 +739,7 @@ export class EmpresaPrecoCombustivelService {
         data: {
           empresa_id: empresaId,
           combustivel_id: data.combustivel_id,
-          preco_atual: new Prisma.Decimal(data.preco_atual),
+          preco_atual: new Decimal(data.preco_atual),
           teto_vigente: anpPreco.teto_calculado,
           anp_base: anpPreco.base_utilizada,
           anp_base_valor: anpBaseValor,

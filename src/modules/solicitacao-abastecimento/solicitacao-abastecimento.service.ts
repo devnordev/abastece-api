@@ -7,6 +7,7 @@ import {
   TipoAbastecimentoSolicitacao,
   TipoAbastecimentoVeiculo,
 } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateSolicitacaoAbastecimentoDto } from './dto/create-solicitacao-abastecimento.dto';
 import { UpdateSolicitacaoAbastecimentoDto } from './dto/update-solicitacao-abastecimento.dto';
@@ -525,8 +526,8 @@ export class SolicitacaoAbastecimentoService {
     }
   }
 
-  private toDecimal(value: number): Prisma.Decimal {
-    return new Prisma.Decimal(value);
+  private toDecimal(value: number): Decimal {
+    return new Decimal(value);
   }
 
   /**

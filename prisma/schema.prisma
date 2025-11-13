@@ -219,6 +219,16 @@ enum StatusSolicitacaoQrCodeVeiculo {
   Cancelado
 }
 
+enum StatusQrCodeMotorista {
+  Solicitado
+  Aprovado
+  Em_Producao @map("Em Produção")
+  Integracao @map("Integração")
+  Concluida @map("Concluída")
+  Inativo
+  Cancelado
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -245,6 +255,7 @@ model Prefeitura {
   combustiveisConsorcio ProcessoPrefeituraCombustivelConsorcio[]
   solicitacoesAbastecimento SolicitacaoAbastecimento[]
   solicitacoesQrCode    SolicitacoesQrCodeVeiculo[]
+  solicitacoesQrCodeMotorista QrCodeMotorista[]
 
   @@map("prefeitura")
 }
@@ -411,6 +422,7 @@ model Motorista {
   veiculos              VeiculoMotorista[]
   abastecimentos        Abastecimento[]
   solicitacoes          SolicitacaoAbastecimento[]
+  solicitacoesQrCode    QrCodeMotorista[]
 
   @@map("motorista")
 }
@@ -985,5 +997,27 @@ model SolicitacoesQrCodeVeiculo {
   prefeitura                Prefeitura                      @relation(fields: [prefeitura_id], references: [id])
 
   @@map("solicitacoes_qrcode_veiculo")
+}
+
+model QrCodeMotorista {
+  id                        Int                     @id @default(autoincrement())
+  idMotorista               Int
+  data_cadastro             DateTime                @default(now())
+  status                    StatusQrCodeMotorista  @default(Solicitado)
+  data_cancelamento         DateTime?
+  motivo_cancelamento       String?                 @db.Text
+  cancelamento_solicitado_por String?
+  cancelamento_efetuado_por String?
+  prefeitura_id             Int
+  foto                      String?
+
+  // Relacionamentos
+  motorista                 Motorista               @relation(fields: [idMotorista], references: [id])
+  prefeitura                Prefeitura              @relation(fields: [prefeitura_id], references: [id])
+
+  @@index([idMotorista])
+  @@index([prefeitura_id])
+  @@index([status])
+  @@map("qrcode_motorista")
 }
 

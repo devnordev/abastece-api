@@ -26,6 +26,7 @@ import { EmpresaPrecoCombustivelModule } from './modules/empresa-preco-combustiv
 import { SolicitacaoAbastecimentoModule } from './modules/solicitacao-abastecimento/solicitacao-abastecimento.module';
 import { ProcessoCombustivelModule } from './modules/processo-combustivel/processo-combustivel.module';
 import { SolicitacoesQrCodeVeiculoModule } from './modules/solicitacoes-qrcode-veiculo/solicitacoes-qrcode-veiculo.module';
+import { QrCodeMotoristaModule } from './modules/qrcode-motorista/qrcode-motorista.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { SolicitacoesQrCodeVeiculoModule } from './modules/solicitacoes-qrcode-v
     SolicitacaoAbastecimentoModule,
     ProcessoCombustivelModule,
     SolicitacoesQrCodeVeiculoModule,
+    QrCodeMotoristaModule,
   ],
 })
 export class AppModule {}

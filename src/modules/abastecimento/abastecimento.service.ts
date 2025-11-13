@@ -5,6 +5,7 @@ import { UpdateAbastecimentoDto } from './dto/update-abastecimento.dto';
 import { FindAbastecimentoDto } from './dto/find-abastecimento.dto';
 import { CreateAbastecimentoFromSolicitacaoDto } from './dto/create-abastecimento-from-solicitacao.dto';
 import { Prisma, StatusAbastecimento, StatusSolicitacao, TipoAbastecimento, Periodicidade, TipoAbastecimentoVeiculo } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import {
   AbastecimentoNotFoundException,
   AbastecimentoVeiculoNotFoundException,
@@ -95,10 +96,10 @@ export class AbastecimentoService {
     await tx.cotaOrgao.update({
       where: { id: cotaId },
       data: {
-        quantidade_utilizada: new Prisma.Decimal(novaQuantidadeUtilizada),
-        valor_utilizado: new Prisma.Decimal(novoValorUtilizado),
-        restante: new Prisma.Decimal(Math.max(0, restante)),
-        saldo_disponivel_cota: new Prisma.Decimal(Math.max(0, saldoDisponivelCota)),
+        quantidade_utilizada: new Decimal(novaQuantidadeUtilizada),
+        valor_utilizado: new Decimal(novoValorUtilizado),
+        restante: new Decimal(Math.max(0, restante)),
+        saldo_disponivel_cota: new Decimal(Math.max(0, saldoDisponivelCota)),
       },
     });
   }
@@ -983,8 +984,8 @@ export class AbastecimentoService {
         connect: { id: solicitacao.empresaId },
       },
       tipo_abastecimento: tipoAbastecimento,
-      quantidade: new Prisma.Decimal(solicitacao.quantidade),
-      valor_total: new Prisma.Decimal(valorTotal),
+      quantidade: new Decimal(solicitacao.quantidade),
+      valor_total: new Decimal(valorTotal),
       data_abastecimento: data_abastecimento ? new Date(data_abastecimento) : new Date(),
       status: statusAbastecimento,
       ativo: ativo !== undefined ? ativo : true,
@@ -992,9 +993,9 @@ export class AbastecimentoService {
       nfe_img_url: solicitacao.nfe_img_url || undefined,
       nfe_link: nfe_link || undefined,
       abastecido_por: abastecido_por || solicitacao.abastecido_por || 'Sistema',
-      preco_empresa: solicitacao.preco_empresa ? new Prisma.Decimal(solicitacao.preco_empresa) : undefined,
-      preco_anp: preco_anp ? new Prisma.Decimal(preco_anp) : undefined,
-      desconto: desconto ? new Prisma.Decimal(desconto) : undefined,
+      preco_empresa: solicitacao.preco_empresa ? new Decimal(solicitacao.preco_empresa) : undefined,
+      preco_anp: preco_anp ? new Decimal(preco_anp) : undefined,
+      desconto: desconto ? new Decimal(desconto) : undefined,
       odometro: odometro || undefined,
       orimetro: orimetro || undefined,
       contaFaturamento: solicitacao.conta_faturamento_orgao_id

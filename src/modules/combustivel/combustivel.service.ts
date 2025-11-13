@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AnpBase, Prisma, TipoCombustivelAnp, UF } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   CombustivelAlreadyExistsException,
@@ -234,11 +235,11 @@ export class CombustivelService {
   private obterPrecoBaseParaAnp(
     anpPreco: {
       base_utilizada: AnpBase | null;
-      preco_minimo: Prisma.Decimal | null;
-      preco_medio: Prisma.Decimal;
-      preco_maximo: Prisma.Decimal | null;
+      preco_minimo: Decimal | null;
+      preco_medio: Decimal;
+      preco_maximo: Decimal | null;
     },
-  ): Prisma.Decimal | null {
+  ): Decimal | null {
     switch (anpPreco.base_utilizada) {
       case AnpBase.MINIMO:
         return anpPreco.preco_minimo ?? null;

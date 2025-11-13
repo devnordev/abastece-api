@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateProcessoCombustivelDto, UpdateProcessoCombustivelDto } from './dto';
 import { Prisma } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class ProcessoCombustivelService {
@@ -60,18 +61,18 @@ export class ProcessoCombustivelService {
     }
 
     // Calcular saldo disponível se não foi informado
-    const saldoBloqueado = saldo_bloqueado_processo ? new Prisma.Decimal(saldo_bloqueado_processo) : new Prisma.Decimal(0);
+    const saldoBloqueado = saldo_bloqueado_processo ? new Decimal(saldo_bloqueado_processo) : new Decimal(0);
     const saldoDisponivel = saldo_disponivel_processo 
-      ? new Prisma.Decimal(saldo_disponivel_processo)
-      : new Prisma.Decimal(quantidade_litros).minus(saldoBloqueado);
+      ? new Decimal(saldo_disponivel_processo)
+      : new Decimal(quantidade_litros).minus(saldoBloqueado);
 
     // Criar processo combustível
     const processoCombustivel = await this.prisma.processoCombustivel.create({
       data: {
         processoId,
         combustivelId,
-        quantidade_litros: new Prisma.Decimal(quantidade_litros),
-        valor_unitario: valor_unitario ? new Prisma.Decimal(valor_unitario) : null,
+        quantidade_litros: new Decimal(quantidade_litros),
+        valor_unitario: valor_unitario ? new Decimal(valor_unitario) : null,
         saldo_bloqueado_processo: saldoBloqueado,
         saldo_disponivel_processo: saldoDisponivel,
       },
@@ -273,19 +274,19 @@ export class ProcessoCombustivelService {
     }
 
     if (updateDto.quantidade_litros !== undefined) {
-      data.quantidade_litros = new Prisma.Decimal(updateDto.quantidade_litros);
+      data.quantidade_litros = new Decimal(updateDto.quantidade_litros);
     }
 
     if (updateDto.valor_unitario !== undefined) {
-      data.valor_unitario = updateDto.valor_unitario !== null ? new Prisma.Decimal(updateDto.valor_unitario) : null;
+      data.valor_unitario = updateDto.valor_unitario !== null ? new Decimal(updateDto.valor_unitario) : null;
     }
 
     if (updateDto.saldo_bloqueado_processo !== undefined) {
-      data.saldo_bloqueado_processo = new Prisma.Decimal(updateDto.saldo_bloqueado_processo);
+      data.saldo_bloqueado_processo = new Decimal(updateDto.saldo_bloqueado_processo);
     }
 
     if (updateDto.saldo_disponivel_processo !== undefined) {
-      data.saldo_disponivel_processo = new Prisma.Decimal(updateDto.saldo_disponivel_processo);
+      data.saldo_disponivel_processo = new Decimal(updateDto.saldo_disponivel_processo);
     }
 
     // Atualizar registro

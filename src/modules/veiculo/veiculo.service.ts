@@ -986,7 +986,7 @@ export class VeiculoService {
     let prefeituraId: number;
     if (currentUser.tipo_usuario === 'SUPER_ADMIN') {
       // Para SUPER_ADMIN, verificar se todos os veículos pertencem à mesma prefeitura
-      const prefeituraIds = [...new Set(veiculos.map((v) => v.prefeituraId))];
+      const prefeituraIds = [...new Set(veiculos.map((v) => v.prefeituraId))] as number[];
       if (prefeituraIds.length !== 1) {
         throw new BadRequestException(
           'Todos os veículos devem pertencer à mesma prefeitura. Foram encontradas múltiplas prefeituras.'
