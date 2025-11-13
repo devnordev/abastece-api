@@ -731,7 +731,6 @@ export class MotoristaService {
             idMotorista,
             prefeitura_id: prefeituraId,
             status: 'Solicitado',
-            foto: createSolicitacaoQrCodeDto.foto,
           },
           include: {
             motorista: {

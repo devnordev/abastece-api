@@ -1,4 +1,4 @@
-import { IsArray, ArrayMinSize, IsInt, Min, ValidateNested, IsOptional, IsString } from 'class-validator';
+import { IsArray, ArrayMinSize, IsInt, Min, ValidateNested } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -24,13 +24,5 @@ export class CreateSolicitacaoQrCodeMotoristaDto {
   @ValidateNested({ each: true })
   @Type(() => MotoristaIdDto)
   motoristas: MotoristaIdDto[];
-
-  @ApiProperty({
-    description: 'Foto do QR Code (opcional)',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  foto?: string;
 }
 
