@@ -25,6 +25,7 @@ import { BackupModule } from './modules/backup/backup.module';
 import { EmpresaPrecoCombustivelModule } from './modules/empresa-preco-combustivel/empresa-preco-combustivel.module';
 import { SolicitacaoAbastecimentoModule } from './modules/solicitacao-abastecimento/solicitacao-abastecimento.module';
 import { ProcessoCombustivelModule } from './modules/processo-combustivel/processo-combustivel.module';
+import { SolicitacoesQrCodeVeiculoModule } from './modules/solicitacoes-qrcode-veiculo/solicitacoes-qrcode-veiculo.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { ProcessoCombustivelModule } from './modules/processo-combustivel/proces
     EmpresaPrecoCombustivelModule,
     SolicitacaoAbastecimentoModule,
     ProcessoCombustivelModule,
+    SolicitacoesQrCodeVeiculoModule,
   ],
 })
 export class AppModule {}
