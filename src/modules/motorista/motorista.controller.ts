@@ -22,6 +22,8 @@ import { UpdateMotoristaDto } from './dto/update-motorista.dto';
 import { FindMotoristaDto } from './dto/find-motorista.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleBlockGuard } from '../auth/guards/role-block.guard';
+import { CreateSolicitacaoQrCodeMotoristaDto } from './dto/create-solicitacao-qrcode.dto';
+import { BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 
 @ApiTags('Motoristas')
 @Controller('motoristas')
@@ -183,5 +185,38 @@ export class MotoristaController {
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   async remove(@Param('id', ParseIntPipe) id: number) {
     return this.motoristaService.remove(id);
+  }
+
+  @Post('solicitacoes/qrcode')
+  @UseGuards(JwtAuthGuard, new RoleBlockGuard(['ADMIN_EMPRESA', 'COLABORADOR_EMPRESA']))
+  @ApiOperation({ summary: 'Criar solicitações de QR Code para motoristas' })
+  @ApiResponse({ status: 201, description: 'Solicitações de QR Code criadas com sucesso' })
+  @ApiResponse({ status: 400, description: 'Dados inválidos' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Sem permissão para criar solicitações de QR Code' })
+  @ApiResponse({ status: 404, description: 'Um ou mais motoristas não foram encontrados' })
+  @ApiResponse({ status: 409, description: 'Já existe uma solicitação em andamento para um ou mais motoristas' })
+  async createSolicitacoesQrCode(
+    @Body() createSolicitacaoQrCodeDto: CreateSolicitacaoQrCodeMotoristaDto,
+    @Request() req,
+  ) {
+    try {
+      return await this.motoristaService.createSolicitacoesQrCode(createSolicitacaoQrCodeDto, req.user?.id);
+    } catch (error) {
+      // Re-lançar exceções conhecidas do NestJS
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ConflictException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+      // Log e relançar como BadRequestException para erros desconhecidos
+      console.error('Erro ao criar solicitações de QR Code:', error);
+      throw new BadRequestException(
+        `Erro ao criar solicitações de QR Code: ${error.message || 'Erro desconhecido'}`,
+      );
+    }
   }
 }

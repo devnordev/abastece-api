@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateMotoristaDto } from './dto/create-motorista.dto';
 import { UpdateMotoristaDto } from './dto/update-motorista.dto';
 import { FindMotoristaDto } from './dto/find-motorista.dto';
+import { CreateSolicitacaoQrCodeMotoristaDto } from './dto/create-solicitacao-qrcode.dto';
 import { UploadService } from '../upload/upload.service';
 
 @Injectable()
@@ -601,5 +602,160 @@ export class MotoristaService {
     if (currentUser.tipo_usuario === 'ADMIN_PREFEITURA' && currentUser.prefeituraId !== prefeituraId) {
       throw new ForbiddenException('Você só pode cadastrar motoristas da sua própria prefeitura');
     }
+  }
+
+  async createSolicitacoesQrCode(createSolicitacaoQrCodeDto: CreateSolicitacaoQrCodeMotoristaDto, currentUserId: number) {
+    // Validar permissões do usuário
+    const currentUser = await this.prisma.usuario.findUnique({
+      where: { id: currentUserId },
+    });
+
+    if (!currentUser) {
+      throw new ForbiddenException('Usuário atual não encontrado');
+    }
+
+    // Apenas ADMIN_PREFEITURA e COLABORADOR_PREFEITURA podem criar solicitações
+    if (
+      currentUser.tipo_usuario !== 'ADMIN_PREFEITURA' &&
+      currentUser.tipo_usuario !== 'COLABORADOR_PREFEITURA' &&
+      currentUser.tipo_usuario !== 'SUPER_ADMIN'
+    ) {
+      throw new ForbiddenException('Apenas ADMIN_PREFEITURA e COLABORADOR_PREFEITURA podem criar solicitações de QR Code');
+    }
+
+    // Validar que pelo menos 1 motorista foi fornecido
+    if (!createSolicitacaoQrCodeDto.motoristas || createSolicitacaoQrCodeDto.motoristas.length === 0) {
+      throw new BadRequestException('Deve ser fornecido pelo menos 1 motorista');
+    }
+
+    // Extrair IDs dos motoristas
+    const motoristaIds = createSolicitacaoQrCodeDto.motoristas.map((m) => m.idMotorista);
+
+    // Verificar se os motoristas existem
+    const motoristas = await this.prisma.motorista.findMany({
+      where: {
+        id: { in: motoristaIds },
+      },
+      select: {
+        id: true,
+        nome: true,
+        cpf: true,
+        prefeituraId: true,
+      },
+    });
+
+    // Verificar se todos os motoristas foram encontrados
+    if (motoristas.length !== motoristaIds.length) {
+      const encontradosIds = motoristas.map((m) => m.id);
+      const naoEncontrados = motoristaIds.filter((id) => !encontradosIds.includes(id));
+      throw new NotFoundException(
+        `Um ou mais motoristas não foram encontrados. IDs não encontrados: ${naoEncontrados.join(', ')}`
+      );
+    }
+
+    // Para ADMIN_PREFEITURA e COLABORADOR_PREFEITURA, verificar se têm prefeitura vinculada
+    if (currentUser.tipo_usuario !== 'SUPER_ADMIN') {
+      if (!currentUser.prefeituraId) {
+        throw new ForbiddenException('Usuário sem prefeitura vinculada');
+      }
+
+      // Verificar se todos os motoristas pertencem à prefeitura do usuário
+      const motoristasForaPrefeitura = motoristas.filter((m) => m.prefeituraId !== currentUser.prefeituraId);
+      if (motoristasForaPrefeitura.length > 0) {
+        const nomesForaPrefeitura = motoristasForaPrefeitura.map((m) => `${m.nome} (${m.cpf})`).join(', ');
+        throw new ForbiddenException(
+          `Os seguintes motoristas não pertencem à sua prefeitura: ${nomesForaPrefeitura}`
+        );
+      }
+    }
+
+    // Obter prefeituraId: do usuário para ADMIN_PREFEITURA/COLABORADOR_PREFEITURA, dos motoristas para SUPER_ADMIN
+    let prefeituraId: number;
+    if (currentUser.tipo_usuario === 'SUPER_ADMIN') {
+      // Para SUPER_ADMIN, verificar se todos os motoristas pertencem à mesma prefeitura
+      const prefeituraIds = [...new Set(motoristas.map((m) => m.prefeituraId))] as number[];
+      if (prefeituraIds.length !== 1) {
+        throw new BadRequestException(
+          'Todos os motoristas devem pertencer à mesma prefeitura. Foram encontradas múltiplas prefeituras.'
+        );
+      }
+      prefeituraId = prefeituraIds[0];
+    } else {
+      prefeituraId = currentUser.prefeituraId!;
+    }
+
+    // Verificar se já existe uma solicitação pendente para algum dos motoristas
+    // Não considerar solicitações com status "Inativo" ou "Cancelado" como bloqueio
+    let solicitacoesExistentes: any[] = [];
+    try {
+      solicitacoesExistentes = await (this.prisma as any).qrCodeMotorista.findMany({
+        where: {
+          idMotorista: { in: motoristaIds },
+          prefeitura_id: prefeituraId,
+          status: {
+            in: ['Solicitado', 'Aprovado', 'Em_Producao', 'Integracao', 'Concluida'],
+          },
+        },
+        select: {
+          id: true,
+          idMotorista: true,
+          status: true,
+          motorista: {
+            select: {
+              nome: true,
+              cpf: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      // Se o modelo não existir, continuar sem verificação (tabela ainda não foi criada)
+      console.warn('Tabela qrcode_motorista não encontrada. Aplique a migration primeiro.');
+      solicitacoesExistentes = [];
+    }
+
+    if (solicitacoesExistentes.length > 0) {
+      const motoristasComSolicitacao = solicitacoesExistentes.map(
+        (s) => `${s.motorista.nome} (${s.motorista.cpf}) - Status: ${s.status}`
+      );
+      throw new ConflictException(
+        `Já existe uma solicitação em andamento para os seguintes motoristas: ${motoristasComSolicitacao.join(', ')}`
+      );
+    }
+
+    // Criar as solicitações para cada motorista
+    const solicitacoes = await Promise.all(
+      motoristaIds.map((idMotorista) =>
+        (this.prisma as any).qrCodeMotorista.create({
+          data: {
+            idMotorista,
+            prefeitura_id: prefeituraId,
+            status: 'Solicitado',
+            foto: createSolicitacaoQrCodeDto.foto,
+          },
+          include: {
+            motorista: {
+              select: {
+                id: true,
+                nome: true,
+                cpf: true,
+              },
+            },
+            prefeitura: {
+              select: {
+                id: true,
+                nome: true,
+                cnpj: true,
+              },
+            },
+          },
+        })
+      )
+    );
+
+    return {
+      message: `${solicitacoes.length} solicitação(ões) de QR Code criada(s) com sucesso`,
+      solicitacoes,
+    };
   }
 }
