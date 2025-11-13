@@ -991,6 +991,7 @@ model SolicitacoesQrCodeVeiculo {
   cancelamento_efetuado_por String?
   prefeitura_id             Int
   foto                      String?
+  codigo_qrcode             String?                         @unique @db.VarChar(8)
 
   // Relacionamentos
   veiculo                   Veiculo                         @relation(fields: [idVeiculo], references: [id])
@@ -1010,6 +1011,7 @@ model QrCodeMotorista {
   cancelamento_efetuado_por String?
   prefeitura_id             Int
   foto                      String?
+  codigo_qrcode             String?                 @unique @db.VarChar(8)
 
   // Relacionamentos
   motorista                 Motorista               @relation(fields: [idMotorista], references: [id])

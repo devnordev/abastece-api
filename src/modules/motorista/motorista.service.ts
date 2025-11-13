@@ -180,6 +180,7 @@ export class MotoristaService {
               cancelamento_efetuado_por: true,
               prefeitura_id: true,
               foto: true,
+              codigo_qrcode: true,
             },
             orderBy: {
               data_cadastro: 'desc',
@@ -194,9 +195,117 @@ export class MotoristaService {
       this.prisma.motorista.count({ where }),
     ]);
 
+    // Processar motoristas para adicionar informações sobre solicitações de QR Code
+    const motoristasComSolicitacao = motoristas.map((motorista) => {
+      const solicitacoesDoMotorista = motorista.solicitacoesQrCode || [];
+      
+      // Verificar se existe solicitação com status "Solicitado" (independente de outras)
+      const possuiSolicitacaoSolicitada = solicitacoesDoMotorista.some(
+        (s: any) => s.status === 'Solicitado'
+      );
+      
+      // Verificar se existe solicitação com status "Aprovado" (independente de outras)
+      const possuiSolicitacaoAprovada = solicitacoesDoMotorista.some(
+        (s: any) => s.status === 'Aprovado'
+      );
+      
+      // Verificar se existe solicitação com status "Inativo" (momentâneo)
+      const possuiSolicitacaoInativa = solicitacoesDoMotorista.some(
+        (s: any) => s.status === 'Inativo'
+      );
+      
+      // Verificar se existe solicitação com status "Cancelado" (permanente)
+      const possuiSolicitacaoCancelada = solicitacoesDoMotorista.some(
+        (s: any) => s.status === 'Cancelado'
+      );
+      
+      // Buscar solicitação com status "Solicitado" primeiro (prioridade)
+      const solicitacaoSolicitada = solicitacoesDoMotorista.find(
+        (s: any) => s.status === 'Solicitado'
+      );
+      
+      // Se não houver solicitação com status "Solicitado", buscar com status "Aprovado"
+      const solicitacaoAprovada = !solicitacaoSolicitada
+        ? solicitacoesDoMotorista.find((s: any) => s.status === 'Aprovado')
+        : null;
+      
+      // Buscar solicitação com status "Inativo" (se não houver Solicitado ou Aprovado)
+      const solicitacaoInativa = !solicitacaoSolicitada && !solicitacaoAprovada
+        ? solicitacoesDoMotorista.find((s: any) => s.status === 'Inativo')
+        : null;
+      
+      // Buscar solicitação com status "Cancelado" (se não houver outras)
+      const solicitacaoCancelada = !solicitacaoSolicitada && !solicitacaoAprovada && !solicitacaoInativa
+        ? solicitacoesDoMotorista.find((s: any) => s.status === 'Cancelado')
+        : null;
+      
+      // Usar a solicitação encontrada (prioridade: Solicitado > Aprovado > Inativo > Cancelado > Mais recente)
+      const solicitacaoAtiva = solicitacaoSolicitada || solicitacaoAprovada || solicitacaoInativa || solicitacaoCancelada || solicitacoesDoMotorista[0] || null;
+      
+      let temSolicitacaoQRCode = false;
+      let statusSolicitacaoQRCode: string | null = null;
+      let mensagemSolicitacaoQRCode: string = '';
+      let idSolicitacaoQRCode: number | null = null;
+      let codigoQrCode: string | null = null;
+      let estaInativo = false;
+      let estaCancelado = false;
+
+      if (solicitacaoAtiva) {
+        temSolicitacaoQRCode = true;
+        statusSolicitacaoQRCode = solicitacaoAtiva.status;
+        idSolicitacaoQRCode = solicitacaoAtiva.id;
+        codigoQrCode = solicitacaoAtiva.codigo_qrcode || null;
+        
+        // Verificar se está inativo (momentâneo)
+        estaInativo = solicitacaoAtiva.status === 'Inativo';
+        
+        // Verificar se está cancelado (permanente)
+        estaCancelado = solicitacaoAtiva.status === 'Cancelado';
+
+        // Verificar status da solicitação e definir mensagem
+        if (solicitacaoAtiva.status === 'Solicitado') {
+          mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code com status Solicitado';
+        } else if (solicitacaoAtiva.status === 'Aprovado') {
+          mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code com status Aprovado';
+        } else if (solicitacaoAtiva.status === 'Em_Producao') {
+          mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code em produção';
+        } else if (solicitacaoAtiva.status === 'Integracao') {
+          mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code em integração';
+        } else if (solicitacaoAtiva.status === 'Concluida') {
+          mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code concluída';
+        } else if (solicitacaoAtiva.status === 'Inativo') {
+          mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code com status Inativo (momentâneo)';
+        } else if (solicitacaoAtiva.status === 'Cancelado') {
+          mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code com status Cancelado (permanente)';
+        } else {
+          mensagemSolicitacaoQRCode = `Este motorista possui uma solicitação de QR Code com status ${solicitacaoAtiva.status}`;
+        }
+      } else {
+        mensagemSolicitacaoQRCode = 'Não há solicitação de QR Code para este motorista';
+      }
+
+      // Remover solicitacoesQrCode do objeto original e adicionar a estrutura processada
+      const { solicitacoesQrCode, ...motoristaSemSolicitacao } = motorista;
+
+      return {
+        ...motoristaSemSolicitacao,
+        solicitacaoQRCode: {
+          temSolicitacao: temSolicitacaoQRCode,
+          possuiSolicitacaoSolicitada,
+          possuiSolicitacaoAprovada,
+          estaInativo,
+          estaCancelado,
+          status: statusSolicitacaoQRCode,
+          mensagem: mensagemSolicitacaoQRCode,
+          id: idSolicitacaoQRCode,
+          codigo_qrcode: codigoQrCode,
+        },
+      };
+    });
+
     return {
       message: 'Motoristas encontrados com sucesso',
-      motoristas,
+      motoristas: motoristasComSolicitacao,
       pagination: {
         page,
         limit,
@@ -242,6 +351,7 @@ export class MotoristaService {
             cancelamento_efetuado_por: true,
             prefeitura_id: true,
             foto: true,
+            codigo_qrcode: true,
           },
           orderBy: {
             data_cadastro: 'desc',
@@ -260,9 +370,98 @@ export class MotoristaService {
       throw new NotFoundException('Motorista não encontrado');
     }
 
+    // Processar informações de QR Code similar ao findAll
+    const solicitacoesDoMotorista = motorista.solicitacoesQrCode || [];
+    
+    // Buscar solicitação com status "Solicitado" primeiro (prioridade)
+    const solicitacaoSolicitada = solicitacoesDoMotorista.find(
+      (s: any) => s.status === 'Solicitado'
+    );
+    
+    // Se não houver solicitação com status "Solicitado", buscar com status "Aprovado"
+    const solicitacaoAprovada = !solicitacaoSolicitada
+      ? solicitacoesDoMotorista.find((s: any) => s.status === 'Aprovado')
+      : null;
+    
+    // Buscar solicitação com status "Inativo" (se não houver Solicitado ou Aprovado)
+    const solicitacaoInativa = !solicitacaoSolicitada && !solicitacaoAprovada
+      ? solicitacoesDoMotorista.find((s: any) => s.status === 'Inativo')
+      : null;
+    
+    // Buscar solicitação com status "Cancelado" (se não houver outras)
+    const solicitacaoCancelada = !solicitacaoSolicitada && !solicitacaoAprovada && !solicitacaoInativa
+      ? solicitacoesDoMotorista.find((s: any) => s.status === 'Cancelado')
+      : null;
+    
+    // Usar a solicitação encontrada (prioridade: Solicitado > Aprovado > Inativo > Cancelado > Mais recente)
+    const solicitacaoAtiva = solicitacaoSolicitada || solicitacaoAprovada || solicitacaoInativa || solicitacaoCancelada || solicitacoesDoMotorista[0] || null;
+    
+    let temSolicitacaoQRCode = false;
+    let statusSolicitacaoQRCode: string | null = null;
+    let mensagemSolicitacaoQRCode: string = '';
+    let idSolicitacaoQRCode: number | null = null;
+    let codigoQrCode: string | null = null;
+    let estaInativo = false;
+    let estaCancelado = false;
+    let possuiSolicitacaoSolicitada = false;
+    let possuiSolicitacaoAprovada = false;
+
+    if (solicitacaoAtiva) {
+      temSolicitacaoQRCode = true;
+      statusSolicitacaoQRCode = solicitacaoAtiva.status;
+      idSolicitacaoQRCode = solicitacaoAtiva.id;
+      codigoQrCode = solicitacaoAtiva.codigo_qrcode || null;
+      
+      // Verificar se está inativo (momentâneo)
+      estaInativo = solicitacaoAtiva.status === 'Inativo';
+      
+      // Verificar se está cancelado (permanente)
+      estaCancelado = solicitacaoAtiva.status === 'Cancelado';
+
+      possuiSolicitacaoSolicitada = solicitacoesDoMotorista.some((s: any) => s.status === 'Solicitado');
+      possuiSolicitacaoAprovada = solicitacoesDoMotorista.some((s: any) => s.status === 'Aprovado');
+
+      // Verificar status da solicitação e definir mensagem
+      if (solicitacaoAtiva.status === 'Solicitado') {
+        mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code com status Solicitado';
+      } else if (solicitacaoAtiva.status === 'Aprovado') {
+        mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code com status Aprovado';
+      } else if (solicitacaoAtiva.status === 'Em_Producao') {
+        mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code em produção';
+      } else if (solicitacaoAtiva.status === 'Integracao') {
+        mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code em integração';
+      } else if (solicitacaoAtiva.status === 'Concluida') {
+        mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code concluída';
+      } else if (solicitacaoAtiva.status === 'Inativo') {
+        mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code com status Inativo (momentâneo)';
+      } else if (solicitacaoAtiva.status === 'Cancelado') {
+        mensagemSolicitacaoQRCode = 'Este motorista possui uma solicitação de QR Code com status Cancelado (permanente)';
+      } else {
+        mensagemSolicitacaoQRCode = `Este motorista possui uma solicitação de QR Code com status ${solicitacaoAtiva.status}`;
+      }
+    } else {
+      mensagemSolicitacaoQRCode = 'Não há solicitação de QR Code para este motorista';
+    }
+
+    // Remover solicitacoesQrCode do objeto original e adicionar a estrutura processada
+    const { solicitacoesQrCode, ...motoristaSemSolicitacao } = motorista;
+
     return {
       message: 'Motorista encontrado com sucesso',
-      motorista,
+      motorista: {
+        ...motoristaSemSolicitacao,
+        solicitacaoQRCode: {
+          temSolicitacao: temSolicitacaoQRCode,
+          possuiSolicitacaoSolicitada,
+          possuiSolicitacaoAprovada,
+          estaInativo,
+          estaCancelado,
+          status: statusSolicitacaoQRCode,
+          mensagem: mensagemSolicitacaoQRCode,
+          id: idSolicitacaoQRCode,
+          codigo_qrcode: codigoQrCode,
+        },
+      },
     };
   }
 

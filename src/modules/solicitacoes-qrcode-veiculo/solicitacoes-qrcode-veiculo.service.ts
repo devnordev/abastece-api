@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { FilterSolicitacoesDto } from './dto/filter-solicitacoes.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { StatusSolicitacaoQrCodeVeiculo } from '@prisma/client';
+import { gerarCodigoQrUnico } from '../../common/utils/qrcode-generator.util';
 
 @Injectable()
 export class SolicitacoesQrCodeVeiculoService {
@@ -161,6 +162,29 @@ export class SolicitacoesQrCodeVeiculoService {
         updateData.cancelamento_efetuado_por = null;
         updateData.cancelamento_solicitado_por = null;
       }
+    }
+
+    // Se o status for "Aprovado" e ainda não tiver código QR, gerar um código único
+    if (updateStatusDto.status === StatusSolicitacaoQrCodeVeiculo.Aprovado && !solicitacao.codigo_qrcode) {
+      let codigoUnico = false;
+      let codigoQr = '';
+      
+      // Garantir que o código seja único (verificar em ambas as tabelas)
+      while (!codigoUnico) {
+        codigoQr = gerarCodigoQrUnico();
+        const codigoExistenteVeiculo = await (this.prisma as any).solicitacoesQrCodeVeiculo.findFirst({
+          where: { codigo_qrcode: codigoQr },
+        });
+        const codigoExistenteMotorista = await (this.prisma as any).qrCodeMotorista.findFirst({
+          where: { codigo_qrcode: codigoQr },
+        });
+        
+        if (!codigoExistenteVeiculo && !codigoExistenteMotorista) {
+          codigoUnico = true;
+        }
+      }
+      
+      updateData.codigo_qrcode = codigoQr;
     }
 
     // Atualizar solicitação

@@ -484,6 +484,7 @@ export class VeiculoService {
             idVeiculo: true,
             status: true,
             data_cadastro: true,
+            codigo_qrcode: true,
           },
           orderBy: {
             data_cadastro: 'desc',
@@ -556,6 +557,7 @@ export class VeiculoService {
       let statusSolicitacaoQRCode: string | null = null;
       let mensagemSolicitacaoQRCode: string = '';
       let idSolicitacaoQRCode: number | null = null;
+      let codigoQrCode: string | null = null;
       let estaInativo = false;
       let estaCancelado = false;
 
@@ -563,6 +565,7 @@ export class VeiculoService {
         temSolicitacaoQRCode = true;
         statusSolicitacaoQRCode = solicitacaoAtiva.status;
         idSolicitacaoQRCode = solicitacaoAtiva.id;
+        codigoQrCode = solicitacaoAtiva.codigo_qrcode || null;
         
         // Verificar se está inativo (momentâneo)
         estaInativo = solicitacaoAtiva.status === 'Inativo';
@@ -603,6 +606,7 @@ export class VeiculoService {
           status: statusSolicitacaoQRCode,
           mensagem: mensagemSolicitacaoQRCode,
           id: idSolicitacaoQRCode,
+          codigo_qrcode: codigoQrCode,
         },
       };
     });
