@@ -12,6 +12,7 @@ export class DashboardsService {
     if (!prefeituraId) {
       throw new ForbiddenException('Usuário não está vinculado a uma prefeitura.');
     }
+    const usuarioNome = user?.nome ?? user?.email ?? 'Usuário';
 
     const limit =
       query?.abastecimentosLimit && query.abastecimentosLimit > 0 ? query.abastecimentosLimit : 10;
@@ -209,6 +210,11 @@ export class DashboardsService {
 
     return {
       prefeituraId,
+      usuario: {
+        id: user?.id ?? null,
+        nome: usuarioNome,
+        email: user?.email ?? null,
+      },
       cards: {
         totalVeiculos: veiculosCount,
         totalMotoristas: motoristasCount,

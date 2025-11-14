@@ -1,0 +1,118 @@
+# Dashboards API
+
+Este documento descreve como consumir as rotas do módulo `dashboards`. Todas as rotas requerem autenticação via **Bearer token** e respeitam os perfis autorizados em cada endpoint.
+
+## Autenticação
+- Header `Authorization: Bearer <token_jwt>`
+- O token deve ser obtido via login (`/auth/login`) e precisa estar ativo.
+
+## Perfis disponíveis
+| Perfil               | Descrição                                               | Status |
+|----------------------|---------------------------------------------------------|--------|
+| `ADMIN_PREFEITURA`   | Dashboard completo da prefeitura vinculada ao usuário   | ✅ ativo |
+| `COLABORADOR_PREFEITURA` | Rotas planejadas para versões futuras                   | 🔜 em planejamento |
+| `ADMIN_EMPRESA` / `COLABORADOR_EMPRESA` | Não possuem rotas no módulo ainda               | 🔜 em planejamento |
+| `SUPER_ADMIN`        | Acesso global planejado para versões futuras            | 🔜 em planejamento |
+
+## Dashboard `ADMIN_PREFEITURA`
+
+### Endpoint
+- **`GET /dashboards/admin-prefeitura`**
+- **Guards**: `JwtAuthGuard` + `AdminPrefeituraGuard`
+- Apenas usuários autenticados com perfil `ADMIN_PREFEITURA` conseguem acessar.
+
+### Query Params
+| Parâmetro                | Tipo | Obrigatório | Default | Descrição |
+|-------------------------|------|-------------|---------|-----------|
+| `abastecimentosLimit`   | int  | Não         | 10      | Quantidade máxima de registros detalhados retornados em `abastecimentos.dados`. Deve ser ≥ 1. |
+
+### Exemplo de requisição
+```http
+GET /dashboards/admin-prefeitura?abastecimentosLimit=5
+Authorization: Bearer <token>
+```
+
+### Body de resposta
+```json
+{
+  "prefeituraId": 123,
+  "usuario": {
+    "id": 45,
+    "nome": "Maria Oliveira",
+    "email": "maria@prefeitura.gov.br"
+  },
+  "cards": {
+    "totalVeiculos": 87,
+    "totalMotoristas": 32,
+    "totalProcessos": 5,
+    "totalQuantidadeAbastecida": 12345.67,
+    "totalValorAbastecido": 456789.9
+  },
+  "abastecimentos": {
+    "totalRegistros": 5,
+    "limiteAplicado": 5,
+    "dados": [
+      {
+        "id": 1,
+        "data_abastecimento": "2025-11-13T12:34:56.000Z",
+        "empresa": "Posto Central",
+        "veiculo": {
+          "id": 10,
+          "nome": "Caminhão 01",
+          "placa": "ABC-1234"
+        },
+        "orgao": "Secretaria de Obras",
+        "motorista": "João Silva",
+        "combustivel": "Diesel S10",
+        "quantidade": 150.5,
+        "valor_total": 9876.54,
+        "preco_empresa": 6.56,
+        "status": "Aprovado"
+      }
+    ]
+  },
+  "cotasPorOrgao": [
+    {
+      "orgaoId": 7,
+      "orgaoNome": "Secretaria de Educação",
+      "quantidadeUtilizada": 2345.8
+    }
+  ],
+  "veiculosComAbastecimentosAprovados": [
+    {
+      "veiculoId": 10,
+      "nome": "Caminhão 01",
+      "placa": "ABC-1234",
+      "combustiveis": ["Diesel S10"],
+      "quantidadeTotal": 500.75,
+      "valorTotal": 32145.67
+    }
+  ]
+}
+```
+
+### Campos principais
+- `cards`: métricas agregadas da prefeitura.
+- `usuario`: dados básicos do usuário autenticado que requisitou o dashboard.
+- `abastecimentos.dados`: lista limitada aos últimos abastecimentos, com dados de empresa, veículo, motorista, órgão, combustível, quantidade e valores.
+- `cotasPorOrgao`: soma da `quantidade_utilizada` por órgão (com nome e id do órgão).
+- `veiculosComAbastecimentosAprovados`: veiculos da prefeitura que possuam abastecimentos aprovados, exibindo soma da quantidade e valor total, além dos combustíveis associados ativos.
+
+### Códigos de status
+| Status | Quando ocorre |
+|--------|---------------|
+| `200 OK` | Dashboard retornado com sucesso. |
+| `401 Unauthorized` | Falha na autenticação (token ausente/expirado/inválido). |
+| `403 Forbidden` | Usuário não possui perfil `ADMIN_PREFEITURA`. |
+| `500 Internal Server Error` | Falha inesperada durante o processamento (ver logs da aplicação). |
+
+## Boas práticas
+- Ajuste `abastecimentosLimit` conforme a necessidade da UI para evitar payloads grandes.
+- Garanta que o usuário esteja vinculado a uma prefeitura; caso contrário, o guard retornará `403`.
+- Antes de integrar novos perfis, alinhe quais dados podem ser expostos em cada visão.
+
+## Evoluções futuras
+- Dashboards específicos para colaboradores de prefeitura/empresa.
+- Possibilidade de filtrar por datas, órgãos e combustíveis.
+- Exportação de dados agregados e detalhados.
+
