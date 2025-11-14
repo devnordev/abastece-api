@@ -27,6 +27,7 @@ import { SolicitacaoAbastecimentoModule } from './modules/solicitacao-abastecime
 import { ProcessoCombustivelModule } from './modules/processo-combustivel/processo-combustivel.module';
 import { SolicitacoesQrCodeVeiculoModule } from './modules/solicitacoes-qrcode-veiculo/solicitacoes-qrcode-veiculo.module';
 import { QrCodeMotoristaModule } from './modules/qrcode-motorista/qrcode-motorista.module';
+import { DashboardsModule } from './modules/dashboards/dashboards.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { QrCodeMotoristaModule } from './modules/qrcode-motorista/qrcode-motoris
     ProcessoCombustivelModule,
     SolicitacoesQrCodeVeiculoModule,
     QrCodeMotoristaModule,
+    DashboardsModule,
   ],
 })
 export class AppModule {}
