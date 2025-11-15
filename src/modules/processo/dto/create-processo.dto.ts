@@ -13,7 +13,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TipoContrato, TipoDocumento, TipoItens, StatusProcesso } from '@prisma/client';
-import { Transform, Type } from 'class-transformer';
+import { Expose, Transform, Type } from 'class-transformer';
 
 class CreateProcessoCombustivelDto {
   @ApiProperty({ description: 'ID do combustível vinculado ao processo', example: 1 })
@@ -26,6 +26,7 @@ class CreateProcessoCombustivelDto {
     example: 50000.5,
   })
   @IsOptional()
+  @Expose({ name: 'quantidadeLitros' })
   @Transform(({ value, obj }) => {
     if (value === undefined || value === null || value === '') {
       return undefined;
