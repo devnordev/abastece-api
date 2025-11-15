@@ -10,8 +10,9 @@ Este documento descreve como consumir as rotas do módulo `dashboards`. Todas as
 | Perfil               | Descrição                                               | Status |
 |----------------------|---------------------------------------------------------|--------|
 | `ADMIN_PREFEITURA`   | Dashboard completo da prefeitura vinculada ao usuário   | ✅ ativo |
+| `ADMIN_EMPRESA`      | Dashboard com métricas da empresa vinculada             | ✅ ativo |
 | `COLABORADOR_PREFEITURA` | Rotas planejadas para versões futuras                   | 🔜 em planejamento |
-| `ADMIN_EMPRESA` / `COLABORADOR_EMPRESA` | Não possuem rotas no módulo ainda               | 🔜 em planejamento |
+| `COLABORADOR_EMPRESA` | Rotas planejadas para versões futuras                   | 🔜 em planejamento |
 | `SUPER_ADMIN`        | Acesso global planejado para versões futuras            | 🔜 em planejamento |
 
 ## Dashboard `ADMIN_PREFEITURA`
@@ -105,6 +106,98 @@ Authorization: Bearer <token>
 | `401 Unauthorized` | Falha na autenticação (token ausente/expirado/inválido). |
 | `403 Forbidden` | Usuário não possui perfil `ADMIN_PREFEITURA`. |
 | `500 Internal Server Error` | Falha inesperada durante o processamento (ver logs da aplicação). |
+
+## Dashboard `ADMIN_EMPRESA`
+
+### Endpoint
+- **`GET /dashboards/admin-empresa`**
+- **Guards**: `JwtAuthGuard` + `AdminEmpresaGuard`
+- Apenas usuários autenticados com perfil `ADMIN_EMPRESA` conseguem acessar.
+
+### Query Params
+| Parâmetro                | Tipo | Obrigatório | Default | Descrição |
+|-------------------------|------|-------------|---------|-----------|
+| `abastecimentosLimit`   | int  | Não         | 10      | Quantidade máxima de registros detalhados retornados em `abastecimentos.dados`. Deve ser ≥ 1. |
+
+### Exemplo de requisição
+```http
+GET /dashboards/admin-empresa?abastecimentosLimit=10
+Authorization: Bearer <token>
+```
+
+### Body de resposta
+```json
+{
+  "empresaId": 88,
+  "usuario": {
+    "id": 77,
+    "nome": "Carlos Souza",
+    "email": "carlos@fornecedor.com"
+  },
+  "cards": {
+    "totalAbastecimentos": 120,
+    "veiculosAbastecidos": 45,
+    "motoristasAtendidos": 30,
+    "contratosVinculados": 4,
+    "totalQuantidadeAbastecida": 9876.54,
+    "totalValorAbastecido": 543210.99
+  },
+  "abastecimentos": {
+    "totalRegistros": 10,
+    "limiteAplicado": 10,
+    "dados": [
+      {
+        "id": 1,
+        "data_abastecimento": "2025-11-13T12:34:56.000Z",
+        "posto": "Posto Central",
+        "veiculo": {
+          "id": 10,
+          "nome": "Caminhão 01",
+          "placa": "ABC-1234"
+        },
+        "orgao": "Secretaria de Obras",
+        "motorista": "João Silva",
+        "combustivel": "Diesel S10",
+        "quantidade": 150.5,
+        "valor_total": 9876.54,
+        "preco_empresa": 6.56,
+        "status": "Aprovado"
+      }
+    ]
+  },
+  "topVeiculos": [
+    {
+      "veiculoId": 10,
+      "nome": "Caminhão 01",
+      "placa": "ABC-1234",
+      "quantidadeTotal": 450.7,
+      "valorTotal": 29876.5
+    }
+  ],
+  "consumoPorOrgao": [
+    {
+      "orgaoId": 7,
+      "orgaoNome": "Secretaria de Educação",
+      "quantidadeTotal": 2345.8
+    }
+  ]
+}
+```
+
+### Campos principais
+- `usuario`: dados básicos do usuário autenticado que requisitou o dashboard.
+- `cards`: métricas agregadas da empresa.
+- `abastecimentos.dados`: últimos abastecimentos executados pela empresa, com posto, veículo, motorista, órgão, combustível e valores.
+- `topVeiculos`: cinco veículos com maior soma de quantidades abastecidas pela empresa (inclui a soma de `valor_total`).
+- `consumoPorOrgao`: soma da coluna `quantidade` de todos os abastecimentos realizados pela empresa agrupados por órgão.
+
+### Códigos de status
+| Status | Quando ocorre |
+|--------|---------------|
+| `200 OK` | Dashboard retornado com sucesso. |
+| `401 Unauthorized` | Falha na autenticação (token ausente/expirado/inválido). |
+| `403 Forbidden` | Usuário não possui perfil `ADMIN_EMPRESA`. |
+| `500 Internal Server Error` | Falha inesperada durante o processamento. |
 
 ## Boas práticas
 - Ajuste `abastecimentosLimit` conforme a necessidade da UI para evitar payloads grandes.
