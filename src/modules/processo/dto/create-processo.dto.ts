@@ -25,19 +25,31 @@ class CreateProcessoCombustivelDto {
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'quantidade_litros deve ser numérica' })
   @IsNotEmpty({ message: 'quantidade_litros é obrigatória' })
   @Transform(({ value, obj }) => {
-    const raw =
-      value ??
-      obj?.quantidade_litros ??
-      obj?.quantidadeLitros ??
-      obj?.quantidade ?? // fallback
-      null;
-    if (raw === null || raw === undefined || raw === '') {
+    const sourceKeys = ['quantidade_litros', 'quantidadeLitros', 'quantidade'];
+    let raw = value;
+
+    if (raw === undefined) {
+      for (const key of sourceKeys) {
+        if (obj && Object.prototype.hasOwnProperty.call(obj, key)) {
+          raw = obj[key];
+          if (key !== 'quantidade_litros') {
+            delete obj[key];
+          }
+          break;
+        }
+      }
+    }
+
+    if (raw === undefined || raw === null || raw === '') {
       return undefined;
     }
+
     if (typeof raw === 'string') {
-      const parsed = parseFloat(raw);
-      return isNaN(parsed) ? raw : parsed;
+      const parsed = parseFloat(raw.replace(',', '.'));
+      raw = isNaN(parsed) ? undefined : parsed;
     }
+
+    obj.quantidade_litros = raw;
     return raw;
   })
   quantidade_litros: number;
