@@ -1,5 +1,4 @@
 import {
-  Allow,
   IsEnum,
   IsString,
   IsOptional,
@@ -22,70 +21,29 @@ class CreateProcessoCombustivelDto {
   @IsNotEmpty({ message: 'combustivelId é obrigatório' })
   combustivelId: number;
 
-  @ApiPropertyOptional({
-    description: 'Alias utilizado pelo frontend para quantidade_litros',
-    example: 50000.5,
-  })
-  @Allow()
-  @Transform(({ value, obj }) => {
-    if (
-      (obj.quantidade_litros === undefined || obj.quantidade_litros === null || obj.quantidade_litros === '') &&
-      value !== undefined &&
-      value !== null &&
-      value !== ''
-    ) {
-      if (typeof value === 'string') {
-        const parsed = parseFloat(value.replace(',', '.'));
-        if (!isNaN(parsed)) {
-          obj.quantidade_litros = parsed;
-          return parsed;
-        }
-      } else {
-        obj.quantidade_litros = value;
-        return value;
-      }
-    }
-    return value;
-  })
-  quantidadeLitros?: number | string;
-
   @ApiProperty({ description: 'Quantidade em litros contratada', example: 50000.5 })
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'quantidade_litros deve ser numérica' })
   @IsNotEmpty({ message: 'quantidade_litros é obrigatória' })
   @Transform(({ value, obj }) => {
-    if (value !== undefined && value !== null && value !== '') {
-      if (typeof value === 'string') {
-        const parsed = parseFloat(value.replace(',', '.'));
-        if (!isNaN(parsed)) {
-          obj.quantidade_litros = parsed;
-          return parsed;
-        }
-        return undefined;
-      }
-      obj.quantidade_litros = value;
-      return value;
+    const candidates = [
+      obj?.quantidade_litros,
+      obj?.quantidadeLitros,
+      obj?.quantidade,
+      value,
+    ].filter((v) => v !== undefined && v !== null && v !== '');
+
+    if (!candidates.length) {
+      return undefined;
     }
 
-    const fallbackKeys = ['quantidadeLitros', 'quantidade'];
-    for (const key of fallbackKeys) {
-      if (obj && Object.prototype.hasOwnProperty.call(obj, key)) {
-        const fallbackValue = obj[key];
-        if (fallbackValue !== undefined && fallbackValue !== null && fallbackValue !== '') {
-          if (typeof fallbackValue === 'string') {
-            const parsed = parseFloat(fallbackValue.replace(',', '.'));
-            if (!isNaN(parsed)) {
-              obj.quantidade_litros = parsed;
-              return parsed;
-            }
-            return undefined;
-          }
-          obj.quantidade_litros = fallbackValue;
-          return fallbackValue;
-        }
-      }
+    const firstValid = candidates[0];
+
+    if (typeof firstValid === 'string') {
+      const parsed = parseFloat(firstValid.replace(',', '.'));
+      return isNaN(parsed) ? undefined : parsed;
     }
 
-    return undefined;
+    return firstValid;
   })
   quantidade_litros: number;
 
