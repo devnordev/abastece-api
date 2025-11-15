@@ -21,49 +21,43 @@ class CreateProcessoCombustivelDto {
   @IsNotEmpty({ message: 'combustivelId é obrigatório' })
   combustivelId: number;
 
-  @ApiPropertyOptional({
-    description: 'Alias para quantidade_litros usado pelo frontend',
-    example: 50000.5,
-  })
-  @IsOptional()
-  @Transform(({ value, obj }) => {
-    if (obj && (obj.quantidade_litros === undefined || obj.quantidade_litros === null)) {
-      obj.quantidade_litros = value;
-    }
-    return value;
-  })
-  quantidadeLitros?: number | string;
-
   @ApiProperty({ description: 'Quantidade em litros contratada', example: 50000.5 })
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'quantidade_litros deve ser numérica' })
   @IsNotEmpty({ message: 'quantidade_litros é obrigatória' })
   @Transform(({ value, obj }) => {
-    const sourceKeys = ['quantidade_litros', 'quantidadeLitros', 'quantidade'];
-    let raw = value;
+    if (value !== undefined && value !== null && value !== '') {
+      if (typeof value === 'string') {
+        const parsed = parseFloat(value.replace(',', '.'));
+        if (!isNaN(parsed)) {
+          obj.quantidade_litros = parsed;
+          return parsed;
+        }
+        return undefined;
+      }
+      obj.quantidade_litros = value;
+      return value;
+    }
 
-    if (raw === undefined) {
-      for (const key of sourceKeys) {
-        if (obj && Object.prototype.hasOwnProperty.call(obj, key)) {
-          raw = obj[key];
-          if (key !== 'quantidade_litros') {
-            delete obj[key];
+    const fallbackKeys = ['quantidadeLitros', 'quantidade'];
+    for (const key of fallbackKeys) {
+      if (obj && Object.prototype.hasOwnProperty.call(obj, key)) {
+        const fallbackValue = obj[key];
+        if (fallbackValue !== undefined && fallbackValue !== null && fallbackValue !== '') {
+          if (typeof fallbackValue === 'string') {
+            const parsed = parseFloat(fallbackValue.replace(',', '.'));
+            if (!isNaN(parsed)) {
+              obj.quantidade_litros = parsed;
+              return parsed;
+            }
+            return undefined;
           }
-          break;
+          obj.quantidade_litros = fallbackValue;
+          return fallbackValue;
         }
       }
     }
 
-    if (raw === undefined || raw === null || raw === '') {
-      return undefined;
-    }
-
-    if (typeof raw === 'string') {
-      const parsed = parseFloat(raw.replace(',', '.'));
-      raw = isNaN(parsed) ? undefined : parsed;
-    }
-
-    obj.quantidade_litros = raw;
-    return raw;
+    return undefined;
   })
   quantidade_litros: number;
 
