@@ -24,7 +24,22 @@ class CreateProcessoCombustivelDto {
   @ApiProperty({ description: 'Quantidade em litros contratada', example: 50000.5 })
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'quantidade_litros deve ser numérica' })
   @IsNotEmpty({ message: 'quantidade_litros é obrigatória' })
-  @Transform(({ value }) => (typeof value === 'string' ? parseFloat(value) : value))
+  @Transform(({ value, obj }) => {
+    const raw =
+      value ??
+      obj?.quantidade_litros ??
+      obj?.quantidadeLitros ??
+      obj?.quantidade ?? // fallback
+      null;
+    if (raw === null || raw === undefined || raw === '') {
+      return undefined;
+    }
+    if (typeof raw === 'string') {
+      const parsed = parseFloat(raw);
+      return isNaN(parsed) ? raw : parsed;
+    }
+    return raw;
+  })
   quantidade_litros: number;
 
   @ApiPropertyOptional({ description: 'Valor unitário opcional', example: 4.59 })
