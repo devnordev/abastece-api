@@ -1,4 +1,5 @@
 import {
+  Allow,
   IsEnum,
   IsString,
   IsOptional,
@@ -20,6 +21,33 @@ class CreateProcessoCombustivelDto {
   @IsInt({ message: 'combustivelId deve ser um número inteiro' })
   @IsNotEmpty({ message: 'combustivelId é obrigatório' })
   combustivelId: number;
+
+  @ApiPropertyOptional({
+    description: 'Alias utilizado pelo frontend para quantidade_litros',
+    example: 50000.5,
+  })
+  @Allow()
+  @Transform(({ value, obj }) => {
+    if (
+      (obj.quantidade_litros === undefined || obj.quantidade_litros === null || obj.quantidade_litros === '') &&
+      value !== undefined &&
+      value !== null &&
+      value !== ''
+    ) {
+      if (typeof value === 'string') {
+        const parsed = parseFloat(value.replace(',', '.'));
+        if (!isNaN(parsed)) {
+          obj.quantidade_litros = parsed;
+          return parsed;
+        }
+      } else {
+        obj.quantidade_litros = value;
+        return value;
+      }
+    }
+    return value;
+  })
+  quantidadeLitros?: number | string;
 
   @ApiProperty({ description: 'Quantidade em litros contratada', example: 50000.5 })
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'quantidade_litros deve ser numérica' })
