@@ -1,7 +1,43 @@
-import { IsEnum, IsString, IsOptional, IsInt, IsNumber, IsBoolean, IsDateString, ValidateIf, IsNotEmpty } from 'class-validator';
+import {
+  IsEnum,
+  IsString,
+  IsOptional,
+  IsInt,
+  IsNumber,
+  IsBoolean,
+  IsDateString,
+  ValidateIf,
+  IsNotEmpty,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TipoContrato, TipoDocumento, TipoItens, StatusProcesso } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
+
+class CreateProcessoCombustivelDto {
+  @ApiProperty({ description: 'ID do combustível vinculado ao processo', example: 1 })
+  @IsInt({ message: 'combustivelId deve ser um número inteiro' })
+  @IsNotEmpty({ message: 'combustivelId é obrigatório' })
+  combustivelId: number;
+
+  @ApiProperty({ description: 'Quantidade em litros contratada', example: 50000.5 })
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'quantidade_litros deve ser numérica' })
+  @IsNotEmpty({ message: 'quantidade_litros é obrigatória' })
+  @Transform(({ value }) => (typeof value === 'string' ? parseFloat(value) : value))
+  quantidade_litros: number;
+
+  @ApiPropertyOptional({ description: 'Valor unitário opcional', example: 4.59 })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'valor_unitario deve ser numérico' })
+  @Transform(({ value }) => (typeof value === 'string' ? parseFloat(value) : value))
+  valor_unitario?: number;
+
+  @ApiPropertyOptional({ description: 'Nome de referência do combustível', example: 'GASOLINA COMUM' })
+  @IsOptional()
+  @IsString({ message: 'nome deve ser uma string' })
+  nome?: string;
+}
 
 export class CreateProcessoDto {
   @ApiProperty({
@@ -162,4 +198,15 @@ export class CreateProcessoDto {
   @IsOptional()
   @IsString({ message: 'Arquivo do contrato deve ser uma string' })
   arquivo_contrato?: string;
+
+  @ApiPropertyOptional({
+    description: 'Lista de combustíveis contratados para o processo',
+    type: () => CreateProcessoCombustivelDto,
+    isArray: true,
+  })
+  @IsOptional()
+  @IsArray({ message: 'combustiveis deve ser um array' })
+  @ValidateNested({ each: true })
+  @Type(() => CreateProcessoCombustivelDto)
+  combustiveis?: CreateProcessoCombustivelDto[];
 }

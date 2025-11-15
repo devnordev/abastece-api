@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { TipoContrato, TipoDocumento, TipoItens, StatusProcesso } from '@prisma/client';
+import { Prisma, TipoContrato, TipoDocumento, TipoItens, StatusProcesso } from '@prisma/client';
 import { CreateProcessoDto } from './dto/create-processo.dto';
 import { UpdateProcessoDto } from './dto/update-processo.dto';
 
@@ -57,27 +57,62 @@ export class ProcessoService {
       }
     }
 
-    const processo = await this.prisma.processo.create({
-      data: {
-        ...data,
-        // Converter strings de data para objetos Date se necessário
-        data_abertura: data.data_abertura ? new Date(data.data_abertura) : undefined,
-        data_encerramento: data.data_encerramento ? new Date(data.data_encerramento) : undefined,
-        // Definir valores padrão se não fornecidos
-        tipo_itens: data.tipo_itens || TipoItens.QUANTIDADE_LITROS,
-        status: data.status || StatusProcesso.ATIVO,
-        ativo: data.ativo !== undefined ? data.ativo : true,
-      },
-      include: {
-        prefeitura: {
-          select: { id: true, nome: true, cnpj: true },
+    const { combustiveis, ...processoPayload } = data;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const processo = await tx.processo.create({
+        data: {
+          ...processoPayload,
+          data_abertura: data.data_abertura ? new Date(data.data_abertura) : undefined,
+          data_encerramento: data.data_encerramento ? new Date(data.data_encerramento) : undefined,
+          tipo_itens: data.tipo_itens || TipoItens.QUANTIDADE_LITROS,
+          status: data.status || StatusProcesso.ATIVO,
+          ativo: data.ativo !== undefined ? data.ativo : true,
         },
-      },
+        include: {
+          prefeitura: {
+            select: { id: true, nome: true, cnpj: true },
+          },
+        },
+      });
+
+      let combustiveisCriados = [];
+
+      if (combustiveis?.length) {
+        const combustiveisData = combustiveis.map((item) => ({
+          processoId: processo.id,
+          combustivelId: item.combustivelId,
+          quantidade_litros: new Prisma.Decimal(item.quantidade_litros),
+          valor_unitario: item.valor_unitario !== undefined ? new Prisma.Decimal(item.valor_unitario) : undefined,
+        }));
+
+        await tx.processoCombustivel.createMany({
+          data: combustiveisData,
+        });
+
+        combustiveisCriados = await tx.processoCombustivel.findMany({
+          where: { processoId: processo.id },
+          include: {
+            combustivel: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+              },
+            },
+          },
+        });
+      }
+
+      return { processo, combustiveis: combustiveisCriados };
     });
 
     return {
       message: 'Processo criado com sucesso',
-      processo,
+      processo: {
+        ...result.processo,
+        combustiveis: result.combustiveis,
+      },
     };
   }
 
