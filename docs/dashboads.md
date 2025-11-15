@@ -10,8 +10,8 @@ Este documento descreve como consumir as rotas do módulo `dashboards`. Todas as
 | Perfil               | Descrição                                               | Status |
 |----------------------|---------------------------------------------------------|--------|
 | `ADMIN_PREFEITURA`   | Dashboard completo da prefeitura vinculada ao usuário   | ✅ ativo |
+| `COLABORADOR_PREFEITURA` | Dashboard da prefeitura (mesmos dados do Admin)       | ✅ ativo |
 | `ADMIN_EMPRESA`      | Dashboard com métricas da empresa vinculada             | ✅ ativo |
-| `COLABORADOR_PREFEITURA` | Rotas planejadas para versões futuras                   | 🔜 em planejamento |
 | `COLABORADOR_EMPRESA` | Dashboard com métricas da empresa (mesmos dados do Admin) | ✅ ativo |
 | `SUPER_ADMIN`        | Acesso global planejado para versões futuras            | 🔜 em planejamento |
 
@@ -206,6 +206,14 @@ Rota idêntica à de `ADMIN_EMPRESA`, mudando apenas o guard e endpoint:
 - **`GET /dashboards/colaborador-empresa`**
 - Guardas: `JwtAuthGuard` + `ColaboradorEmpresaGuard`
 - Mesmo formato de query params, body e códigos de status. Os dados retornados são apenas da empresa vinculada ao colaborador autenticado.
+
+## Dashboard `COLABORADOR_PREFEITURA`
+
+Segue exatamente o mesmo comportamento do dashboard `ADMIN_PREFEITURA`, mudando apenas o guard e a rota:
+
+- **`GET /dashboards/colaborador-prefeitura`**
+- Guardas: `JwtAuthGuard` + `ColaboradorPrefeituraGuard`
+- Aceita `abastecimentosLimit` e retorna o mesmo payload descrito na seção de `ADMIN_PREFEITURA`, sempre filtrando pela prefeitura do colaborador autenticado.
 
 ## Boas práticas
 - Ajuste `abastecimentosLimit` conforme a necessidade da UI para evitar payloads grandes.

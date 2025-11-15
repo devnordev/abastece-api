@@ -5,6 +5,7 @@ import { AdminPrefeituraDashboardQueryDto } from './dto/admin-prefeitura-dashboa
 import { AdminEmpresaDashboardQueryDto } from './dto/admin-empresa-dashboard-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminPrefeituraGuard } from '../auth/guards/admin-prefeitura.guard';
+import { ColaboradorPrefeituraGuard } from '../auth/guards/colaborador-prefeitura.guard';
 import { AdminEmpresaGuard } from '../auth/guards/admin-empresa.guard';
 import { ColaboradorEmpresaGuard } from '../auth/guards/colaborador-empresa.guard';
 
@@ -19,6 +20,16 @@ export class DashboardsController {
   @Get('admin-prefeitura')
   @ApiOperation({ summary: 'Dashboard para Administradores de Prefeitura' })
   async getAdminPrefeituraDashboard(
+    @Request() req,
+    @Query() query: AdminPrefeituraDashboardQueryDto,
+  ) {
+    return this.dashboardsService.getAdminPrefeituraDashboard(req.user, query);
+  }
+
+  @UseGuards(ColaboradorPrefeituraGuard)
+  @Get('colaborador-prefeitura')
+  @ApiOperation({ summary: 'Dashboard para Colaboradores de Prefeitura' })
+  async getColaboradorPrefeituraDashboard(
     @Request() req,
     @Query() query: AdminPrefeituraDashboardQueryDto,
   ) {
