@@ -114,3 +114,47 @@ export class UsuarioInvalidStatusTransitionException extends BaseException {
     );
   }
 }
+
+export class UsuarioInvalidFieldException extends BaseException {
+  constructor(field: string, requirement: string, received?: any) {
+    super(
+      `O campo '${field}' é inválido. Requisito: ${requirement}.${received !== undefined ? ` Valor informado: ${received}.` : ''}`,
+      HttpStatus.BAD_REQUEST,
+      'Invalid Field',
+      {
+        field,
+        requirement,
+        received,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
+}
+
+export class UsuarioDuplicatePhoneException extends BaseException {
+  constructor(phone: string) {
+    super(
+      `Já existe um usuário utilizando o telefone ${phone}. Informe um telefone exclusivo.`,
+      HttpStatus.CONFLICT,
+      'Duplicate Phone',
+      {
+        phone,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
+}
+
+export class UsuarioDuplicateNameException extends BaseException {
+  constructor(nome: string) {
+    super(
+      `Já existe um usuário com o nome '${nome}'. Por favor, utilize um nome identificador diferente.`,
+      HttpStatus.CONFLICT,
+      'Duplicate Name',
+      {
+        nome,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
+}

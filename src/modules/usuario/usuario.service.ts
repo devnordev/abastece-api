@@ -6,6 +6,11 @@ import { FindUsuarioDto } from './dto/find-usuario.dto';
 import { UploadService } from '../upload/upload.service';
 import * as bcrypt from 'bcryptjs';
 import { TipoUsuario, StatusAcesso } from '@prisma/client';
+import {
+  UsuarioDuplicateNameException,
+  UsuarioDuplicatePhoneException,
+  UsuarioInvalidFieldException,
+} from '../../common/exceptions/usuario/usuario.exceptions';
 
 @Injectable()
 export class UsuarioService {
@@ -19,6 +24,17 @@ export class UsuarioService {
     if (currentUserId) {
       await this.validateCreatePermission(currentUserId, createUsuarioDto);
     }
+
+    this.validatePayloadFields(createUsuarioDto);
+
+    const normalizedEmail = createUsuarioDto.email.trim().toLowerCase();
+    createUsuarioDto.email = normalizedEmail;
+    createUsuarioDto.nome = createUsuarioDto.nome.trim();
+    createUsuarioDto.cpf = createUsuarioDto.cpf.replace(/\D/g, '');
+    if (createUsuarioDto.phone) {
+      createUsuarioDto.phone = createUsuarioDto.phone.replace(/\D/g, '');
+    }
+
     const { email, senha, cpf, imagem_perfil, orgaoIds, ...restDto } = createUsuarioDto;
 
     // Verificar se usuário já existe
@@ -36,6 +52,24 @@ export class UsuarioService {
 
     if (existingCpf) {
       throw new ConflictException('Este CPF já está cadastrado no sistema. Por favor, verifique os dados e tente novamente.');
+    }
+
+    if (createUsuarioDto.phone) {
+      const existingPhone = await this.prisma.usuario.findFirst({
+        where: {
+          phone: createUsuarioDto.phone,
+        },
+      });
+      if (existingPhone) {
+        throw new UsuarioDuplicatePhoneException(createUsuarioDto.phone);
+      }
+    }
+
+    const existingName = await this.prisma.usuario.findFirst({
+      where: { nome: createUsuarioDto.nome },
+    });
+    if (existingName) {
+      throw new UsuarioDuplicateNameException(createUsuarioDto.nome);
     }
 
     // Validar e processar órgãos se fornecido
@@ -283,6 +317,52 @@ export class UsuarioService {
     };
   }
 
+  private validatePayloadFields(dto: CreateUsuarioDto | UpdateUsuarioDto) {
+    if (dto.nome !== undefined) {
+      if (typeof dto.nome !== 'string' || dto.nome.trim().length < 3) {
+        throw new UsuarioInvalidFieldException('nome', 'deve ser uma string com pelo menos 3 caracteres', dto.nome);
+      }
+    }
+
+    if (dto.email !== undefined) {
+      if (typeof dto.email !== 'string' || !dto.email.includes('@')) {
+        throw new UsuarioInvalidFieldException('email', 'deve ser uma string em formato de email válido', dto.email);
+      }
+    }
+
+    if (dto.cpf !== undefined) {
+      const cpfDigits = dto.cpf.replace(/\D/g, '');
+      if (cpfDigits.length !== 11) {
+        throw new UsuarioInvalidFieldException('cpf', 'deve conter exatamente 11 dígitos numéricos', dto.cpf);
+      }
+    }
+
+    if (dto.phone !== undefined && dto.phone !== null && dto.phone !== '') {
+      const phoneDigits = dto.phone.replace(/\D/g, '');
+      if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+        throw new UsuarioInvalidFieldException('phone', 'deve conter 10 ou 11 dígitos numéricos', dto.phone);
+      }
+    }
+
+    if (dto.tipo_usuario !== undefined && !Object.values(TipoUsuario).includes(dto.tipo_usuario as TipoUsuario)) {
+      throw new UsuarioInvalidFieldException(
+        'tipo_usuario',
+        `deve ser um dos valores permitidos: ${Object.values(TipoUsuario).join(', ')}`,
+        dto.tipo_usuario,
+      );
+    }
+
+    if (dto.statusAcess !== undefined && dto.statusAcess !== null) {
+      if (!Object.values(StatusAcesso).includes(dto.statusAcess as StatusAcesso)) {
+        throw new UsuarioInvalidFieldException(
+          'statusAcess',
+          `deve ser um dos valores permitidos: ${Object.values(StatusAcesso).join(', ')}`,
+          dto.statusAcess,
+        );
+      }
+    }
+  }
+
   async findOne(id: number) {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id },
@@ -349,6 +429,21 @@ export class UsuarioService {
       throw new NotFoundException('Usuário não encontrado');
     }
 
+    this.validatePayloadFields(updateUsuarioDto);
+
+    if (updateUsuarioDto.email) {
+      updateUsuarioDto.email = updateUsuarioDto.email.trim().toLowerCase();
+    }
+    if (updateUsuarioDto.nome) {
+      updateUsuarioDto.nome = updateUsuarioDto.nome.trim();
+    }
+    if (updateUsuarioDto.cpf) {
+      updateUsuarioDto.cpf = updateUsuarioDto.cpf.replace(/\D/g, '');
+    }
+    if (updateUsuarioDto.phone) {
+      updateUsuarioDto.phone = updateUsuarioDto.phone.replace(/\D/g, '');
+    }
+
     // Se estiver atualizando email ou CPF, verificar se já existe
     if (updateUsuarioDto.email || updateUsuarioDto.cpf) {
       const whereCondition: any = {
@@ -371,6 +466,30 @@ export class UsuarioService {
 
       if (conflictingUser) {
         throw new ConflictException('Email ou CPF já está em uso por outro usuário');
+      }
+    }
+
+    if (updateUsuarioDto.phone) {
+      const existingPhone = await this.prisma.usuario.findFirst({
+        where: {
+          id: { not: id },
+          phone: updateUsuarioDto.phone,
+        },
+      });
+      if (existingPhone) {
+        throw new UsuarioDuplicatePhoneException(updateUsuarioDto.phone);
+      }
+    }
+
+    if (updateUsuarioDto.nome) {
+      const existingName = await this.prisma.usuario.findFirst({
+        where: {
+          id: { not: id },
+          nome: updateUsuarioDto.nome,
+        },
+      });
+      if (existingName) {
+        throw new UsuarioDuplicateNameException(updateUsuarioDto.nome);
       }
     }
 
