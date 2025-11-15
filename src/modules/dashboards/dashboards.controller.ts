@@ -6,6 +6,7 @@ import { AdminEmpresaDashboardQueryDto } from './dto/admin-empresa-dashboard-que
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminPrefeituraGuard } from '../auth/guards/admin-prefeitura.guard';
 import { AdminEmpresaGuard } from '../auth/guards/admin-empresa.guard';
+import { ColaboradorEmpresaGuard } from '../auth/guards/colaborador-empresa.guard';
 
 @ApiTags('Dashboards')
 @ApiBearerAuth()
@@ -28,6 +29,16 @@ export class DashboardsController {
   @Get('admin-empresa')
   @ApiOperation({ summary: 'Dashboard para Administradores de Empresa' })
   async getAdminEmpresaDashboard(
+    @Request() req,
+    @Query() query: AdminEmpresaDashboardQueryDto,
+  ) {
+    return this.dashboardsService.getAdminEmpresaDashboard(req.user, query);
+  }
+
+  @UseGuards(ColaboradorEmpresaGuard)
+  @Get('colaborador-empresa')
+  @ApiOperation({ summary: 'Dashboard para Colaboradores de Empresa' })
+  async getColaboradorEmpresaDashboard(
     @Request() req,
     @Query() query: AdminEmpresaDashboardQueryDto,
   ) {

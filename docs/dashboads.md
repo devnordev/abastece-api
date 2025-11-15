@@ -12,7 +12,7 @@ Este documento descreve como consumir as rotas do módulo `dashboards`. Todas as
 | `ADMIN_PREFEITURA`   | Dashboard completo da prefeitura vinculada ao usuário   | ✅ ativo |
 | `ADMIN_EMPRESA`      | Dashboard com métricas da empresa vinculada             | ✅ ativo |
 | `COLABORADOR_PREFEITURA` | Rotas planejadas para versões futuras                   | 🔜 em planejamento |
-| `COLABORADOR_EMPRESA` | Rotas planejadas para versões futuras                   | 🔜 em planejamento |
+| `COLABORADOR_EMPRESA` | Dashboard com métricas da empresa (mesmos dados do Admin) | ✅ ativo |
 | `SUPER_ADMIN`        | Acesso global planejado para versões futuras            | 🔜 em planejamento |
 
 ## Dashboard `ADMIN_PREFEITURA`
@@ -198,6 +198,14 @@ Authorization: Bearer <token>
 | `401 Unauthorized` | Falha na autenticação (token ausente/expirado/inválido). |
 | `403 Forbidden` | Usuário não possui perfil `ADMIN_EMPRESA`. |
 | `500 Internal Server Error` | Falha inesperada durante o processamento. |
+
+## Dashboard `COLABORADOR_EMPRESA`
+
+Rota idêntica à de `ADMIN_EMPRESA`, mudando apenas o guard e endpoint:
+
+- **`GET /dashboards/colaborador-empresa`**
+- Guardas: `JwtAuthGuard` + `ColaboradorEmpresaGuard`
+- Mesmo formato de query params, body e códigos de status. Os dados retornados são apenas da empresa vinculada ao colaborador autenticado.
 
 ## Boas práticas
 - Ajuste `abastecimentosLimit` conforme a necessidade da UI para evitar payloads grandes.
