@@ -355,7 +355,13 @@ export class ProcessoService {
     const existingProcesso = await this.prisma.processo.findUnique({
       where: { id },
       include: {
-        processoCombustivel: true,
+        combustiveis: {
+          include: {
+            combustivel: {
+              select: { id: true, nome: true, sigla: true },
+            },
+          },
+        },
       },
     });
 
@@ -418,7 +424,7 @@ export class ProcessoService {
       message: 'Processo atualizado com sucesso',
       processo: {
         ...result.processo,
-        combustiveis: result.combustiveis ?? existingProcesso.processoCombustivel,
+        combustiveis: result.combustiveis ?? existingProcesso.combustiveis,
       },
     };
   }
