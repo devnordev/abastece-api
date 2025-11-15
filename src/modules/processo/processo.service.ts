@@ -354,25 +354,72 @@ export class ProcessoService {
   async update(id: number, data: UpdateProcessoDto) {
     const existingProcesso = await this.prisma.processo.findUnique({
       where: { id },
+      include: {
+        processoCombustivel: true,
+      },
     });
 
     if (!existingProcesso) {
       throw new NotFoundException('Processo não encontrado');
     }
 
-    const processo = await this.prisma.processo.update({
-      where: { id },
-      data,
-      include: {
-        prefeitura: {
-          select: { id: true, nome: true, cnpj: true },
+    const { combustiveis, ...processoData } = data;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const processo = await tx.processo.update({
+        where: { id },
+        data: processoData,
+        include: {
+          prefeitura: {
+            select: { id: true, nome: true, cnpj: true },
+          },
         },
-      },
+      });
+
+      let combustiveisAtualizados = null;
+
+      if (combustiveis) {
+        await tx.processoCombustivel.deleteMany({
+          where: { processoId: id },
+        });
+
+        if (combustiveis.length) {
+          const combustiveisData = combustiveis.map((item) => ({
+            processoId: id,
+            combustivelId: item.combustivelId,
+            quantidade_litros: new Prisma.Decimal(item.quantidade_litros),
+            valor_unitario:
+              item.valor_unitario !== undefined ? new Prisma.Decimal(item.valor_unitario) : undefined,
+          }));
+
+          await tx.processoCombustivel.createMany({
+            data: combustiveisData,
+          });
+        }
+
+        combustiveisAtualizados = await tx.processoCombustivel.findMany({
+          where: { processoId: id },
+          include: {
+            combustivel: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+              },
+            },
+          },
+        });
+      }
+
+      return { processo, combustiveis: combustiveisAtualizados };
     });
 
     return {
       message: 'Processo atualizado com sucesso',
-      processo,
+      processo: {
+        ...result.processo,
+        combustiveis: result.combustiveis ?? existingProcesso.processoCombustivel,
+      },
     };
   }
 
