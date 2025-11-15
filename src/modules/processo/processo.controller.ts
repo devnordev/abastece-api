@@ -3,7 +3,6 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@ne
 import { ProcessoService } from './processo.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateProcessoDto, UpdateProcessoDto, FindProcessoDto } from './dto';
-import { TransformProcessoCombustiveisPipe } from './pipes/transform-processo-combustiveis.pipe';
 
 @ApiTags('Processos')
 @Controller('processos')
@@ -18,7 +17,7 @@ export class ProcessoController {
   @ApiResponse({ status: 400, description: 'Dados inválidos ou campos obrigatórios não informados' })
   @ApiResponse({ status: 404, description: 'Prefeitura não encontrada' })
   @ApiResponse({ status: 409, description: 'Esta prefeitura já possui um processo cadastrado' })
-  async create(@Body(TransformProcessoCombustiveisPipe) data: CreateProcessoDto) {
+  async create(@Body() data: CreateProcessoDto) {
     return this.processoService.create(data);
   }
 
@@ -70,7 +69,7 @@ export class ProcessoController {
   @ApiResponse({ status: 404, description: 'Processo não encontrado' })
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body(TransformProcessoCombustiveisPipe) data: UpdateProcessoDto,
+    @Body() data: UpdateProcessoDto,
   ) {
     return this.processoService.update(id, data);
   }
