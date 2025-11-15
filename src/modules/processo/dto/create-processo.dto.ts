@@ -21,6 +21,29 @@ class CreateProcessoCombustivelDto {
   @IsNotEmpty({ message: 'combustivelId é obrigatório' })
   combustivelId: number;
 
+  @ApiPropertyOptional({
+    description: 'Alias utilizado pelo frontend (camelCase) para quantidade de litros',
+    example: 50000.5,
+  })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value.replace(',', '.'));
+      if (!isNaN(parsed)) {
+        obj.quantidade_litros = parsed;
+      }
+    } else if (typeof value === 'number') {
+      obj.quantidade_litros = value;
+    }
+
+    return value;
+  })
+  quantidadeLitros?: number | string;
+
   @ApiProperty({ description: 'Quantidade em litros contratada', example: 50000.5 })
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'quantidade_litros deve ser numérica' })
   @IsNotEmpty({ message: 'quantidade_litros é obrigatória' })
