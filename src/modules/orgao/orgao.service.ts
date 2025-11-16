@@ -1,5 +1,17 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { Prisma, TipoContrato, StatusProcesso } from '@prisma/client';
+import {
+  CotaOrgaoQuantidadeExcedeCombustivelException,
+  CotaOrgaoQuantidadeExcedeProcessoException,
+  CotaOrgaoQuantidadeInvalidaException,
+} from '../../common/exceptions/cota-orgao/cota-orgao.exceptions';
 
 @Injectable()
 export class OrgaoService {
@@ -273,5 +285,180 @@ export class OrgaoService {
     if (currentUser.tipo_usuario === 'ADMIN_PREFEITURA' && currentUser.prefeituraId !== prefeituraId) {
       throw new ForbiddenException('Você só pode cadastrar órgãos da sua própria prefeitura');
     }
+  }
+
+  async createCotaOrgao(
+    orgaoId: number,
+    data: { processoId: number; combustivelId: number; quantidade: number },
+    currentUser: any,
+  ) {
+    if (!currentUser || currentUser.tipo_usuario !== 'ADMIN_PREFEITURA') {
+      throw new ForbiddenException('Apenas ADMIN_PREFEITURA pode cadastrar cotas para órgãos');
+    }
+
+    const prefeituraId = currentUser.prefeitura?.id ?? currentUser.prefeituraId;
+    if (!prefeituraId) {
+      throw new ForbiddenException('Usuário não está vinculado a uma prefeitura');
+    }
+
+    if (data.quantidade === undefined || data.quantidade === null || data.quantidade <= 0) {
+      throw new CotaOrgaoQuantidadeInvalidaException(data.quantidade);
+    }
+
+    const orgao = await this.prisma.orgao.findUnique({
+      where: { id: orgaoId },
+    });
+
+    if (!orgao) {
+      throw new NotFoundException('Órgão não encontrado');
+    }
+
+    if (orgao.prefeituraId !== prefeituraId) {
+      throw new ForbiddenException('Você só pode cadastrar cotas para órgãos da sua própria prefeitura');
+    }
+
+    const processo = await this.prisma.processo.findFirst({
+      where: {
+        id: data.processoId,
+        prefeituraId,
+        tipo_contrato: TipoContrato.OBJETIVO,
+        status: StatusProcesso.ATIVO,
+        ativo: true,
+      },
+      include: {
+        combustiveis: true,
+      },
+    });
+
+    if (!processo) {
+      throw new BadRequestException(
+        'Processo informado não pertence à prefeitura do usuário ou não está ativo como contrato objetivo',
+      );
+    }
+
+    if (!processo.litros_desejados) {
+      throw new BadRequestException(
+        'O processo selecionado não possui litros_desejados configurado. Configure antes de criar cotas.',
+      );
+    }
+
+    const processoCombustivel = processo.combustiveis.find(
+      (pc) => pc.combustivelId === data.combustivelId,
+    );
+
+    if (!processoCombustivel) {
+      throw new BadRequestException(
+        'O combustível selecionado não está vinculado ao processo informado. Verifique os combustíveis do processo.',
+      );
+    }
+
+    const litrosDesejados = Number(processo.litros_desejados.toString());
+
+    const totalCotasProcessoAgg = await this.prisma.cotaOrgao.aggregate({
+      _sum: {
+        quantidade: true,
+      },
+      where: {
+        processoId: processo.id,
+      },
+    });
+
+    const totalCotasProcesso = totalCotasProcessoAgg._sum.quantidade
+      ? Number(totalCotasProcessoAgg._sum.quantidade.toString())
+      : 0;
+
+    const novaSomaProcesso = totalCotasProcesso + data.quantidade;
+    if (novaSomaProcesso > litrosDesejados) {
+      throw new CotaOrgaoQuantidadeExcedeProcessoException(
+        novaSomaProcesso,
+        litrosDesejados,
+        {
+          payload: { orgaoId, processoId: processo.id, combustivelId: data.combustivelId },
+          user: currentUser ? { id: currentUser.id, tipo: currentUser.tipo_usuario } : undefined,
+        },
+      );
+    }
+
+    const totalCotasCombustivelAgg = await this.prisma.cotaOrgao.aggregate({
+      _sum: {
+        quantidade: true,
+      },
+      where: {
+        processoId: processo.id,
+        combustivelId: data.combustivelId,
+      },
+    });
+
+    const totalCotasCombustivel = totalCotasCombustivelAgg._sum.quantidade
+      ? Number(totalCotasCombustivelAgg._sum.quantidade.toString())
+      : 0;
+
+    const quantidadeProcessoCombustivel = Number(
+      processoCombustivel.quantidade_litros.toString(),
+    );
+
+    const novaSomaCombustivel = totalCotasCombustivel + data.quantidade;
+
+    if (novaSomaCombustivel > quantidadeProcessoCombustivel) {
+      throw new CotaOrgaoQuantidadeExcedeCombustivelException(
+        novaSomaCombustivel,
+        quantidadeProcessoCombustivel,
+        data.combustivelId,
+        {
+          payload: { orgaoId, processoId: processo.id },
+          user: currentUser ? { id: currentUser.id, tipo: currentUser.tipo_usuario } : undefined,
+        },
+      );
+    }
+
+    const quantidadeDecimal = new Prisma.Decimal(data.quantidade.toFixed(3));
+
+    const cota = await this.prisma.cotaOrgao.create({
+      data: {
+        processoId: processo.id,
+        orgaoId: orgaoId,
+        combustivelId: data.combustivelId,
+        quantidade: quantidadeDecimal,
+        quantidade_utilizada: new Prisma.Decimal(0),
+        valor_utilizado: new Prisma.Decimal(0),
+        restante: quantidadeDecimal,
+        saldo_disponivel_cota: quantidadeDecimal,
+        ativa: true,
+      },
+      include: {
+        orgao: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+        processo: {
+          select: {
+            id: true,
+            numero_processo: true,
+            litros_desejados: true,
+          },
+        },
+      },
+    });
+
+    return {
+      message: 'Cota do órgão criada com sucesso',
+      cota,
+      limites: {
+        litros_desejados_processo: litrosDesejados,
+        total_cotas_processo: novaSomaProcesso,
+        quantidade_processocombustivel: quantidadeProcessoCombustivel,
+        total_cotas_combustivel: novaSomaCombustivel,
+      },
+    };
   }
 }

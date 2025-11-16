@@ -259,6 +259,29 @@ export class CotaOrgaoQuantidadeExcedeProcessoException extends CrudException {
   }
 }
 
+export class CotaOrgaoQuantidadeExcedeCombustivelException extends CrudException {
+  constructor(
+    quantidadeSolicitada: number,
+    quantidadeDisponivelCombustivel: number,
+    combustivelId: number,
+    overrides: ContextMeta = {},
+  ) {
+    super({
+      message: `Quantidade solicitada (${quantidadeSolicitada} L) para o combustível ${combustivelId} excede o limite definido no processo (${quantidadeDisponivelCombustivel} L). Ajuste a cota para permanecer dentro da quantidade_litros configurada para este combustível.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'COTA_ORGAO_QUANTIDADE_EXCEDE_COMBUSTIVEL',
+      context: buildContext('allocate', {
+        payload: { quantidadeSolicitada, combustivelId },
+        expected:
+          'Distribuir combustível entre órgãos respeitando a quantidade_litros do ProcessoCombustivel.',
+        performed: 'Distribuição de quantidade de combustível para órgão por combustível.',
+        additionalInfo: { quantidadeSolicitada, quantidadeDisponivelCombustivel, combustivelId },
+        ...overrides,
+      }),
+    });
+  }
+}
+
 export class CotaOrgaoQuantidadeInferiorUtilizadaException extends CrudException {
   constructor(quantidadeSolicitada: number, quantidadeUtilizada: number, overrides: ContextMeta = {}) {
     super({
