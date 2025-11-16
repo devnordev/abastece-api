@@ -880,9 +880,179 @@ export class VeiculoService {
       },
     });
 
+    // Atualizar relacionamentos com combustíveis (se fornecido)
+    if (combustivelIds !== undefined) {
+      // Validar se combustíveis existem
+      if (combustivelIds.length > 0) {
+        const combustiveis = await this.prisma.combustivel.findMany({
+          where: {
+            id: { in: combustivelIds },
+          },
+        });
+
+        if (combustiveis.length !== combustivelIds.length) {
+          throw new NotFoundException('Um ou mais combustíveis não foram encontrados');
+        }
+      }
+
+      // Remover relacionamentos antigos
+      await this.prisma.veiculoCombustivel.deleteMany({
+        where: { veiculoId: id },
+      });
+
+      // Criar novos relacionamentos
+      if (combustivelIds.length > 0) {
+        await this.prisma.veiculoCombustivel.createMany({
+          data: combustivelIds.map(combustivelId => ({
+            veiculoId: id,
+            combustivelId,
+            ativo: true,
+          })),
+        });
+      }
+    }
+
+    // Atualizar relacionamentos com categorias (se fornecido)
+    if (categoriaIds !== undefined) {
+      // Validar se categorias existem
+      if (categoriaIds.length > 0) {
+        const categorias = await this.prisma.categoria.findMany({
+          where: {
+            id: { in: categoriaIds },
+          },
+        });
+
+        if (categorias.length !== categoriaIds.length) {
+          throw new NotFoundException('Uma ou mais categorias não foram encontradas');
+        }
+      }
+
+      // Remover relacionamentos antigos
+      await this.prisma.veiculoCategoria.deleteMany({
+        where: { veiculoId: id },
+      });
+
+      // Criar novos relacionamentos
+      if (categoriaIds.length > 0) {
+        await this.prisma.veiculoCategoria.createMany({
+          data: categoriaIds.map(categoriaId => ({
+            veiculoId: id,
+            categoriaId,
+            ativo: true,
+          })),
+        });
+      }
+    }
+
+    // Atualizar relacionamentos com motoristas (se fornecido)
+    if (motoristaIds !== undefined) {
+      // Validar se motoristas existem e pertencem à prefeitura
+      if (motoristaIds.length > 0) {
+        const motoristas = await this.prisma.motorista.findMany({
+          where: {
+            id: { in: motoristaIds },
+            prefeituraId: existingVeiculo.prefeituraId,
+          },
+        });
+
+        if (motoristas.length !== motoristaIds.length) {
+          throw new NotFoundException('Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura');
+        }
+      }
+
+      // Remover relacionamentos antigos (apenas os ativos)
+      await this.prisma.veiculoMotorista.updateMany({
+        where: {
+          veiculoId: id,
+          ativo: true,
+        },
+        data: {
+          ativo: false,
+          data_fim: new Date(),
+        },
+      });
+
+      // Criar novos relacionamentos
+      if (motoristaIds.length > 0) {
+        await this.prisma.veiculoMotorista.createMany({
+          data: motoristaIds.map(motoristaId => ({
+            veiculoId: id,
+            motoristaId,
+            data_inicio: new Date(),
+            ativo: true,
+          })),
+        });
+      }
+    }
+
+    // Buscar o veículo completo com todos os relacionamentos atualizados
+    const veiculoCompleto = await this.prisma.veiculo.findUnique({
+      where: { id },
+      include: {
+        prefeitura: {
+          select: {
+            id: true,
+            nome: true,
+            cnpj: true,
+          },
+        },
+        orgao: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+        contaFaturamento: {
+          select: {
+            id: true,
+            nome: true,
+            descricao: true,
+          },
+        },
+        categorias: {
+          include: {
+            categoria: {
+              select: {
+                id: true,
+                nome: true,
+                descricao: true,
+              },
+            },
+          },
+        },
+        combustiveis: {
+          include: {
+            combustivel: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+                descricao: true,
+              },
+            },
+          },
+        },
+        motoristas: {
+          where: {
+            ativo: true,
+          },
+          include: {
+            motorista: {
+              select: {
+                id: true,
+                nome: true,
+                cpf: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
     return {
       message: 'Veículo atualizado com sucesso',
-      veiculo,
+      veiculo: veiculoCompleto,
     };
   }
 
