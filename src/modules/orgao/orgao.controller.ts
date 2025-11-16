@@ -2,6 +2,8 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Pa
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { OrgaoService } from './orgao.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminPrefeituraGuard } from '../auth/guards/admin-prefeitura.guard';
+import { CreateCotaOrgaoDto } from './dto/create-cota-orgao.dto';
 
 @ApiTags('Órgãos')
 @Controller('orgaos')
@@ -72,6 +74,26 @@ export class OrgaoController {
     @Body() data: { nome?: string; sigla?: string; ativo?: boolean },
   ) {
     return this.orgaoService.update(id, data);
+  }
+
+  @Post(':id/cotas')
+  @UseGuards(AdminPrefeituraGuard)
+  @ApiOperation({
+    summary: 'Criar cota de combustível para um órgão (CotaOrgao)',
+    description:
+      'Cria um registro em CotaOrgao para o órgão informado, vinculando a um processo OBJETIVO da prefeitura do usuário logado. ' +
+      'Valida que a soma das quantidades de todas as cotas do processo não ultrapassa litros_desejados do processo e que a soma das cotas por combustível não ultrapassa quantidade_litros do ProcessoCombustivel correspondente.',
+  })
+  @ApiResponse({ status: 201, description: 'Cota criada com sucesso' })
+  @ApiResponse({ status: 400, description: 'Regras de negócio da cota violadas' })
+  @ApiResponse({ status: 403, description: 'Usuário não é ADMIN_PREFEITURA ou órgão de outra prefeitura' })
+  @ApiResponse({ status: 404, description: 'Órgão ou processo não encontrado' })
+  async createCotaOrgao(
+    @Param('id', ParseIntPipe) orgaoId: number,
+    @Body() dto: CreateCotaOrgaoDto,
+    @Request() req,
+  ) {
+    return this.orgaoService.createCotaOrgao(orgaoId, dto, req.user);
   }
 
   @Delete(':id')
