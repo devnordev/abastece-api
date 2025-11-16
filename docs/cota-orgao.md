@@ -16,12 +16,13 @@ Este documento explica como cadastrar cotas de combustível por órgão, vincula
 ## Endpoint
 
 - **Rota**: `POST /orgaos/:id/cotas`
-  - `:id` é o `orgaoId`.
+  - `:id` é o `orgaoId` (ID do órgão que receberá a cota).
+- **Método**: `POST`
 - **Guards**:
   - `JwtAuthGuard`
   - `AdminPrefeituraGuard`
 
-### Corpo da requisição (JSON)
+### Body da requisição (JSON)
 
 ```json
 {
@@ -33,7 +34,10 @@ Este documento explica como cadastrar cotas de combustível por órgão, vincula
 
 - **`processoId`**: ID do processo OBJETIVO ativo da prefeitura do usuário.
 - **`combustivelId`**: ID do combustível vinculado ao processo (tabela `ProcessoCombustivel`).
-- **`quantidade`**: quantidade de litros da cota para **este órgão** e **este combustível**.
+- **`quantidade`**:
+  - Quantidade de litros da cota para **este órgão** e **este combustível**.
+  - Deve ser **maior que zero**.
+  - No banco, é armazenada com 3 casas decimais em `CotaOrgao.quantidade` (`Decimal(10,3)`).
 
 ## Lógica de negócio aplicada
 
