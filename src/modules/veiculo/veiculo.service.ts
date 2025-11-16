@@ -841,6 +841,60 @@ export class VeiculoService {
     // Remover prefeituraId do objeto de update (não deve ser atualizável)
     const { prefeituraId, categoriaIds, combustivelIds, motoristaIds, cotasPeriodo, foto_veiculo, ...restUpdateData } = updateVeiculoDto;
 
+    // Determinar o orgaoId final (novo ou existente)
+    const finalOrgaoId = updateVeiculoDto.orgaoId !== undefined ? updateVeiculoDto.orgaoId : existingVeiculo.orgaoId;
+
+    // Validar se o órgão existe e pertence à prefeitura (se orgaoId está sendo alterado)
+    if (updateVeiculoDto.orgaoId !== undefined && updateVeiculoDto.orgaoId !== existingVeiculo.orgaoId) {
+      const orgao = await this.prisma.orgao.findFirst({
+        where: {
+          id: updateVeiculoDto.orgaoId,
+          prefeituraId: existingVeiculo.prefeituraId,
+        },
+      });
+
+      if (!orgao) {
+        throw new NotFoundException('Órgão não encontrado ou não pertence a esta prefeitura');
+      }
+    }
+
+    // Validar conta de faturamento quando orgaoId é alterado
+    if (finalOrgaoId !== null && finalOrgaoId !== undefined) {
+      // Se contaFaturamentoOrgaoId foi fornecida, validar que pertence ao orgaoId (novo ou existente)
+      if (updateVeiculoDto.contaFaturamentoOrgaoId !== undefined) {
+        if (updateVeiculoDto.contaFaturamentoOrgaoId !== null) {
+          const contaFaturamento = await this.prisma.contaFaturamentoOrgao.findFirst({
+            where: {
+              id: updateVeiculoDto.contaFaturamentoOrgaoId,
+              orgaoId: finalOrgaoId,
+            },
+          });
+
+          if (!contaFaturamento) {
+            throw new NotFoundException('Conta de faturamento não encontrada ou não pertence ao órgão informado');
+          }
+        }
+      } else {
+        // Se orgaoId foi alterado mas contaFaturamentoOrgaoId não foi fornecida,
+        // verificar se a conta atual pertence ao novo órgão
+        if (updateVeiculoDto.orgaoId !== undefined && updateVeiculoDto.orgaoId !== existingVeiculo.orgaoId) {
+          if (existingVeiculo.contaFaturamentoOrgaoId) {
+            const contaAtual = await this.prisma.contaFaturamentoOrgao.findFirst({
+              where: {
+                id: existingVeiculo.contaFaturamentoOrgaoId,
+                orgaoId: finalOrgaoId,
+              },
+            });
+
+            // Se a conta atual não pertence ao novo órgão, limpar a conta
+            if (!contaAtual) {
+              restUpdateData.contaFaturamentoOrgaoId = null;
+            }
+          }
+        }
+      }
+    }
+
     // Preparar dados para atualização
     const updateData: any = {
       ...restUpdateData,
