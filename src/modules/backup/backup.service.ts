@@ -542,7 +542,7 @@ export class BackupService {
   }
 
   /**
-   * Gera timestamp no formato DD-MM-YYYY-HHMMSS
+   * Gera timestamp no formato DD-MM-YYYY-HHMMSS-MMM (inclui milissegundos para garantir unicidade)
    */
   private getTimestamp(): string {
     const now = new Date();
@@ -552,8 +552,60 @@ export class BackupService {
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
     const seconds = String(now.getSeconds()).padStart(2, '0');
+    const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
 
-    return `${day}-${month}-${year}-${hours}${minutes}${seconds}`;
+    return `${day}-${month}-${year}-${hours}${minutes}${seconds}-${milliseconds}`;
+  }
+
+  /**
+   * Busca todas as tabelas do banco de dados PostgreSQL
+   */
+  private async getAllTablesFromDatabase(): Promise<Array<{ model: string; table: string }>> {
+    try {
+      // Query SQL para buscar todas as tabelas do schema público
+      const result = await this.prisma.$queryRaw<Array<{ table_name: string }>>`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+          AND table_type = 'BASE TABLE'
+        ORDER BY table_name;
+      `;
+
+      // Mapear nomes de tabelas para modelos Prisma
+      // A conversão é: snake_case -> camelCase (primeira letra minúscula)
+      const tables = result.map((row) => {
+        const tableName = row.table_name;
+        // Converter snake_case para camelCase
+        const modelName = this.tableNameToModelName(tableName);
+        return {
+          model: modelName,
+          table: tableName,
+        };
+      });
+
+      return tables;
+    } catch (error: any) {
+      throw new BadRequestException(`Erro ao buscar tabelas do banco de dados: ${error.message}`);
+    }
+  }
+
+  /**
+   * Converte nome de tabela (snake_case) para nome de modelo Prisma (camelCase)
+   */
+  private tableNameToModelName(tableName: string): string {
+    // Dividir por underscore e converter primeira letra de cada palavra para minúscula
+    // exceto a primeira palavra que já começa minúscula
+    const parts = tableName.split('_');
+    const camelCase = parts
+      .map((part, index) => {
+        if (index === 0) {
+          return part.charAt(0).toLowerCase() + part.slice(1);
+        }
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      })
+      .join('');
+
+    return camelCase;
   }
 
   /**
@@ -574,6 +626,8 @@ export class BackupService {
 
   /**
    * Gera backup geral por tabela, criando uma pasta com data_hora e um arquivo SQL para cada tabela
+   * Busca TODAS as tabelas do banco de dados dinamicamente
+   * Cada backup é salvo em uma pasta única com timestamp incluindo milissegundos
    */
   async generateBackupByTable(): Promise<{
     folderName: string;
@@ -582,24 +636,49 @@ export class BackupService {
     totalFiles: number;
     totalSize: number;
   }> {
-    const timestamp = this.getTimestamp();
-    const folderName = `backup-${timestamp}`;
-    const folderPath = path.join(this.backupDir, folderName);
+    // Gerar timestamp único com milissegundos para evitar sobrescrita
+    const baseTimestamp = this.getTimestamp();
+    let timestamp = baseTimestamp;
+    let folderName = `backup-${timestamp}`;
+    let folderPath = path.join(this.backupDir, folderName);
+    
+    // Garantir que a pasta não existe (adicionar contador se necessário)
+    let counter = 0;
+    while (fs.existsSync(folderPath)) {
+      counter++;
+      timestamp = `${baseTimestamp}-${counter}`;
+      folderName = `backup-${timestamp}`;
+      folderPath = path.join(this.backupDir, folderName);
+    }
 
     try {
-      // Criar pasta se não existir
-      if (!fs.existsSync(folderPath)) {
-        fs.mkdirSync(folderPath, { recursive: true });
-      }
+      // Criar pasta única para este backup
+      fs.mkdirSync(folderPath, { recursive: true });
+
+      // Buscar TODAS as tabelas do banco de dados
+      const allTables = await this.getAllTablesFromDatabase();
 
       const tables: Array<{ table: string; filename: string; records: number; size: number }> = [];
       let totalSize = 0;
 
-      // Gerar arquivo SQL para cada tabela
-      for (const { model, table } of this.FULL_BACKUP_MODELS) {
+      // Gerar arquivo SQL para cada tabela encontrada no banco
+      for (const { model, table } of allTables) {
         try {
-          // Buscar todos os registros da tabela
-          const records = await this.fetchAllRecords(model);
+          // Tentar buscar registros usando o modelo Prisma
+          let records: any[] = [];
+          try {
+            records = await this.fetchAllRecords(model);
+          } catch (modelError: any) {
+            // Se o modelo não existir no Prisma, tentar buscar diretamente via SQL
+            console.warn(`Modelo ${model} não encontrado no Prisma, tentando busca direta via SQL para tabela ${table}`);
+            try {
+              const sqlResult = await this.prisma.$queryRawUnsafe(`SELECT * FROM "${table}"`);
+              records = sqlResult as any[];
+            } catch (sqlError: any) {
+              console.error(`Erro ao buscar dados da tabela ${table} via SQL:`, sqlError.message);
+              records = [];
+            }
+          }
           
           // Gerar SQL INSERT
           const sqlContent = this.generateInsertSQLWithHeader(table, records);
@@ -626,10 +705,10 @@ export class BackupService {
         } catch (error: any) {
           // Se houver erro ao processar uma tabela, registrar mas continuar com as outras
           console.error(`Erro ao processar tabela ${table}:`, error.message);
-          // Criar arquivo vazio ou com mensagem de erro
+          // Criar arquivo com mensagem de erro
           const filename = `${table}.sql`;
           const filepath = path.join(folderPath, filename);
-          const errorContent = `-- Erro ao gerar backup da tabela ${table}\n-- ${error.message}\n`;
+          const errorContent = `-- Erro ao gerar backup da tabela ${table}\n-- ${error.message}\n-- Data/Hora: ${new Date().toLocaleString('pt-BR')}\n`;
           fs.writeFileSync(filepath, errorContent, 'utf8');
           
           const stats = fs.statSync(filepath);
@@ -642,6 +721,11 @@ export class BackupService {
         }
       }
 
+      // Criar arquivo de índice com informações do backup
+      const indexContent = this.generateBackupIndex(folderName, timestamp, tables, totalSize);
+      const indexPath = path.join(folderPath, 'BACKUP_INFO.txt');
+      fs.writeFileSync(indexPath, indexContent, 'utf8');
+
       return {
         folderName,
         folderPath,
@@ -652,6 +736,56 @@ export class BackupService {
     } catch (error: any) {
       throw new BadRequestException(`Erro ao gerar backup por tabela: ${error.message}`);
     }
+  }
+
+  /**
+   * Gera arquivo de índice com informações do backup
+   */
+  private generateBackupIndex(
+    folderName: string,
+    timestamp: string,
+    tables: Array<{ table: string; filename: string; records: number; size: number }>,
+    totalSize: number,
+  ): string {
+    const now = new Date();
+    let content = `============================================
+INFORMAÇÕES DO BACKUP
+============================================
+Nome da Pasta: ${folderName}
+Timestamp: ${timestamp}
+Data/Hora: ${now.toLocaleString('pt-BR')}
+Total de Tabelas: ${tables.length}
+Tamanho Total: ${this.formatBytes(totalSize)}
+============================================
+
+TABELAS INCLUÍDAS NO BACKUP:
+============================================
+`;
+
+    tables.forEach((table, index) => {
+      content += `${index + 1}. ${table.table}\n`;
+      content += `   Arquivo: ${table.filename}\n`;
+      content += `   Registros: ${table.records}\n`;
+      content += `   Tamanho: ${this.formatBytes(table.size)}\n\n`;
+    });
+
+    content += `============================================
+FIM DO ÍNDICE
+============================================
+`;
+
+    return content;
+  }
+
+  /**
+   * Formata bytes para formato legível (KB, MB, GB)
+   */
+  private formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   }
 
   /**

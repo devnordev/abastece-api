@@ -485,3 +485,336 @@ export class SolicitacaoAbastecimentoAbastecimentoVinculadoException extends Cru
   }
 }
 
+// ============================================
+// EXCEÇÕES DE VALIDAÇÃO DE MOTORISTA
+// ============================================
+
+export class SolicitacaoAbastecimentoMotoristaNaoVinculadoVeiculoException extends CrudException {
+  constructor(motoristaId: number, veiculoId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `O motorista ${motoristaId} não está vinculado ao veículo ${veiculoId}. É necessário vincular o motorista ao veículo antes de criar a solicitação de abastecimento.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_MOTORISTA_NAO_VINCULADO_VEICULO',
+      context: buildContext('validate', {
+        resourceId: motoristaId,
+        expected: 'Utilizar motorista previamente vinculado ao veículo selecionado.',
+        performed: `Validação do vínculo entre motorista ${motoristaId} e veículo ${veiculoId}.`,
+        additionalInfo: {
+          motoristaId,
+          veiculoId,
+          suggestion: 'Verifique se o motorista está ativo e vinculado ao veículo na data da solicitação.',
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+// ============================================
+// EXCEÇÕES DE VALIDAÇÃO DE ORGÃO
+// ============================================
+
+export class SolicitacaoAbastecimentoVeiculoSemOrgaoException extends CrudException {
+  constructor(veiculoId: number, tipoAbastecimento: string, overrides: ContextMeta = {}) {
+    super({
+      message: `O veículo ${veiculoId} não possui órgão vinculado. Para solicitações do tipo "${tipoAbastecimento}", é obrigatório que o veículo esteja vinculado a um órgão para validação de cotas.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_VEICULO_SEM_ORGAO',
+      context: buildContext('validate', {
+        resourceId: veiculoId,
+        expected: 'Veículo deve estar vinculado a um órgão para validação de cotas.',
+        performed: `Validação de órgão para veículo ${veiculoId} com tipo de abastecimento ${tipoAbastecimento}.`,
+        additionalInfo: {
+          veiculoId,
+          tipoAbastecimento,
+          suggestion: 'Vincule o veículo a um órgão antes de criar a solicitação de abastecimento.',
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+// ============================================
+// EXCEÇÕES DE VALIDAÇÃO DE PROCESSO
+// ============================================
+
+export class SolicitacaoAbastecimentoProcessoAtivoNaoEncontradoException extends CrudException {
+  constructor(prefeituraId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `Não foi encontrado processo ativo do tipo OBJETIVO para a prefeitura ${prefeituraId}. É necessário ter um processo ativo para validar cotas de abastecimento.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_PROCESSO_ATIVO_NAO_ENCONTRADO',
+      context: buildContext('validate', {
+        resourceId: prefeituraId,
+        expected: 'Prefeitura deve possuir um processo ativo do tipo OBJETIVO para validação de cotas.',
+        performed: `Busca de processo ativo para prefeitura ${prefeituraId}.`,
+        additionalInfo: {
+          prefeituraId,
+          tipoProcessoEsperado: 'OBJETIVO',
+          statusEsperado: 'ATIVO',
+          suggestion: 'Cadastre um processo ativo do tipo OBJETIVO para a prefeitura antes de criar solicitações de abastecimento.',
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+// ============================================
+// EXCEÇÕES DE VALIDAÇÃO DE COTA DO ÓRGÃO
+// ============================================
+
+export class SolicitacaoAbastecimentoCotaOrgaoNaoEncontradaException extends CrudException {
+  constructor(orgaoId: number, combustivelId: number, processoId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `Não foi encontrada cota ativa para o órgão ${orgaoId}, combustível ${combustivelId} e processo ${processoId}. É necessário cadastrar uma cota para este órgão e combustível no processo ativo.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_COTA_ORGAO_NAO_ENCONTRADA',
+      context: buildContext('validate', {
+        resourceId: orgaoId,
+        expected: 'Órgão deve possuir cota ativa para o combustível no processo ativo.',
+        performed: `Busca de cota para órgão ${orgaoId}, combustível ${combustivelId} e processo ${processoId}.`,
+        additionalInfo: {
+          orgaoId,
+          combustivelId,
+          processoId,
+          suggestion: 'Cadastre uma cota ativa para este órgão e combustível no processo ativo da prefeitura.',
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoCotaOrgaoInsuficienteLivreException extends CrudException {
+  constructor(quantidade: number, restante: number, orgaoId: number, combustivelId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `Quantidade solicitada (${quantidade} litros) excede o restante disponível na cota do órgão (${restante} litros). Para veículos do tipo LIVRE, a quantidade solicitada deve ser menor ou igual ao restante da cota do órgão.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_COTA_ORGAO_INSUFICIENTE_LIVRE',
+      context: buildContext('validate', {
+        expected: 'Quantidade solicitada deve ser menor ou igual ao restante da cota do órgão para tipo LIVRE.',
+        performed: `Validação de cota do órgão para tipo LIVRE. Quantidade solicitada: ${quantidade} L, restante disponível: ${restante} L.`,
+        additionalInfo: {
+          quantidade,
+          restante,
+          orgaoId,
+          combustivelId,
+          tipoAbastecimento: 'LIVRE',
+          quantidadeMaximaPermitida: restante,
+          diferenca: quantidade - restante,
+          suggestion: `Ajuste a quantidade solicitada para no máximo ${restante} litros, que corresponde ao restante disponível na cota do órgão.`,
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoCotaOrgaoInsuficienteComCotaException extends CrudException {
+  constructor(quantidade: number, restante: number, orgaoId: number, combustivelId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `Quantidade solicitada (${quantidade} litros) excede o restante disponível na cota do órgão (${restante} litros). Para veículos do tipo COM_COTA, além da validação da cota do período do veículo, é necessário que a quantidade solicitada seja menor ou igual ao restante da cota do órgão.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_COTA_ORGAO_INSUFICIENTE_COM_COTA',
+      context: buildContext('validate', {
+        expected: 'Quantidade solicitada deve ser menor ou igual ao restante da cota do órgão para tipo COM_COTA.',
+        performed: `Validação de cota do órgão para tipo COM_COTA. Quantidade solicitada: ${quantidade} L, restante disponível: ${restante} L.`,
+        additionalInfo: {
+          quantidade,
+          restante,
+          orgaoId,
+          combustivelId,
+          tipoAbastecimento: 'COM_COTA',
+          quantidadeMaximaPermitida: restante,
+          diferenca: quantidade - restante,
+          suggestion: `Ajuste a quantidade solicitada para no máximo ${restante} litros, que corresponde ao restante disponível na cota do órgão.`,
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoCotaOrgaoInsuficienteComAutorizacaoException extends CrudException {
+  constructor(quantidade: number, restante: number, orgaoId: number, combustivelId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `Quantidade solicitada (${quantidade} litros) excede o restante disponível na cota do órgão (${restante} litros). Para veículos do tipo COM_AUTORIZACAO, a quantidade solicitada deve ser menor ou igual ao restante da cota do órgão.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_COTA_ORGAO_INSUFICIENTE_COM_AUTORIZACAO',
+      context: buildContext('validate', {
+        expected: 'Quantidade solicitada deve ser menor ou igual ao restante da cota do órgão para tipo COM_AUTORIZACAO.',
+        performed: `Validação de cota do órgão para tipo COM_AUTORIZACAO. Quantidade solicitada: ${quantidade} L, restante disponível: ${restante} L.`,
+        additionalInfo: {
+          quantidade,
+          restante,
+          orgaoId,
+          combustivelId,
+          tipoAbastecimento: 'COM_AUTORIZACAO',
+          quantidadeMaximaPermitida: restante,
+          diferenca: quantidade - restante,
+          suggestion: `Ajuste a quantidade solicitada para no máximo ${restante} litros, que corresponde ao restante disponível na cota do órgão.`,
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+// ============================================
+// EXCEÇÕES DE VALIDAÇÃO DE COTA DE PERÍODO DO VEÍCULO
+// ============================================
+
+export class SolicitacaoAbastecimentoVeiculoCotaPeriodoNaoEncontradaException extends CrudException {
+  constructor(veiculoId: number, periodicidade: string, dataSolicitacao: Date, overrides: ContextMeta = {}) {
+    super({
+      message: `Não foi encontrada cota de período ativa para o veículo ${veiculoId} com periodicidade ${periodicidade} na data ${dataSolicitacao.toLocaleDateString('pt-BR')}. É necessário cadastrar uma cota de período para o veículo antes de criar a solicitação.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_VEICULO_COTA_PERIODO_NAO_ENCONTRADA',
+      context: buildContext('validate', {
+        resourceId: veiculoId,
+        expected: 'Veículo deve possuir cota de período ativa para a data da solicitação.',
+        performed: `Busca de cota de período para veículo ${veiculoId} com periodicidade ${periodicidade} na data ${dataSolicitacao.toISOString()}.`,
+        additionalInfo: {
+          veiculoId,
+          periodicidade,
+          dataSolicitacao: dataSolicitacao.toISOString(),
+          suggestion: 'Cadastre uma cota de período ativa para o veículo que cubra a data da solicitação.',
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoVeiculoCotaPeriodoEsgotadaException extends CrudException {
+  constructor(
+    veiculoId: number,
+    periodicidade: string,
+    quantidadePermitida: number,
+    quantidadeUtilizada: number,
+    quantidadeDisponivel: number,
+    overrides: ContextMeta = {},
+  ) {
+    super({
+      message: `A cota do período para o veículo ${veiculoId} está esgotada. Quantidade permitida: ${quantidadePermitida} litros, quantidade utilizada: ${quantidadeUtilizada} litros, quantidade disponível: ${quantidadeDisponivel} litros. Não é possível criar solicitação de abastecimento quando a cota do período está esgotada.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_VEICULO_COTA_PERIODO_ESGOTADA',
+      context: buildContext('validate', {
+        resourceId: veiculoId,
+        expected: 'Cota do período do veículo deve ter quantidade disponível maior que zero.',
+        performed: `Validação de cota do período para veículo ${veiculoId} com periodicidade ${periodicidade}.`,
+        additionalInfo: {
+          veiculoId,
+          periodicidade,
+          quantidadePermitida,
+          quantidadeUtilizada,
+          quantidadeDisponivel,
+          suggestion: 'Aguarde o próximo período ou ajuste a cota do período do veículo para permitir novos abastecimentos.',
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoVeiculoCotaPeriodoQuantidadeInsuficienteException extends CrudException {
+  constructor(
+    quantidade: number,
+    quantidadeDisponivel: number,
+    veiculoId: number,
+    periodicidade: string,
+    quantidadePermitida: number,
+    quantidadeUtilizada: number,
+    overrides: ContextMeta = {},
+  ) {
+    super({
+      message: `Quantidade solicitada (${quantidade} litros) excede a quantidade disponível na cota do período (${quantidadeDisponivel} litros) para o veículo ${veiculoId}. Quantidade permitida: ${quantidadePermitida} litros, quantidade utilizada: ${quantidadeUtilizada} litros.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_VEICULO_COTA_PERIODO_QUANTIDADE_INSUFICIENTE',
+      context: buildContext('validate', {
+        resourceId: veiculoId,
+        expected: 'Quantidade solicitada deve ser menor ou igual à quantidade disponível na cota do período.',
+        performed: `Validação de quantidade na cota do período. Quantidade solicitada: ${quantidade} L, quantidade disponível: ${quantidadeDisponivel} L.`,
+        additionalInfo: {
+          quantidade,
+          quantidadeDisponivel,
+          veiculoId,
+          periodicidade,
+          quantidadePermitida,
+          quantidadeUtilizada,
+          quantidadeMaximaPermitida: quantidadeDisponivel,
+          diferenca: quantidade - quantidadeDisponivel,
+          suggestion: `Ajuste a quantidade solicitada para no máximo ${quantidadeDisponivel} litros, que corresponde à quantidade disponível na cota do período.`,
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+// ============================================
+// EXCEÇÕES DE VALIDAÇÃO DE ABASTECIMENTOS DO PERÍODO (Semanal/Mensal)
+// ============================================
+
+export class SolicitacaoAbastecimentoPeriodoLimiteNaoConfiguradoException extends CrudException {
+  constructor(veiculoId: number, overrides: ContextMeta = {}) {
+    super({
+      message: `O veículo ${veiculoId} não possui quantidade limite configurada para validação de período. É necessário configurar a quantidade limite do veículo para validar abastecimentos em períodos Semanal ou Mensal.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_PERIODO_LIMITE_NAO_CONFIGURADO',
+      context: buildContext('validate', {
+        resourceId: veiculoId,
+        expected: 'Veículo deve possuir quantidade limite configurada para validação de período.',
+        performed: `Validação de quantidade limite para veículo ${veiculoId}.`,
+        additionalInfo: {
+          veiculoId,
+          suggestion: 'Configure a quantidade limite do veículo antes de criar solicitações de abastecimento com periodicidade Semanal ou Mensal.',
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+
+export class SolicitacaoAbastecimentoPeriodoLimiteExcedidoException extends CrudException {
+  constructor(
+    quantidade: number,
+    limite: number,
+    totalUtilizado: number,
+    disponivel: number,
+    veiculoId: number,
+    periodicidade: string,
+    periodoInicio: Date,
+    periodoFim: Date,
+    overrides: ContextMeta = {},
+  ) {
+    super({
+      message: `Quantidade solicitada (${quantidade} litros) ultrapassaria o limite do período (${limite} litros) para o veículo ${veiculoId}. Já utilizado no período: ${totalUtilizado} litros, disponível: ${disponivel} litros. Período: ${periodoInicio.toLocaleDateString('pt-BR')} a ${periodoFim.toLocaleDateString('pt-BR')} (${periodicidade}).`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_PERIODO_LIMITE_EXCEDIDO',
+      context: buildContext('validate', {
+        resourceId: veiculoId,
+        expected: 'Soma da quantidade solicitada com as quantidades já utilizadas no período deve ser menor ou igual ao limite do veículo.',
+        performed: `Validação de limite do período. Quantidade solicitada: ${quantidade} L, limite: ${limite} L, já utilizado: ${totalUtilizado} L.`,
+        additionalInfo: {
+          quantidade,
+          limite,
+          totalUtilizado,
+          disponivel,
+          veiculoId,
+          periodicidade,
+          periodoInicio: periodoInicio.toISOString(),
+          periodoFim: periodoFim.toISOString(),
+          novoTotal: totalUtilizado + quantidade,
+          quantidadeMaximaPermitida: disponivel,
+          diferenca: quantidade - disponivel,
+          suggestion: `Ajuste a quantidade solicitada para no máximo ${disponivel} litros, que corresponde à quantidade disponível no período.`,
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+

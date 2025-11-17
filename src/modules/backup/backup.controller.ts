@@ -54,7 +54,7 @@ export class BackupController {
   @Post('backup-geral-por-tabela')
   @ApiOperation({
     summary: 'Gerar backup geral por tabela (apenas SUPER_ADMIN)',
-    description: 'Cria uma pasta com data_hora do backup e gera um arquivo SQL para cada tabela do banco de dados. Cada arquivo contém os INSERTs da respectiva tabela, facilitando a análise e restauração por partes.',
+    description: 'Cria uma pasta única com data_hora (incluindo milissegundos) do backup e gera um arquivo SQL para TODAS as tabelas do banco de dados. Cada backup é salvo em uma pasta separada, garantindo que backups anteriores não sejam sobrescritos. Cada arquivo contém os INSERTs da respectiva tabela, facilitando a análise e restauração por partes. Um arquivo BACKUP_INFO.txt é criado na pasta com informações sobre o backup.',
   })
   @ApiResponse({
     status: 201,
@@ -62,7 +62,7 @@ export class BackupController {
     schema: {
       example: {
         message: 'Backup por tabela gerado com sucesso',
-        folderName: 'backup-15-01-2025-143022',
+        folderName: 'backup-15-01-2025-143022-123',
         folderPath: '/path/to/backups/backup-15-01-2025-143022',
         totalFiles: 35,
         totalSize: 1024000,

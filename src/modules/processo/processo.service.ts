@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Prisma, TipoContrato, TipoDocumento, TipoItens, StatusProcesso } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { CreateProcessoDto } from './dto/create-processo.dto';
 import { UpdateProcessoDto } from './dto/update-processo.dto';
 
@@ -82,8 +83,8 @@ export class ProcessoService {
         const combustiveisData = combustiveis.map((item) => ({
           processoId: processo.id,
           combustivelId: item.combustivelId,
-          quantidade_litros: new Prisma.Decimal(item.quantidade_litros),
-          valor_unitario: item.valor_unitario !== undefined ? new Prisma.Decimal(item.valor_unitario) : undefined,
+          quantidade_litros: new Decimal(item.quantidade_litros),
+          valor_unitario: item.valor_unitario !== undefined ? new Decimal(item.valor_unitario) : undefined,
         }));
 
         await tx.processoCombustivel.createMany({
@@ -393,9 +394,9 @@ export class ProcessoService {
           const combustiveisData = combustiveis.map((item) => ({
             processoId: id,
             combustivelId: item.combustivelId,
-            quantidade_litros: new Prisma.Decimal(item.quantidade_litros),
+            quantidade_litros: new Decimal(item.quantidade_litros),
             valor_unitario:
-              item.valor_unitario !== undefined ? new Prisma.Decimal(item.valor_unitario) : undefined,
+              item.valor_unitario !== undefined ? new Decimal(item.valor_unitario) : undefined,
           }));
 
           await tx.processoCombustivel.createMany({

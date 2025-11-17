@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Prisma, TipoContrato, StatusProcesso } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import {
   CotaOrgaoQuantidadeExcedeCombustivelException,
   CotaOrgaoQuantidadeExcedeProcessoException,
@@ -411,7 +412,7 @@ export class OrgaoService {
       );
     }
 
-    const quantidadeDecimal = new Prisma.Decimal(data.quantidade.toFixed(3));
+    const quantidadeDecimal = new Decimal(data.quantidade.toFixed(3));
 
     const cota = await this.prisma.cotaOrgao.create({
       data: {
@@ -419,8 +420,8 @@ export class OrgaoService {
         orgaoId: orgaoId,
         combustivelId: data.combustivelId,
         quantidade: quantidadeDecimal,
-        quantidade_utilizada: new Prisma.Decimal(0),
-        valor_utilizado: new Prisma.Decimal(0),
+        quantidade_utilizada: new Decimal(0),
+        valor_utilizado: new Decimal(0),
         restante: quantidadeDecimal,
         saldo_disponivel_cota: quantidadeDecimal,
         ativa: true,

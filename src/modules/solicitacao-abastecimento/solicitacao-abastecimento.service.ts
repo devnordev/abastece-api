@@ -3,9 +3,11 @@ import {
   Periodicidade,
   Prisma,
   StatusPreco,
+  StatusProcesso,
   StatusSolicitacao,
   TipoAbastecimentoSolicitacao,
   TipoAbastecimentoVeiculo,
+  TipoContrato,
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -18,6 +20,19 @@ import {
   SolicitacaoAbastecimentoCombustivelPrecoNaoDefinidoException,
   SolicitacaoAbastecimentoQuantidadeInvalidaException,
   SolicitacaoAbastecimentoQuantidadeExcedeCapacidadeTanqueException,
+  SolicitacaoAbastecimentoMotoristaNaoVinculadoVeiculoException,
+  SolicitacaoAbastecimentoVeiculoSemOrgaoException,
+  SolicitacaoAbastecimentoProcessoAtivoNaoEncontradoException,
+  SolicitacaoAbastecimentoCotaOrgaoNaoEncontradaException,
+  SolicitacaoAbastecimentoCotaOrgaoInsuficienteLivreException,
+  SolicitacaoAbastecimentoCotaOrgaoInsuficienteComCotaException,
+  SolicitacaoAbastecimentoCotaOrgaoInsuficienteComAutorizacaoException,
+  SolicitacaoAbastecimentoVeiculoCotaPeriodoNaoEncontradaException,
+  SolicitacaoAbastecimentoVeiculoCotaPeriodoEsgotadaException,
+  SolicitacaoAbastecimentoVeiculoCotaPeriodoQuantidadeInsuficienteException,
+  SolicitacaoAbastecimentoPeriodoLimiteNaoConfiguradoException,
+  SolicitacaoAbastecimentoPeriodoLimiteExcedidoException,
+  SolicitacaoAbastecimentoVeiculoNaoPertencePrefeituraException,
 } from '../../common/exceptions';
 
 @Injectable()
@@ -72,15 +87,24 @@ export class SolicitacaoAbastecimentoService {
   async create(createDto: CreateSolicitacaoAbastecimentoDto) {
     const dataSolicitacao = new Date(createDto.data_solicitacao);
 
+    // Buscar veículo com todos os dados necessários
     const veiculo = await this.prisma.veiculo.findUnique({
       where: { id: createDto.veiculoId },
-      select: {
-        id: true,
-        prefeituraId: true,
-        tipo_abastecimento: true,
-        periodicidade: true,
-        quantidade: true,
-        capacidade_tanque: true,
+      include: {
+        orgao: {
+          select: {
+            id: true,
+            prefeituraId: true,
+          },
+        },
+        combustiveis: {
+          where: {
+            ativo: true,
+          },
+          select: {
+            combustivelId: true,
+          },
+        },
       },
     });
 
@@ -88,12 +112,55 @@ export class SolicitacaoAbastecimentoService {
       throw new NotFoundException(`Veículo ${createDto.veiculoId} não foi encontrado`);
     }
 
+    // Validar se o veículo pertence à prefeitura do usuário
+    if (veiculo.prefeituraId !== createDto.prefeituraId) {
+      throw new SolicitacaoAbastecimentoVeiculoNaoPertencePrefeituraException(
+        createDto.veiculoId,
+        createDto.prefeituraId,
+        {
+          payload: createDto,
+        },
+      );
+    }
+
+    // Validar se o motorista está vinculado ao veículo (se informado)
+    if (createDto.motoristaId) {
+      const veiculoMotorista = await this.prisma.veiculoMotorista.findFirst({
+        where: {
+          veiculoId: createDto.veiculoId,
+          motoristaId: createDto.motoristaId,
+          ativo: true,
+        },
+      });
+
+      if (!veiculoMotorista) {
+        throw new SolicitacaoAbastecimentoMotoristaNaoVinculadoVeiculoException(
+          createDto.motoristaId,
+          createDto.veiculoId,
+          {
+            payload: createDto,
+          },
+        );
+      }
+    }
+
+    // Validar se o combustível está entre os combustíveis cadastrados do veículo
+    const combustivelVinculado = veiculo.combustiveis.find(
+      (vc) => vc.combustivelId === createDto.combustivelId,
+    );
+
+    if (!combustivelVinculado) {
+      throw new SolicitacaoAbastecimentoCombustivelNaoRelacionadoException(
+        createDto.combustivelId,
+        createDto.veiculoId,
+      );
+    }
+
     // Validar se a quantidade solicitada excede a capacidade do tanque do veículo
     if (veiculo.capacidade_tanque) {
       const capacidadeTanque = Number(veiculo.capacidade_tanque.toString());
       const quantidadeSolicitada = createDto.quantidade;
 
-      // Validar apenas se a capacidade do tanque for maior que zero
       if (capacidadeTanque > 0 && quantidadeSolicitada > capacidadeTanque) {
         throw new SolicitacaoAbastecimentoQuantidadeExcedeCapacidadeTanqueException(
           quantidadeSolicitada,
@@ -101,73 +168,23 @@ export class SolicitacaoAbastecimentoService {
           createDto.veiculoId,
           {
             payload: createDto,
-          }
+          },
         );
       }
     }
 
-    // Validar se o combustível está liberado para o veículo
-    await this.validarCombustivelLiberadoParaVeiculo(
-      createDto.combustivelId,
-      createDto.veiculoId,
-    );
-
     // Validar se o combustível tem preço definido na empresa
-    await this.validarPrecoCombustivelEmpresa(
+    await this.validarPrecoCombustivelEmpresa(createDto.combustivelId, createDto.empresaId);
+
+    // Validar periodicidade e tipo de abastecimento
+    await this.validarRegrasAbastecimento(
+      veiculo,
+      createDto.quantidade,
       createDto.combustivelId,
-      createDto.empresaId,
+      dataSolicitacao,
+      createDto.tipo_abastecimento,
+      createDto.prefeituraId,
     );
-
-    if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA) {
-      if (!veiculo.periodicidade || !veiculo.quantidade) {
-        throw new SolicitacaoAbastecimentoQuantidadeInvalidaException(createDto.quantidade, undefined, {
-          additionalInfo: {
-            periodicidade: veiculo.periodicidade,
-            quantidadeConfigurada: veiculo.quantidade,
-          },
-        });
-      }
-
-      const { inicio, fim } = this.obterIntervaloPeriodo(dataSolicitacao, veiculo.periodicidade);
-
-      const statusConsiderados = [
-        StatusSolicitacao.PENDENTE,
-        StatusSolicitacao.APROVADA,
-      ];
-
-      const totalPeriodo = await this.prisma.solicitacaoAbastecimento.aggregate({
-        _sum: { quantidade: true },
-        where: {
-          veiculoId: createDto.veiculoId,
-          data_solicitacao: {
-            gte: inicio,
-            lte: fim,
-          },
-          status: {
-            in: statusConsiderados,
-          },
-        },
-      });
-
-      const totalUtilizado = totalPeriodo._sum.quantidade
-        ? Number(totalPeriodo._sum.quantidade.toString())
-        : 0;
-      const limite = Number(veiculo.quantidade.toString());
-      const quantidadeSolicitada = createDto.quantidade;
-      const novoTotal = totalUtilizado + quantidadeSolicitada;
-
-      if (novoTotal > limite + Number.EPSILON) {
-        const limiteDisponivel = Math.max(limite - totalUtilizado, 0);
-        throw new SolicitacaoAbastecimentoQuantidadeInvalidaException(quantidadeSolicitada, limiteDisponivel, {
-          additionalInfo: {
-            limite,
-            totalUtilizado,
-            periodo: veiculo.periodicidade,
-            intervalo: { inicio, fim },
-          },
-        });
-      }
-    }
 
     const data: Prisma.SolicitacaoAbastecimentoUncheckedCreateInput = {
       prefeituraId: createDto.prefeituraId,
@@ -601,6 +618,315 @@ export class SolicitacaoAbastecimentoService {
 
     if (!exists) {
       throw new NotFoundException(`Solicitação de abastecimento com ID ${id} não encontrada`);
+    }
+  }
+
+  /**
+   * Valida todas as regras de negócio para criação de solicitação de abastecimento
+   * baseado na periodicidade e tipo de abastecimento do veículo
+   * 
+   * IMPORTANTE: A periodicidade (Diário, Semanal, Mensal) é APENAS para veículos
+   * com tipo_abastecimento = COM_COTA, e é gerenciada através de VeiculoCotaPeriodo
+   */
+  private async validarRegrasAbastecimento(
+    veiculo: {
+      id: number;
+      prefeituraId: number;
+      tipo_abastecimento: TipoAbastecimentoVeiculo;
+      periodicidade: Periodicidade | null;
+      quantidade: Decimal | null;
+      orgao: { id: number; prefeituraId: number } | null;
+    },
+    quantidade: number,
+    combustivelId: number,
+    dataSolicitacao: Date,
+    tipoAbastecimentoSolicitacao: TipoAbastecimentoSolicitacao,
+    prefeituraId: number,
+  ): Promise<void> {
+    // Se tipo de abastecimento é LIVRE
+    if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.LIVRE) {
+      // Para LIVRE, apenas validar CotaOrgao (capacidade_tanque já foi validada anteriormente)
+      await this.validarCotaOrgaoParaLivre(
+        prefeituraId,
+        veiculo.orgao?.id,
+        combustivelId,
+        quantidade,
+      );
+    }
+    // Se tipo de abastecimento é COM_COTA
+    else if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA) {
+      // Se tem periodicidade, validar VeiculoCotaPeriodo
+      if (veiculo.periodicidade) {
+        await this.validarVeiculoCotaPeriodo(
+          veiculo.id,
+          veiculo.periodicidade,
+          dataSolicitacao,
+          quantidade,
+        );
+      }
+      
+      // Sempre validar CotaOrgao para COM_COTA
+      await this.validarCotaOrgaoParaComCota(
+        prefeituraId,
+        veiculo.orgao?.id,
+        combustivelId,
+        quantidade,
+      );
+    }
+    // Se tipo de abastecimento é COM_AUTORIZACAO
+    else if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COM_AUTORIZACAO) {
+      // Validar apenas CotaOrgao (não usa periodicidade do veículo)
+      await this.validarCotaOrgaoParaComAutorizacao(
+        prefeituraId,
+        veiculo.orgao?.id,
+        combustivelId,
+        quantidade,
+      );
+    }
+  }
+
+  /**
+   * Valida CotaOrgao para tipo LIVRE
+   * Verifica se o restante da cota do órgão é maior ou igual à quantidade solicitada
+   */
+  private async validarCotaOrgaoParaLivre(
+    prefeituraId: number,
+    orgaoId: number | null | undefined,
+    combustivelId: number,
+    quantidade: number,
+  ): Promise<void> {
+    if (!orgaoId) {
+      throw new SolicitacaoAbastecimentoVeiculoSemOrgaoException(0, 'LIVRE', {
+        additionalInfo: {
+          tipoAbastecimento: 'LIVRE',
+        },
+      });
+    }
+
+    // Buscar processo ativo da prefeitura
+    const processo = await this.prisma.processo.findFirst({
+      where: {
+        prefeituraId,
+        tipo_contrato: TipoContrato.OBJETIVO,
+        status: StatusProcesso.ATIVO,
+        ativo: true,
+      },
+    });
+
+    if (!processo) {
+      throw new SolicitacaoAbastecimentoProcessoAtivoNaoEncontradoException(prefeituraId);
+    }
+
+    // Buscar CotaOrgao para o órgão, combustível e processo
+    const cotaOrgao = await this.prisma.cotaOrgao.findFirst({
+      where: {
+        processoId: processo.id,
+        orgaoId,
+        combustivelId,
+        ativa: true,
+      },
+    });
+
+    if (!cotaOrgao) {
+      throw new SolicitacaoAbastecimentoCotaOrgaoNaoEncontradaException(
+        orgaoId,
+        combustivelId,
+        processo.id,
+      );
+    }
+
+    const restante = cotaOrgao.restante ? Number(cotaOrgao.restante.toString()) : 0;
+
+    // Verificar se o restante é maior ou igual à quantidade solicitada
+    if (restante < quantidade) {
+      throw new SolicitacaoAbastecimentoCotaOrgaoInsuficienteLivreException(
+        quantidade,
+        restante,
+        orgaoId,
+        combustivelId,
+      );
+    }
+  }
+
+  /**
+   * Valida VeiculoCotaPeriodo para tipo COM_COTA com qualquer periodicidade (Diário, Semanal, Mensal)
+   * Verifica se a quantidade_disponivel é suficiente para a quantidade solicitada
+   */
+  private async validarVeiculoCotaPeriodo(
+    veiculoId: number,
+    periodicidade: Periodicidade,
+    dataSolicitacao: Date,
+    quantidade: number,
+  ): Promise<void> {
+    // Buscar a cota de período ativa que contém a data da solicitação
+    const cotaPeriodo = await this.prisma.veiculoCotaPeriodo.findFirst({
+      where: {
+        veiculoId,
+        periodicidade,
+        data_inicio_periodo: { lte: dataSolicitacao },
+        data_fim_periodo: { gte: dataSolicitacao },
+        ativo: true,
+      },
+      orderBy: {
+        data_inicio_periodo: 'desc',
+      },
+    });
+
+    if (!cotaPeriodo) {
+      throw new SolicitacaoAbastecimentoVeiculoCotaPeriodoNaoEncontradaException(
+        veiculoId,
+        periodicidade,
+        dataSolicitacao,
+      );
+    }
+
+    const quantidadeDisponivel = Number(cotaPeriodo.quantidade_disponivel.toString());
+    const quantidadePermitida = Number(cotaPeriodo.quantidade_permitida.toString());
+    const quantidadeUtilizada = Number(cotaPeriodo.quantidade_utilizada.toString());
+
+    // Se quantidade_disponivel for zero, não permitir
+    if (quantidadeDisponivel <= 0) {
+      throw new SolicitacaoAbastecimentoVeiculoCotaPeriodoEsgotadaException(
+        veiculoId,
+        periodicidade,
+        quantidadePermitida,
+        quantidadeUtilizada,
+        quantidadeDisponivel,
+      );
+    }
+
+    // Se a quantidade solicitada for maior que a quantidade_disponivel, não permitir
+    if (quantidade > quantidadeDisponivel) {
+      throw new SolicitacaoAbastecimentoVeiculoCotaPeriodoQuantidadeInsuficienteException(
+        quantidade,
+        quantidadeDisponivel,
+        veiculoId,
+        periodicidade,
+        quantidadePermitida,
+        quantidadeUtilizada,
+      );
+    }
+  }
+
+  /**
+   * Valida CotaOrgao para tipo COM_COTA
+   */
+  private async validarCotaOrgaoParaComCota(
+    prefeituraId: number,
+    orgaoId: number | null | undefined,
+    combustivelId: number,
+    quantidade: number,
+  ): Promise<void> {
+    if (!orgaoId) {
+      throw new SolicitacaoAbastecimentoVeiculoSemOrgaoException(0, 'COM_COTA', {
+        additionalInfo: {
+          tipoAbastecimento: 'COM_COTA',
+        },
+      });
+    }
+
+    // Buscar processo ativo da prefeitura
+    const processo = await this.prisma.processo.findFirst({
+      where: {
+        prefeituraId,
+        tipo_contrato: TipoContrato.OBJETIVO,
+        status: StatusProcesso.ATIVO,
+        ativo: true,
+      },
+    });
+
+    if (!processo) {
+      throw new SolicitacaoAbastecimentoProcessoAtivoNaoEncontradoException(prefeituraId);
+    }
+
+    // Buscar CotaOrgao para o órgão, combustível e processo
+    const cotaOrgao = await this.prisma.cotaOrgao.findFirst({
+      where: {
+        processoId: processo.id,
+        orgaoId,
+        combustivelId,
+        ativa: true,
+      },
+    });
+
+    if (!cotaOrgao) {
+      throw new SolicitacaoAbastecimentoCotaOrgaoNaoEncontradaException(
+        orgaoId,
+        combustivelId,
+        processo.id,
+      );
+    }
+
+    const restante = cotaOrgao.restante ? Number(cotaOrgao.restante.toString()) : 0;
+
+    if (quantidade > restante) {
+      throw new SolicitacaoAbastecimentoCotaOrgaoInsuficienteComCotaException(
+        quantidade,
+        restante,
+        orgaoId,
+        combustivelId,
+      );
+    }
+  }
+
+  /**
+   * Valida CotaOrgao para tipo COM_AUTORIZACAO
+   */
+  private async validarCotaOrgaoParaComAutorizacao(
+    prefeituraId: number,
+    orgaoId: number | null | undefined,
+    combustivelId: number,
+    quantidade: number,
+  ): Promise<void> {
+    if (!orgaoId) {
+      throw new SolicitacaoAbastecimentoVeiculoSemOrgaoException(0, 'COM_AUTORIZACAO', {
+        additionalInfo: {
+          tipoAbastecimento: 'COM_AUTORIZACAO',
+        },
+      });
+    }
+
+    // Buscar processo ativo da prefeitura
+    const processo = await this.prisma.processo.findFirst({
+      where: {
+        prefeituraId,
+        tipo_contrato: TipoContrato.OBJETIVO,
+        status: StatusProcesso.ATIVO,
+        ativo: true,
+      },
+    });
+
+    if (!processo) {
+      throw new SolicitacaoAbastecimentoProcessoAtivoNaoEncontradoException(prefeituraId);
+    }
+
+    // Buscar CotaOrgao para o órgão, combustível e processo
+    const cotaOrgao = await this.prisma.cotaOrgao.findFirst({
+      where: {
+        processoId: processo.id,
+        orgaoId,
+        combustivelId,
+        ativa: true,
+      },
+    });
+
+    if (!cotaOrgao) {
+      throw new SolicitacaoAbastecimentoCotaOrgaoNaoEncontradaException(
+        orgaoId,
+        combustivelId,
+        processo.id,
+      );
+    }
+
+    const restante = cotaOrgao.restante ? Number(cotaOrgao.restante.toString()) : 0;
+
+    if (quantidade > restante) {
+      throw new SolicitacaoAbastecimentoCotaOrgaoInsuficienteComAutorizacaoException(
+        quantidade,
+        restante,
+        orgaoId,
+        combustivelId,
+      );
     }
   }
 
