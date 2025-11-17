@@ -282,11 +282,28 @@ export class SolicitacoesQrCodeVeiculoService {
   }
 
   /**
-   * Busca uma solicitação por ID
+   * Busca uma solicitação por ID ou código QR code
+   * Aceita tanto ID numérico quanto código QR code (string)
    */
-  async findOne(id: number) {
-    const solicitacao = await (this.prisma as any).solicitacoesQrCodeVeiculo.findUnique({
-      where: { id },
+  async findOne(idOrCode: string | number) {
+    // Determinar se é um ID numérico ou código QR code
+    // Se for number ou string completamente numérica, é ID
+    // Caso contrário, é código QR code
+    const isNumericId = 
+      typeof idOrCode === 'number' || 
+      (/^\d+$/.test(String(idOrCode).trim()) && String(idOrCode).trim() !== '');
+    
+    let whereClause: any;
+    if (isNumericId) {
+      // Buscar por ID
+      whereClause = { id: Number(idOrCode) };
+    } else {
+      // Buscar por código QR code
+      whereClause = { codigo_qrcode: String(idOrCode) };
+    }
+
+    const solicitacao = await (this.prisma as any).solicitacoesQrCodeVeiculo.findFirst({
+      where: whereClause,
       include: {
         veiculo: {
           select: {
@@ -315,7 +332,8 @@ export class SolicitacoesQrCodeVeiculoService {
     });
 
     if (!solicitacao) {
-      throw new NotFoundException(`Solicitação com ID ${id} não encontrada`);
+      const tipoBusca = isNumericId ? `ID ${idOrCode}` : `código QR code ${idOrCode}`;
+      throw new NotFoundException(`Solicitação com ${tipoBusca} não encontrada`);
     }
 
     return {

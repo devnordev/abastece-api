@@ -49,20 +49,25 @@ export class SolicitacoesQrCodeVeiculoController {
     }
   }
 
-  @Get(':id')
+  @Get(':idOrCode')
   @UseGuards(SuperAdminEmpresaGuard)
   @ApiOperation({
-    summary: 'Buscar solicitação de QR Code por ID',
-    description: 'Busca uma solicitação de QR Code específica por ID. Apenas usuários com perfil SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar.',
+    summary: 'Buscar solicitação de QR Code por ID ou código QR code',
+    description: 'Busca uma solicitação de QR Code por ID numérico ou código QR code (string de 8 caracteres). Apenas usuários com perfil SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar.',
   })
-  @ApiParam({ name: 'id', description: 'ID da solicitação', example: 1 })
+  @ApiParam({ 
+    name: 'idOrCode', 
+    description: 'ID numérico da solicitação (ex: 1) ou código QR code (ex: 3NGBWONY)', 
+    example: '3NGBWONY',
+    required: true,
+  })
   @ApiResponse({ status: 200, description: 'Solicitação encontrada com sucesso' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar esta rota' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
+  async findOne(@Param('idOrCode') idOrCode: string) {
     try {
-      return await this.solicitacoesQrCodeVeiculoService.findOne(id);
+      return await this.solicitacoesQrCodeVeiculoService.findOne(idOrCode);
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
