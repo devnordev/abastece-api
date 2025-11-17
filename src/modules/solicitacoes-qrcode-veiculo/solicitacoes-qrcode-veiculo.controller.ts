@@ -16,7 +16,7 @@ import { SolicitacoesQrCodeVeiculoService } from './solicitacoes-qrcode-veiculo.
 import { FilterSolicitacoesDto } from './dto/filter-solicitacoes.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
+import { SuperAdminEmpresaGuard } from '../auth/guards/super-admin-empresa.guard';
 import { StatusSolicitacaoQrCodeVeiculo } from '@prisma/client';
 
 @ApiTags('Solicitações QR Code Veículo')
@@ -27,14 +27,14 @@ export class SolicitacoesQrCodeVeiculoController {
   constructor(private readonly solicitacoesQrCodeVeiculoService: SolicitacoesQrCodeVeiculoService) {}
 
   @Get()
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(SuperAdminEmpresaGuard)
   @ApiOperation({
-    summary: 'Listar solicitações de QR Code agrupadas por prefeitura (apenas SUPER_ADMIN)',
-    description: 'Lista todas as solicitações de QR Code agrupadas por prefeitura. Apenas usuários com perfil SUPER_ADMIN podem acessar.',
+    summary: 'Listar solicitações de QR Code agrupadas por prefeitura',
+    description: 'Lista todas as solicitações de QR Code agrupadas por prefeitura. Apenas usuários com perfil SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar.',
   })
   @ApiResponse({ status: 200, description: 'Solicitações encontradas com sucesso' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode acessar esta rota' })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar esta rota' })
   async findAllGroupedByPrefeitura(@Query() filterDto: FilterSolicitacoesDto) {
     try {
       return await this.solicitacoesQrCodeVeiculoService.findAllGroupedByPrefeitura(filterDto);
@@ -50,16 +50,16 @@ export class SolicitacoesQrCodeVeiculoController {
   }
 
   @Get(':id')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(SuperAdminEmpresaGuard)
   @ApiOperation({
-    summary: 'Buscar solicitação de QR Code por ID (apenas SUPER_ADMIN)',
-    description: 'Busca uma solicitação de QR Code específica por ID. Apenas usuários com perfil SUPER_ADMIN podem acessar.',
+    summary: 'Buscar solicitação de QR Code por ID',
+    description: 'Busca uma solicitação de QR Code específica por ID. Apenas usuários com perfil SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar.',
   })
   @ApiParam({ name: 'id', description: 'ID da solicitação', example: 1 })
   @ApiResponse({ status: 200, description: 'Solicitação encontrada com sucesso' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode acessar esta rota' })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar esta rota' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     try {
       return await this.solicitacoesQrCodeVeiculoService.findOne(id);
@@ -75,17 +75,17 @@ export class SolicitacoesQrCodeVeiculoController {
   }
 
   @Patch(':id/status/aprovado')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(SuperAdminEmpresaGuard)
   @ApiOperation({
     summary: 'Atualizar status da solicitação para Aprovado',
-    description: 'Atualiza o status da solicitação de QR Code para "Aprovado". Apenas usuários com perfil SUPER_ADMIN podem acessar.',
+    description: 'Atualiza o status da solicitação de QR Code para "Aprovado". Apenas usuários com perfil SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar.',
   })
   @ApiParam({ name: 'id', description: 'ID da solicitação', example: 1 })
   @ApiResponse({ status: 200, description: 'Status atualizado para Aprovado com sucesso' })
   @ApiResponse({ status: 400, description: 'Transição de status inválida' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode acessar esta rota' })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar esta rota' })
   async updateStatusToAprovado(
     @Param('id', ParseIntPipe) id: number,
     @Request() req,
@@ -105,17 +105,17 @@ export class SolicitacoesQrCodeVeiculoController {
   }
 
   @Patch(':id/status/em-producao')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(SuperAdminEmpresaGuard)
   @ApiOperation({
     summary: 'Atualizar status da solicitação para Em Produção',
-    description: 'Atualiza o status da solicitação de QR Code para "Em Produção". Apenas usuários com perfil SUPER_ADMIN podem acessar.',
+    description: 'Atualiza o status da solicitação de QR Code para "Em Produção". Apenas usuários com perfil SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar.',
   })
   @ApiParam({ name: 'id', description: 'ID da solicitação', example: 1 })
   @ApiResponse({ status: 200, description: 'Status atualizado para Em Produção com sucesso' })
   @ApiResponse({ status: 400, description: 'Transição de status inválida' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode acessar esta rota' })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar esta rota' })
   async updateStatusToEmProducao(
     @Param('id', ParseIntPipe) id: number,
     @Request() req,
@@ -135,17 +135,17 @@ export class SolicitacoesQrCodeVeiculoController {
   }
 
   @Patch(':id/status/integracao')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(SuperAdminEmpresaGuard)
   @ApiOperation({
     summary: 'Atualizar status da solicitação para Integração',
-    description: 'Atualiza o status da solicitação de QR Code para "Integração". Apenas usuários com perfil SUPER_ADMIN podem acessar.',
+    description: 'Atualiza o status da solicitação de QR Code para "Integração". Apenas usuários com perfil SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar.',
   })
   @ApiParam({ name: 'id', description: 'ID da solicitação', example: 1 })
   @ApiResponse({ status: 200, description: 'Status atualizado para Integração com sucesso' })
   @ApiResponse({ status: 400, description: 'Transição de status inválida' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode acessar esta rota' })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar esta rota' })
   async updateStatusToIntegracao(
     @Param('id', ParseIntPipe) id: number,
     @Request() req,
@@ -165,17 +165,17 @@ export class SolicitacoesQrCodeVeiculoController {
   }
 
   @Patch(':id/status/concluida')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(SuperAdminEmpresaGuard)
   @ApiOperation({
     summary: 'Atualizar status da solicitação para Concluída',
-    description: 'Atualiza o status da solicitação de QR Code para "Concluída". Apenas usuários com perfil SUPER_ADMIN podem acessar.',
+    description: 'Atualiza o status da solicitação de QR Code para "Concluída". Apenas usuários com perfil SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar.',
   })
   @ApiParam({ name: 'id', description: 'ID da solicitação', example: 1 })
   @ApiResponse({ status: 200, description: 'Status atualizado para Concluída com sucesso' })
   @ApiResponse({ status: 400, description: 'Transição de status inválida' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode acessar esta rota' })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar esta rota' })
   async updateStatusToConcluida(
     @Param('id', ParseIntPipe) id: number,
     @Request() req,
@@ -195,10 +195,10 @@ export class SolicitacoesQrCodeVeiculoController {
   }
 
   @Patch(':id/status/cancelado')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(SuperAdminEmpresaGuard)
   @ApiOperation({
     summary: 'Atualizar status da solicitação para Cancelado',
-    description: 'Atualiza o status da solicitação de QR Code para "Cancelado". É obrigatório informar o motivo do cancelamento. Apenas usuários com perfil SUPER_ADMIN podem acessar.',
+    description: 'Atualiza o status da solicitação de QR Code para "Cancelado". É obrigatório informar o motivo do cancelamento. Apenas usuários com perfil SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar.',
   })
   @ApiParam({ name: 'id', description: 'ID da solicitação', example: 1 })
   @ApiBody({
@@ -217,7 +217,7 @@ export class SolicitacoesQrCodeVeiculoController {
   @ApiResponse({ status: 400, description: 'Transição de status inválida ou motivo do cancelamento não informado' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode acessar esta rota' })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar esta rota' })
   async updateStatusToCancelado(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateStatusDto: UpdateStatusDto,
@@ -240,17 +240,17 @@ export class SolicitacoesQrCodeVeiculoController {
   }
 
   @Patch(':id/status/inativo')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(SuperAdminEmpresaGuard)
   @ApiOperation({
     summary: 'Atualizar status da solicitação para Inativo',
-    description: 'Atualiza o status da solicitação de QR Code para "Inativo" (momentâneo). Apenas usuários com perfil SUPER_ADMIN podem acessar.',
+    description: 'Atualiza o status da solicitação de QR Code para "Inativo" (momentâneo). Apenas usuários com perfil SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar.',
   })
   @ApiParam({ name: 'id', description: 'ID da solicitação', example: 1 })
   @ApiResponse({ status: 200, description: 'Status atualizado para Inativo com sucesso' })
   @ApiResponse({ status: 400, description: 'Transição de status inválida' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode acessar esta rota' })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN, ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar esta rota' })
   async updateStatusToInativo(
     @Param('id', ParseIntPipe) id: number,
     @Request() req,
