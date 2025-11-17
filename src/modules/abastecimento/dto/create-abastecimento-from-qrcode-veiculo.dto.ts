@@ -1,6 +1,6 @@
-import { IsInt, IsDecimal, IsOptional, IsString, IsDateString, Min } from 'class-validator';
+import { IsInt, IsDecimal, IsOptional, IsString, IsDateString, IsEnum, Min, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { TipoAbastecimento } from '@prisma/client';
 
 export class CreateAbastecimentoFromQrCodeVeiculoDto {
@@ -8,6 +8,7 @@ export class CreateAbastecimentoFromQrCodeVeiculoDto {
     description: 'ID da solicitação de QR Code do veículo',
     example: 1,
   })
+  @Type(() => Number)
   @IsInt({ message: 'ID da solicitação de QR Code deve ser um número inteiro' })
   @Min(1, { message: 'ID da solicitação de QR Code deve ser maior que zero' })
   solicitacaoQrCodeVeiculoId: number;
@@ -16,6 +17,7 @@ export class CreateAbastecimentoFromQrCodeVeiculoDto {
     description: 'ID do combustível',
     example: 1,
   })
+  @Type(() => Number)
   @IsInt({ message: 'ID do combustível deve ser um número inteiro' })
   combustivelId: number;
 
@@ -24,14 +26,16 @@ export class CreateAbastecimentoFromQrCodeVeiculoDto {
     enum: TipoAbastecimento,
     example: TipoAbastecimento.LIVRE,
   })
+  @IsEnum(TipoAbastecimento, { message: 'Tipo de abastecimento inválido' })
   tipo_abastecimento: TipoAbastecimento;
 
   @ApiProperty({
     description: 'Quantidade em litros',
     example: 50.5,
   })
-  @Transform(({ value }) => parseFloat(value))
-  @IsDecimal({}, { message: 'Quantidade deve ser um número decimal' })
+  @Type(() => Number)
+  @Transform(({ value }) => (typeof value === 'string' ? parseFloat(value) : value))
+  @IsNumber({}, { message: 'Quantidade deve ser um número decimal' })
   quantidade: number;
 
   @ApiProperty({
@@ -40,8 +44,9 @@ export class CreateAbastecimentoFromQrCodeVeiculoDto {
     required: false,
   })
   @IsOptional()
-  @Transform(({ value }) => parseFloat(value))
-  @IsDecimal({}, { message: 'Preço ANP deve ser um número decimal' })
+  @Type(() => Number)
+  @Transform(({ value }) => value !== undefined && value !== null ? (typeof value === 'string' ? parseFloat(value) : value) : value)
+  @IsNumber({}, { message: 'Preço ANP deve ser um número decimal' })
   preco_anp?: number;
 
   @ApiProperty({
@@ -50,8 +55,9 @@ export class CreateAbastecimentoFromQrCodeVeiculoDto {
     required: false,
   })
   @IsOptional()
-  @Transform(({ value }) => parseFloat(value))
-  @IsDecimal({}, { message: 'Preço da empresa deve ser um número decimal' })
+  @Type(() => Number)
+  @Transform(({ value }) => value !== undefined && value !== null ? (typeof value === 'string' ? parseFloat(value) : value) : value)
+  @IsNumber({}, { message: 'Preço da empresa deve ser um número decimal' })
   preco_empresa?: number;
 
   @ApiProperty({
@@ -60,16 +66,18 @@ export class CreateAbastecimentoFromQrCodeVeiculoDto {
     required: false,
   })
   @IsOptional()
-  @Transform(({ value }) => parseFloat(value))
-  @IsDecimal({}, { message: 'Desconto deve ser um número decimal' })
+  @Type(() => Number)
+  @Transform(({ value }) => value !== undefined && value !== null ? (typeof value === 'string' ? parseFloat(value) : value) : value)
+  @IsNumber({}, { message: 'Desconto deve ser um número decimal' })
   desconto?: number;
 
   @ApiProperty({
     description: 'Valor total',
     example: 272.50,
   })
-  @Transform(({ value }) => parseFloat(value))
-  @IsDecimal({}, { message: 'Valor total deve ser um número decimal' })
+  @Type(() => Number)
+  @Transform(({ value }) => (typeof value === 'string' ? parseFloat(value) : value))
+  @IsNumber({}, { message: 'Valor total deve ser um número decimal' })
   valor_total: number;
 
   @ApiProperty({
@@ -87,6 +95,7 @@ export class CreateAbastecimentoFromQrCodeVeiculoDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'Odômetro deve ser um número inteiro' })
   odometro?: number;
 
@@ -96,6 +105,7 @@ export class CreateAbastecimentoFromQrCodeVeiculoDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'Horímetro deve ser um número inteiro' })
   orimetro?: number;
 
@@ -132,6 +142,7 @@ export class CreateAbastecimentoFromQrCodeVeiculoDto {
     required: false,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt({ message: 'ID da conta de faturamento deve ser um número inteiro' })
   conta_faturamento_orgao_id?: number;
 }
