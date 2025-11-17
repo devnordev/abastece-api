@@ -17,6 +17,7 @@ import { CreateAbastecimentoDto } from './dto/create-abastecimento.dto';
 import { UpdateAbastecimentoDto } from './dto/update-abastecimento.dto';
 import { FindAbastecimentoDto } from './dto/find-abastecimento.dto';
 import { CreateAbastecimentoFromSolicitacaoDto } from './dto/create-abastecimento-from-solicitacao.dto';
+import { CreateAbastecimentoFromQrCodeVeiculoDto } from './dto/create-abastecimento-from-qrcode-veiculo.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { EmpresaGuard } from '../auth/guards/empresa.guard';
 import { BadRequestException } from '@nestjs/common';
@@ -59,6 +60,24 @@ export class AbastecimentoController {
     @Request() req,
   ) {
     return this.abastecimentoService.createFromSolicitacao(createDto, req.user);
+  }
+
+  @Post('from-qrcode-veiculo')
+  @UseGuards(EmpresaGuard)
+  @ApiOperation({ 
+    summary: 'Criar abastecimento a partir de uma solicitação de QR Code de veículo',
+    description: 'Cria um abastecimento a partir de uma solicitação de QR Code de veículo. Esta rota é exclusiva para veículos com tipo_abastecimento LIVRE ou COM_AUTORIZACAO. Preenche automaticamente: veiculoId, motoristaId (se houver vinculado ao veículo), empresaId, solicitanteId, abastecedorId e validadorId (do usuário logado). Valida capacidade_tanque do veículo e CotaOrgao.restante. Atualiza automaticamente CotaOrgao e Processo após criar o abastecimento.'
+  })
+  @ApiResponse({ status: 201, description: 'Abastecimento criado com sucesso a partir da solicitação de QR Code veículo' })
+  @ApiResponse({ status: 400, description: 'Dados inválidos, quantidade excede capacidade do tanque ou cota insuficiente' })
+  @ApiResponse({ status: 404, description: 'Solicitação de QR Code veículo não encontrada' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Apenas ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem criar abastecimentos' })
+  async createFromQrCodeVeiculo(
+    @Body() createDto: CreateAbastecimentoFromQrCodeVeiculoDto,
+    @Request() req,
+  ) {
+    return this.abastecimentoService.createFromQrCodeVeiculo(createDto, req.user);
   }
 
   @Get()

@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateAbastecimentoDto } from './dto/create-abastecimento.dto';
 import { UpdateAbastecimentoDto } from './dto/update-abastecimento.dto';
 import { FindAbastecimentoDto } from './dto/find-abastecimento.dto';
 import { CreateAbastecimentoFromSolicitacaoDto } from './dto/create-abastecimento-from-solicitacao.dto';
+import { CreateAbastecimentoFromQrCodeVeiculoDto } from './dto/create-abastecimento-from-qrcode-veiculo.dto';
 import { Prisma, StatusAbastecimento, StatusSolicitacao, TipoAbastecimento, Periodicidade, TipoAbastecimentoVeiculo, TipoContrato, StatusProcesso } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
@@ -1589,5 +1590,383 @@ export class AbastecimentoService {
     }
 
     return { inicio, fim };
+  }
+
+  /**
+   * Cria abastecimento a partir de uma solicitação de QR Code de veículo
+   * Para tipo_abastecimento LIVRE e COM_AUTORIZACAO
+   * Preenche automaticamente: veiculoId, motoristaId (se houver), empresaId, solicitanteId, abastecedorId, validadorId
+   * Valida capacidade_tanque e CotaOrgao.restante
+   * Atualiza CotaOrgao e Processo
+   */
+  async createFromQrCodeVeiculo(createDto: CreateAbastecimentoFromQrCodeVeiculoDto, user: any) {
+    const { solicitacaoQrCodeVeiculoId, combustivelId, quantidade, valor_total } = createDto;
+
+    // Verificar se o usuário pertence à empresa (obrigatório para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
+    if (!user?.empresa?.id) {
+      throw new AbastecimentoUsuarioSemEmpresaException({
+        user: { id: user?.id, tipo: user?.tipo_usuario, email: user?.email },
+        payload: createDto,
+      });
+    }
+
+    // Buscar solicitação de QR Code veículo
+    const solicitacaoQrCode = await (this.prisma as any).solicitacoesQrCodeVeiculo.findUnique({
+      where: { id: solicitacaoQrCodeVeiculoId },
+      include: {
+        veiculo: {
+          include: {
+            orgao: {
+              select: {
+                id: true,
+                prefeituraId: true,
+              },
+            },
+          },
+        },
+        prefeitura: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!solicitacaoQrCode) {
+      throw new NotFoundException(`Solicitação de QR Code veículo com ID ${solicitacaoQrCodeVeiculoId} não encontrada`);
+    }
+
+    const veiculo = solicitacaoQrCode.veiculo;
+    const veiculoId = veiculo.id;
+    const prefeituraId = solicitacaoQrCode.prefeitura_id;
+
+    // Verificar se veículo está ativo
+    if (!veiculo.ativo) {
+      throw new AbastecimentoVeiculoInativoException(veiculoId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
+    }
+
+    // Verificar tipo_abastecimento do veículo (deve ser LIVRE ou COM_AUTORIZACAO)
+    if (veiculo.tipo_abastecimento !== TipoAbastecimentoVeiculo.LIVRE && 
+        veiculo.tipo_abastecimento !== TipoAbastecimentoVeiculo.COM_AUTORIZACAO) {
+      throw new BadRequestException(
+        `Esta rota é apenas para veículos com tipo_abastecimento LIVRE ou COM_AUTORIZACAO. Veículo possui tipo: ${veiculo.tipo_abastecimento}`
+      );
+    }
+
+    // Verificar se combustível existe
+    const combustivel = await this.prisma.combustivel.findUnique({
+      where: { id: combustivelId },
+    });
+
+    if (!combustivel) {
+      throw new AbastecimentoCombustivelNotFoundException(combustivelId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
+    }
+
+    // Verificar se combustível está ativo
+    if (!combustivel.ativo) {
+      throw new AbastecimentoCombustivelInativoException(combustivelId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
+    }
+
+    // Verificar se combustível está vinculado ao veículo
+    const combustivelVinculado = await this.prisma.veiculoCombustivel.findFirst({
+      where: {
+        veiculoId: veiculoId,
+        combustivelId: combustivelId,
+        ativo: true,
+      },
+    });
+
+    if (!combustivelVinculado) {
+      throw new AbastecimentoCombustivelNaoVinculadoVeiculoException(veiculoId, combustivelId, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
+    }
+
+    // Validar quantidade vs capacidade do tanque
+    if (veiculo.capacidade_tanque && quantidade > Number(veiculo.capacidade_tanque)) {
+      throw new AbastecimentoQuantidadeMaiorQueCapacidadeTanqueException(
+        quantidade,
+        Number(veiculo.capacidade_tanque),
+        veiculoId,
+        {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createDto,
+        }
+      );
+    }
+
+    // Validar CotaOrgao.restante para LIVRE e COM_AUTORIZACAO
+    if (!veiculo.orgao?.id) {
+      throw new BadRequestException(
+        `Veículo não possui órgão vinculado. Não é possível criar abastecimento para tipo ${veiculo.tipo_abastecimento}`
+      );
+    }
+
+    // Buscar processo ativo da prefeitura
+    const processo = await this.prisma.processo.findFirst({
+      where: {
+        prefeituraId,
+        tipo_contrato: TipoContrato.OBJETIVO,
+        status: StatusProcesso.ATIVO,
+        ativo: true,
+      },
+    });
+
+    if (!processo) {
+      throw new BadRequestException(
+        `Não foi encontrado processo ativo para a prefeitura ${prefeituraId}`
+      );
+    }
+
+    // Buscar CotaOrgao para o órgão, combustível e processo
+    const cotaOrgao = await this.prisma.cotaOrgao.findFirst({
+      where: {
+        processoId: processo.id,
+        orgaoId: veiculo.orgao.id,
+        combustivelId,
+        ativa: true,
+      },
+    });
+
+    if (!cotaOrgao) {
+      throw new AbastecimentoCotaNotFoundException(0, {
+        additionalInfo: {
+          message: `Cota de órgão não encontrada para o veículo ${veiculoId}, órgão ${veiculo.orgao.id}, combustível ${combustivelId} e processo ${processo.id}`,
+        },
+      });
+    }
+
+    // Verificar se o restante da cota é suficiente
+    const restante = cotaOrgao.restante ? Number(cotaOrgao.restante.toString()) : 0;
+    if (restante < quantidade) {
+      throw new BadRequestException(
+        `Quantidade solicitada (${quantidade}L) excede o restante disponível na cota do órgão (${restante}L). Veículo: ${veiculo.nome}, Órgão: ${veiculo.orgao.id}, Combustível: ${combustivelId}`
+      );
+    }
+
+    // Buscar motorista vinculado ao veículo (se houver)
+    const veiculoMotorista = await this.prisma.veiculoMotorista.findFirst({
+      where: {
+        veiculoId: veiculoId,
+        ativo: true,
+        data_inicio: { lte: new Date() },
+        OR: [
+          { data_fim: null },
+          { data_fim: { gte: new Date() } },
+        ],
+      },
+      orderBy: {
+        data_inicio: 'desc',
+      },
+      take: 1,
+    });
+
+    const motoristaId = veiculoMotorista?.motoristaId || null;
+
+    // Validar outros campos obrigatórios
+    if (!quantidade || quantidade <= 0) {
+      throw new AbastecimentoQuantidadeInvalidaException(quantidade || 0, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
+    }
+
+    if (!valor_total || valor_total < 0) {
+      throw new AbastecimentoValorTotalInvalidoException(valor_total || 0, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
+    }
+
+    // Validar data de abastecimento (não pode ser futura)
+    if (createDto.data_abastecimento) {
+      const dataAbastecimento = new Date(createDto.data_abastecimento);
+      const dataAtual = new Date();
+      if (dataAbastecimento > dataAtual) {
+        throw new AbastecimentoDataAbastecimentoFuturaException(dataAbastecimento, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createDto,
+        });
+      }
+    }
+
+    // Validar chave de acesso NFE (se informada)
+    if (createDto.nfe_chave_acesso && (createDto.nfe_chave_acesso.length !== 44 || !/^\d+$/.test(createDto.nfe_chave_acesso))) {
+      throw new AbastecimentoNFEChaveAcessoInvalidaException(createDto.nfe_chave_acesso, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
+    }
+
+    // Validar URLs da NFE (se informadas)
+    if (createDto.nfe_img_url && !createDto.nfe_img_url.match(/^https?:\/\/.+/)) {
+      throw new AbastecimentoNFEUrlInvalidaException('nfe_img_url', createDto.nfe_img_url, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
+    }
+
+    if (createDto.nfe_link && !createDto.nfe_link.match(/^https?:\/\/.+/)) {
+      throw new AbastecimentoNFEUrlInvalidaException('nfe_link', createDto.nfe_link, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
+    }
+
+    // Validar desconto (se informado)
+    const descontoValor = createDto.desconto || 0;
+    if (descontoValor > valor_total) {
+      throw new AbastecimentoDescontoMaiorQueValorException(descontoValor, valor_total, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createDto,
+      });
+    }
+
+    // Validar consistência do valor total (se preco_empresa e quantidade estiverem informados)
+    if (createDto.preco_empresa && quantidade) {
+      const valorCalculado = quantidade * createDto.preco_empresa - descontoValor;
+      // Permitir pequena diferença devido a arredondamentos (0.01)
+      if (Math.abs(valor_total - valorCalculado) > 0.01) {
+        throw new AbastecimentoValorTotalInconsistenteException(
+          valor_total,
+          quantidade,
+          createDto.preco_empresa,
+          descontoValor,
+          {
+            user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+            payload: createDto,
+          }
+        );
+      }
+    }
+
+    // Criar abastecimento e atualizar cota e processo em transação
+    const abastecimento = await this.prisma.$transaction(async (tx) => {
+      // Criar abastecimento com dados preenchidos automaticamente
+      const abastecimentoCriado = await tx.abastecimento.create({
+        data: {
+          veiculoId,
+          motoristaId,
+          combustivelId,
+          empresaId: user.empresa.id,
+          solicitanteId: user.id,
+          abastecedorId: user.empresa.id,
+          validadorId: user.id,
+          tipo_abastecimento: createDto.tipo_abastecimento,
+          quantidade: new Decimal(quantidade),
+          preco_anp: createDto.preco_anp ? new Decimal(createDto.preco_anp) : null,
+          preco_empresa: createDto.preco_empresa ? new Decimal(createDto.preco_empresa) : null,
+          desconto: createDto.desconto ? new Decimal(createDto.desconto) : new Decimal(0),
+          valor_total: new Decimal(valor_total),
+          data_abastecimento: createDto.data_abastecimento 
+            ? new Date(createDto.data_abastecimento) 
+            : new Date(),
+          odometro: createDto.odometro || null,
+          orimetro: createDto.orimetro || null,
+          nfe_chave_acesso: createDto.nfe_chave_acesso || null,
+          nfe_img_url: createDto.nfe_img_url || null,
+          nfe_link: createDto.nfe_link || null,
+          conta_faturamento_orgao_id: createDto.conta_faturamento_orgao_id || null,
+          cota_id: cotaOrgao.id,
+          status: StatusAbastecimento.Aguardando,
+        },
+        include: {
+          veiculo: {
+            select: {
+              id: true,
+              nome: true,
+              placa: true,
+              modelo: true,
+            },
+          },
+          motorista: {
+            select: {
+              id: true,
+              nome: true,
+              cpf: true,
+            },
+          },
+          combustivel: {
+            select: {
+              id: true,
+              nome: true,
+              sigla: true,
+            },
+          },
+          empresa: {
+            select: {
+              id: true,
+              nome: true,
+              cnpj: true,
+            },
+          },
+          solicitante: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          },
+          validador: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          },
+          cota: {
+            select: {
+              id: true,
+              quantidade: true,
+              quantidade_utilizada: true,
+              valor_utilizado: true,
+              restante: true,
+              saldo_disponivel_cota: true,
+            },
+          },
+        },
+      });
+
+      // Atualizar CotaOrgao
+      await this.atualizarCotaOrgao(tx, cotaOrgao.id, quantidade, valor_total);
+      
+      // Buscar cota atualizada para incluir no resultado
+      const cotaAtualizada = await tx.cotaOrgao.findUnique({
+        where: { id: cotaOrgao.id },
+        select: {
+          id: true,
+          quantidade: true,
+          quantidade_utilizada: true,
+          valor_utilizado: true,
+          restante: true,
+          saldo_disponivel_cota: true,
+        },
+      });
+      
+      // Atualizar cota no objeto retornado
+      if (cotaAtualizada) {
+        abastecimentoCriado.cota = cotaAtualizada;
+      }
+
+      // Atualizar Processo
+      await this.atualizarProcesso(tx, prefeituraId, valor_total);
+
+      return abastecimentoCriado;
+    });
+
+    return {
+      message: 'Abastecimento criado com sucesso a partir da solicitação de QR Code veículo',
+      abastecimento,
+    };
   }
 }
