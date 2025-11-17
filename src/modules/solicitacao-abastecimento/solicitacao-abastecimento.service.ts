@@ -503,6 +503,84 @@ export class SolicitacaoAbastecimentoService {
     };
   }
 
+  async updateStatus(id: number, updateStatusDto: { status: StatusSolicitacao; motivo_rejeicao?: string; aprovado_por?: string; aprovado_por_email?: string; aprovado_por_empresa?: string; rejeitado_por?: string; rejeitado_por_email?: string; rejeitado_por_empresa?: string }, user?: any) {
+    const solicitacao = await this.prisma.solicitacaoAbastecimento.findUnique({
+      where: { id },
+    });
+
+    if (!solicitacao) {
+      throw new NotFoundException(`Solicitação de abastecimento com ID ${id} não encontrada`);
+    }
+
+    // Preparar dados de atualização baseado no novo status
+    const updateData: Prisma.SolicitacaoAbastecimentoUncheckedUpdateInput = {
+      status: updateStatusDto.status,
+      updated_at: new Date(),
+    };
+
+    // Se o status for APROVADA, preencher campos de aprovação
+    if (updateStatusDto.status === StatusSolicitacao.APROVADA) {
+      updateData.data_aprovacao = new Date();
+      updateData.aprovado_por = updateStatusDto.aprovado_por || user?.nome || undefined;
+      updateData.aprovado_por_email = updateStatusDto.aprovado_por_email || user?.email || undefined;
+      updateData.aprovado_por_empresa = updateStatusDto.aprovado_por_empresa || user?.empresa?.nome || undefined;
+      // Limpar campos de rejeição se existirem
+      updateData.data_rejeicao = null;
+      updateData.rejeitado_por = null;
+      updateData.rejeitado_por_email = null;
+      updateData.rejeitado_por_empresa = null;
+      updateData.motivo_rejeicao = null;
+    }
+
+    // Se o status for REJEITADA, preencher campos de rejeição
+    if (updateStatusDto.status === StatusSolicitacao.REJEITADA) {
+      updateData.data_rejeicao = new Date();
+      updateData.rejeitado_por = updateStatusDto.rejeitado_por || user?.nome || undefined;
+      updateData.rejeitado_por_email = updateStatusDto.rejeitado_por_email || user?.email || undefined;
+      updateData.rejeitado_por_empresa = updateStatusDto.rejeitado_por_empresa || user?.empresa?.nome || undefined;
+      updateData.motivo_rejeicao = updateStatusDto.motivo_rejeicao || undefined;
+      // Limpar campos de aprovação se existirem
+      updateData.data_aprovacao = null;
+      updateData.aprovado_por = null;
+      updateData.aprovado_por_email = null;
+      updateData.aprovado_por_empresa = null;
+    }
+
+    // Se o status for EXPIRADA, apenas atualizar o status
+    if (updateStatusDto.status === StatusSolicitacao.EXPIRADA) {
+      // Não alterar outros campos
+    }
+
+    // Se o status for EFETIVADA, apenas atualizar o status
+    if (updateStatusDto.status === StatusSolicitacao.EFETIVADA) {
+      // Não alterar outros campos
+    }
+
+    // Se o status for PENDENTE, limpar campos de aprovação e rejeição
+    if (updateStatusDto.status === StatusSolicitacao.PENDENTE) {
+      updateData.data_aprovacao = null;
+      updateData.aprovado_por = null;
+      updateData.aprovado_por_email = null;
+      updateData.aprovado_por_empresa = null;
+      updateData.data_rejeicao = null;
+      updateData.rejeitado_por = null;
+      updateData.rejeitado_por_email = null;
+      updateData.rejeitado_por_empresa = null;
+      updateData.motivo_rejeicao = null;
+    }
+
+    const solicitacaoAtualizada = await this.prisma.solicitacaoAbastecimento.update({
+      where: { id },
+      data: updateData,
+      include: this.solicitacaoInclude,
+    });
+
+    return {
+      message: `Status da solicitação alterado para ${updateStatusDto.status}`,
+      solicitacao: solicitacaoAtualizada,
+    };
+  }
+
   async remove(id: number) {
     await this.ensureExists(id);
 

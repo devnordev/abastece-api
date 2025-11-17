@@ -16,6 +16,7 @@ import { Request } from 'express';
 import { SolicitacaoAbastecimentoService } from './solicitacao-abastecimento.service';
 import { CreateSolicitacaoAbastecimentoDto } from './dto/create-solicitacao-abastecimento.dto';
 import { UpdateSolicitacaoAbastecimentoDto } from './dto/update-solicitacao-abastecimento.dto';
+import { UpdateStatusSolicitacaoDto } from './dto/update-status-solicitacao.dto';
 import { FindSolicitacaoAbastecimentoDto } from './dto/find-solicitacao-abastecimento.dto';
 import { GetPrecoCombustivelDto } from './dto/get-preco-combustivel.dto';
 import { ValidarCapacidadeTanqueDto } from './dto/validar-capacidade-tanque.dto';
@@ -176,6 +177,20 @@ export class SolicitacaoAbastecimentoController {
     @Body() updateDto: UpdateSolicitacaoAbastecimentoDto,
   ) {
     return this.solicitacaoService.update(id, updateDto);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(AdminPrefeituraEmpresaGuard)
+  @ApiOperation({ summary: 'Alterar status da solicitação de abastecimento' })
+  @ApiResponse({ status: 200, description: 'Status da solicitação alterado com sucesso' })
+  @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
+  @ApiResponse({ status: 400, description: 'Dados inválidos' })
+  async updateStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateStatusDto: UpdateStatusSolicitacaoDto,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.solicitacaoService.updateStatus(id, updateStatusDto, req.user);
   }
 
   @Delete(':id')

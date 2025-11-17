@@ -207,6 +207,7 @@ enum StatusSolicitacao {
   REJEITADA
   EXPIRADA
   EFETIVADA
+  CANCELADA
 }
 
 enum StatusSolicitacaoQrCodeVeiculo {
