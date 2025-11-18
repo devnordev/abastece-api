@@ -20,6 +20,8 @@ COPY src ./src
 COPY prisma ./prisma
 
 # Gera Prisma Client
+# PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING ignora erro de checksum quando servidor Prisma está indisponível
+ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 RUN npm run prisma:generate
 
 # Builda a aplicação (gera dist/)
