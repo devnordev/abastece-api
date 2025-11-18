@@ -5,6 +5,7 @@ import { UpdateVeiculoDto } from './dto/update-veiculo.dto';
 import { FindVeiculoDto } from './dto/find-veiculo.dto';
 import { CreateSolicitacaoQrCodeDto } from './dto/create-solicitacao-qrcode.dto';
 import { UploadService } from '../upload/upload.service';
+import { Periodicidade, TipoAbastecimentoVeiculo } from '@prisma/client';
 
 @Injectable()
 export class VeiculoService {
@@ -257,6 +258,29 @@ export class VeiculoService {
           periodicidade: cota.periodicidade as any,
           ativo: true,
         })),
+      });
+    }
+
+    // Se tipo_abastecimento for COTA, criar registro em VeiculoCotaPeriodo automaticamente
+    if (
+      (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA || veiculo.tipo_abastecimento === 'COTA') &&
+      createVeiculoDto.periodicidade &&
+      createVeiculoDto.quantidade
+    ) {
+      const dataAtual = new Date();
+      const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, createVeiculoDto.periodicidade as Periodicidade);
+
+      await this.prisma.veiculoCotaPeriodo.create({
+        data: {
+          veiculoId: veiculo.id,
+          data_inicio_periodo: inicio,
+          data_fim_periodo: fim,
+          quantidade_permitida: createVeiculoDto.quantidade,
+          quantidade_utilizada: 0,
+          quantidade_disponivel: createVeiculoDto.quantidade,
+          periodicidade: createVeiculoDto.periodicidade as Periodicidade,
+          ativo: true,
+        },
       });
     }
 
@@ -1298,6 +1322,41 @@ export class VeiculoService {
       message: `${solicitacoes.length} solicitação(ões) de QR Code criada(s) com sucesso`,
       solicitacoes,
     };
+  }
+
+  /**
+   * Calcula o intervalo de período baseado na periodicidade
+   */
+  private obterIntervaloPeriodo(data: Date, periodicidade: Periodicidade) {
+    const inicio = new Date(data);
+    inicio.setHours(0, 0, 0, 0);
+
+    const fim = new Date(data);
+    fim.setHours(23, 59, 59, 999);
+
+    if (periodicidade === Periodicidade.Diario) {
+      return { inicio, fim };
+    }
+
+    if (periodicidade === Periodicidade.Semanal) {
+      const diaSemana = inicio.getDay();
+      const diffParaSegunda = (diaSemana + 6) % 7;
+      inicio.setDate(inicio.getDate() - diffParaSegunda);
+
+      fim.setTime(inicio.getTime());
+      fim.setDate(inicio.getDate() + 6);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+
+    if (periodicidade === Periodicidade.Mensal) {
+      inicio.setDate(1);
+      fim.setMonth(inicio.getMonth() + 1, 0);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+
+    return { inicio, fim };
   }
 
   private async validateCreateVeiculoPermission(currentUserId: number, prefeituraId: number) {
