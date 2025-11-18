@@ -1,0 +1,141 @@
+{
+  "message": "Veículos encontrados com sucesso",
+  "veiculos": [
+    {
+      "id": 1,
+      "prefeituraId": 1,
+      "orgaoId": 1,
+      "contaFaturamentoOrgaoId": 2,
+      "nome": "Ambulância UTI 01",
+      "placa": "ABC-1234",
+      "modelo": "Ford Transit",
+      "ano": 2020,
+      "tipo_abastecimento": "COTA",
+      "ativo": true,
+      "capacidade_tanque": "80.00",
+      "tipo_veiculo": "Ambulancia",
+      "situacao_veiculo": "Proprio",
+      "observacoes": "Veículo em excelente estado de conservação",
+      "periodicidade": "Mensal",
+      "quantidade": "500.0",
+      "apelido": "Ambulância da Emergência",
+      "ano_fabricacao": 2020,
+      "chassi": "9BWZZZZZZZZZZZZZZ",
+      "renavam": "98765432109",
+      "crlv": "CRLV123456",
+      "crlv_vencimento": "2025-12-31T00:00:00.000Z",
+      "tacografo": "TACO123456",
+      "foto_veiculo": "https://exemplo.com/fotos/veiculo-1.jpg",
+      "foto_crlv": "https://exemplo.com/fotos/crlv-1.jpg",
+      "cor": "Branco",
+      "capacidade_passageiros": 2,
+      "prefeitura": {
+        "id": 1,
+        "nome": "Prefeitura Municipal de Campinas",
+        "cnpj": "12.345.678/0001-90"
+      },
+      "orgao": {
+        "id": 1,
+        "nome": "Secretaria de Saúde",
+        "sigla": "SMS"
+      },
+      "contaFaturamento": {
+        "id": 2,
+        "nome": "Conta de Faturamento Saúde",
+        "descricao": "Conta para faturamento de abastecimentos da saúde"
+      },
+      "categorias": [
+        {
+          "id": 1,
+          "veiculoId": 1,
+          "categoriaId": 1,
+          "ativo": true,
+          "categoria": {
+            "id": 1,
+            "nome": "Emergência",
+            "descricao": "Veículos de emergência médica"
+          }
+        },
+        {
+          "id": 2,
+          "veiculoId": 1,
+          "categoriaId": 3,
+          "ativo": true,
+          "categoria": {
+            "id": 3,
+            "nome": "UTI",
+            "descricao": "Veículos de Unidade de Terapia Intensiva"
+          }
+        }
+      ],
+      "combustiveis": [
+        {
+          "id": 1,
+          "veiculoId": 1,
+          "combustivelId": 1,
+          "ativo": true,
+          "combustivel": {
+            "id": 1,
+            "nome": "Gasolina Comum",
+            "descricao": "Gasolina comum sem aditivos"
+          }
+        },
+        {
+          "id": 2,
+          "veiculoId": 1,
+          "combustivelId": 2,
+          "ativo": true,
+          "combustivel": {
+            "id": 2,
+            "nome": "Etanol",
+            "descricao": "Etanol hidratado"
+          }
+        }
+      ],
+      "motoristas": [
+        {
+          "id": 1,
+          "veiculoId": 1,
+          "motoristaId": 1,
+          "data_inicio": "2024-01-15T00:00:00.000Z",
+          "ativo": true,
+          "motorista": {
+            "id": 1,
+            "nome": "João Silva",
+            "cpf": "123.456.789-00"
+          }
+        },
+        {
+          "id": 2,
+          "veiculoId": 1,
+          "motoristaId": 2,
+          "data_inicio": "2024-02-01T00:00:00.000Z",
+          "ativo": true,
+          "motorista": {
+            "id": 2,
+            "nome": "Maria Santos",
+            "cpf": "987.654.321-00"
+          }
+        }
+      ],
+      "solicitacaoQRCode": {
+        "temSolicitacao": true,
+        "possuiSolicitacaoSolicitada": false,
+        "possuiSolicitacaoAprovada": true,
+        "estaInativo": false,
+        "estaCancelado": false,
+        "status": "Aprovado",
+        "mensagem": "Este veículo possui uma solicitação de QR Code com status Aprovado",
+        "id": 5,
+        "codigoQrCode": "ABC12345"
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+

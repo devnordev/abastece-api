@@ -483,6 +483,39 @@ export class VeiculoService {
               descricao: true,
             },
           },
+          categorias: {
+            include: {
+              categoria: {
+                select: {
+                  id: true,
+                  nome: true,
+                  descricao: true,
+                },
+              },
+            },
+          },
+          combustiveis: {
+            include: {
+              combustivel: {
+                select: {
+                  id: true,
+                  nome: true,
+                  descricao: true,
+                },
+              },
+            },
+          },
+          motoristas: {
+            include: {
+              motorista: {
+                select: {
+                  id: true,
+                  nome: true,
+                  cpf: true,
+                },
+              },
+            },
+          },
         },
         orderBy: {
           nome: 'asc',
