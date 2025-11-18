@@ -417,6 +417,8 @@ model Motorista {
   imagem_perfil         String?
   ativo                 Boolean   @default(true)
   observacoes           String?   @db.Text
+  created_date          DateTime  @default(now())
+  modified_date         DateTime  @updatedAt
 
   // Relacionamentos
   prefeitura            Prefeitura            @relation(fields: [prefeituraId], references: [id])

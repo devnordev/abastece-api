@@ -49,11 +49,18 @@ COPY --from=builder /app/prisma ./prisma
 # Dependências de sistema necessárias para Prisma Runtime
 RUN apk add --no-cache openssl libc6-compat
 
+# Instala Prisma CLI para poder executar migrations em produção (sem salvar no package.json)
+RUN npm install prisma@^6.18.0 --no-save
+
 # Variáveis de ambiente padrão (podem ser sobrescritas em runtime)
 ENV NODE_ENV=production \
     PORT=3000
 
 EXPOSE 3000
 
-# Comando de inicialização (saída padrão do build mantém estrutura dist/src)
+# Comando de inicialização
+# Opção 1: Apenas iniciar a aplicação (migrations devem ser aplicadas manualmente antes)
 CMD ["node", "dist/src/main.js"]
+
+# Opção 2: Aplicar migrations automaticamente antes de iniciar (descomente se preferir)
+# CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]

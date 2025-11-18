@@ -42,6 +42,8 @@ export class BackupService {
     { model: 'onOffApp', table: 'onoffapp' },
     { model: 'logsAlteracoes', table: 'logs_alteracoes' },
     { model: 'refreshToken', table: 'refresh_token' },
+    { model: 'solicitacoesQrCodeVeiculo', table: 'solicitacoes_qrcode_veiculo' },
+    { model: 'qrCodeMotorista', table: 'qrcode_motorista' },
   ];
 
   constructor(private prisma: PrismaService) {
@@ -202,6 +204,22 @@ export class BackupService {
       });
       if (solicitacoes.length > 0) {
         sqlContent += this.generateInsertSQL('solicitacoes_abastecimento', solicitacoes);
+      }
+
+      // Buscar e gerar SQL para solicitações de QR Code de veículos
+      const solicitacoesQrCodeVeiculo = await this.prisma.solicitacoesQrCodeVeiculo.findMany({
+        where: { prefeitura_id: user.prefeituraId },
+      });
+      if (solicitacoesQrCodeVeiculo.length > 0) {
+        sqlContent += this.generateInsertSQL('solicitacoes_qrcode_veiculo', solicitacoesQrCodeVeiculo);
+      }
+
+      // Buscar e gerar SQL para QR Codes de motoristas
+      const qrCodesMotorista = await this.prisma.qrCodeMotorista.findMany({
+        where: { prefeitura_id: user.prefeituraId },
+      });
+      if (qrCodesMotorista.length > 0) {
+        sqlContent += this.generateInsertSQL('qrcode_motorista', qrCodesMotorista);
       }
 
       // Buscar e gerar SQL para tabelas relacionadas
