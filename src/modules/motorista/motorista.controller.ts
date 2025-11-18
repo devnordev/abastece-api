@@ -61,7 +61,7 @@ export class MotoristaController {
           description: 'Arquivo de imagem (JPEG, PNG, WEBP)',
         },
       },
-      required: ['prefeituraId', 'nome', 'cpf', 'email'],
+      required: ['prefeituraId', 'nome', 'cpf'],
     },
   })
   @UseInterceptors(

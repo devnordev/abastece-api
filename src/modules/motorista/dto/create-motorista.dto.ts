@@ -18,11 +18,13 @@ export class CreateMotoristaDto {
   nome: string;
 
   @ApiProperty({
-    description: 'Email do motorista (obrigatório)',
+    description: 'Email do motorista (opcional)',
     example: 'joao@exemplo.com',
+    required: false,
   })
+  @IsOptional()
   @IsEmail({}, { message: 'Email deve ter um formato válido' })
-  email: string;
+  email?: string;
 
   @ApiProperty({
     description: 'CPF do motorista (obrigatório)',

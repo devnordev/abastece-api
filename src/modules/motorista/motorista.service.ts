@@ -25,11 +25,7 @@ export class MotoristaService {
       throw new BadRequestException('CPF é obrigatório para o cadastro de motorista');
     }
 
-    if (!email) {
-      throw new BadRequestException('Email é obrigatório para o cadastro de motorista');
-    }
-
-    // Verificar se motorista já existe (por CPF ou email)
+    // Verificar se motorista já existe (por CPF)
     const existingMotorista = await this.prisma.motorista.findFirst({
       where: { cpf },
     });
@@ -38,12 +34,15 @@ export class MotoristaService {
       throw new ConflictException('Motorista já existe com este CPF');
     }
 
-    const existingMotoristaByEmail = await this.prisma.motorista.findFirst({
-      where: { email },
-    });
+    // Verificar se email já existe (apenas se email foi fornecido)
+    if (email) {
+      const existingMotoristaByEmail = await this.prisma.motorista.findFirst({
+        where: { email },
+      });
 
-    if (existingMotoristaByEmail) {
-      throw new ConflictException('Motorista já existe com este email');
+      if (existingMotoristaByEmail) {
+        throw new ConflictException('Motorista já existe com este email');
+      }
     }
 
     // Verificar se prefeitura existe
