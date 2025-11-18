@@ -257,6 +257,8 @@ model Prefeitura {
   solicitacoesAbastecimento SolicitacaoAbastecimento[]
   solicitacoesQrCode    SolicitacoesQrCodeVeiculo[]
   solicitacoesQrCodeMotorista QrCodeMotorista[]
+  created_date          DateTime  @default(now())
+  modified_date         DateTime  @updatedAt
 
   @@map("prefeitura")
 }
@@ -285,6 +287,8 @@ model Usuario {
   solicitacoes            Abastecimento[]           @relation("Solicitante")
   validacoes              Abastecimento[]           @relation("Validador")
   orgaos                  UsuarioOrgao[]
+  created_date            DateTime  @default(now())
+  modified_date           DateTime  @updatedAt
 
   @@map("usuario")
 }
@@ -320,6 +324,8 @@ model Empresa {
   abastecedores           Abastecimento[]           @relation("Abastecedor")
   precosCombustiveis      EmpresaPrecoCombustivel[]
   solicitacoes            SolicitacaoAbastecimento[]
+  created_date            DateTime  @default(now())
+  modified_date           DateTime  @updatedAt
 
   @@map("empresa")
 }
@@ -337,6 +343,8 @@ model Orgao {
   cotasOrgao              CotaOrgao[]
   contasFaturamento       ContaFaturamentoOrgao[]
   usuarios                UsuarioOrgao[]
+  created_date            DateTime  @default(now())
+  modified_date           DateTime  @updatedAt
 
   @@map("orgao")
 }
@@ -355,6 +363,8 @@ model Contrato {
   anexo_contrato_assinado   String?
   createdAt                 DateTime?
   updatedAt                 DateTime?
+  created_date              DateTime  @default(now())
+  modified_date             DateTime  @updatedAt
 
   // Relacionamentos
   empresa                   Empresa                 @relation(fields: [empresaId], references: [id])
@@ -384,6 +394,8 @@ model Combustivel {
   prefeiturasConsorcio        ProcessoPrefeituraCombustivelConsorcio[]
   precosEmpresas              EmpresaPrecoCombustivel[]
   solicitacoes                SolicitacaoAbastecimento[]
+  created_date                DateTime  @default(now())
+  modified_date               DateTime  @updatedAt
 
   @@map("combustivel")
 }
@@ -399,6 +411,8 @@ model Categoria {
   // Relacionamentos
   prefeitura      Prefeitura      @relation(fields: [prefeituraId], references: [id])
   veiculos        VeiculoCategoria[]
+  created_date    DateTime  @default(now())
+  modified_date   DateTime  @updatedAt
 
   @@map("categoria")
 }
@@ -470,6 +484,8 @@ model Veiculo {
   cotasPeriodo              VeiculoCotaPeriodo[]
   solicitacoes              SolicitacaoAbastecimento[]
   solicitacoesQrCode        SolicitacoesQrCodeVeiculo[]
+  created_date              DateTime  @default(now())
+  modified_date             DateTime  @updatedAt
 
   @@map("veiculo")
 }
@@ -519,6 +535,8 @@ model Abastecimento {
   contaFaturamento            ContaFaturamentoOrgao?    @relation(fields: [conta_faturamento_orgao_id], references: [id])
   cota                        CotaOrgao?                @relation(fields: [cota_id], references: [id])
   solicitacao                 SolicitacaoAbastecimento?
+  created_date                DateTime  @default(now())
+  modified_date               DateTime  @updatedAt
 
   @@map("abastecimento")
 }
@@ -540,6 +558,8 @@ model CotaOrgao {
   processo              Processo                  @relation(fields: [processoId], references: [id])
   combustivel           Combustivel               @relation("CombustivelCota", fields: [combustivelId], references: [id])
   abastecimentos        Abastecimento[]
+  created_date          DateTime  @default(now())
+  modified_date         DateTime  @updatedAt
 
   @@map("cota_orgao")
 }
@@ -556,6 +576,8 @@ model ContaFaturamentoOrgao {
   orgao           Orgao         @relation(fields: [orgaoId], references: [id])
   veiculos        Veiculo[]
   abastecimentos  Abastecimento[]
+  created_date    DateTime  @default(now())
+  modified_date   DateTime  @updatedAt
 
   @@map("conta_faturamento_orgao")
 }
@@ -587,6 +609,8 @@ model Processo {
   combustiveisConsorciado                 ProcessoCombustivelConsorciado[]
   prefeiturasCombustiveisConsorcio        ProcessoPrefeituraCombustivelConsorcio[]
   aditivos                                AditivoProcesso[]
+  created_date                            DateTime  @default(now())
+  modified_date                           DateTime  @updatedAt
 
   @@map("processo")
 }
@@ -602,6 +626,8 @@ model ContratoCombustivel {
   ativo           Boolean   @default(true)
   createdAt       DateTime?
   updatedAt       DateTime?
+  created_date    DateTime  @default(now())
+  modified_date   DateTime  @updatedAt
 
   // Relacionamentos
   contrato        Contrato      @relation(fields: [contratoId], references: [id])
@@ -621,6 +647,8 @@ model VeiculoCombustivel {
   // Relacionamentos
   veiculo         Veiculo       @relation(fields: [veiculoId], references: [id])
   combustivel     Combustivel   @relation(fields: [combustivelId], references: [id])
+  created_date    DateTime  @default(now())
+  modified_date   DateTime  @updatedAt
 
   @@map("veiculo_combustivel")
 }
@@ -634,6 +662,8 @@ model VeiculoCategoria {
   // Relacionamentos
   veiculo         Veiculo       @relation(fields: [veiculoId], references: [id])
   categoria       Categoria     @relation(fields: [categoriaId], references: [id])
+  created_date    DateTime  @default(now())
+  modified_date   DateTime  @updatedAt
 
   @@unique([veiculoId, categoriaId])
   @@map("veiculo_categoria")
@@ -651,6 +681,8 @@ model VeiculoMotorista {
   // Relacionamentos
   veiculo         Veiculo       @relation(fields: [veiculoId], references: [id])
   motorista       Motorista     @relation(fields: [motoristaId], references: [id])
+  created_date    DateTime  @default(now())
+  modified_date   DateTime  @updatedAt
 
   @@map("veiculo_motorista")
 }
@@ -664,6 +696,8 @@ model UsuarioOrgao {
   // Relacionamentos
   usuario     Usuario   @relation(fields: [usuarioId], references: [id])
   orgao       Orgao     @relation(fields: [orgaoId], references: [id])
+  created_date DateTime  @default(now())
+  modified_date DateTime  @updatedAt
 
   @@map("usuario_orgao")
 }
@@ -681,6 +715,8 @@ model ProcessoCombustivel {
   processo                    Processo      @relation(fields: [processoId], references: [id])
   combustivel                 Combustivel   @relation(fields: [combustivelId], references: [id])
   aditivos                    AditivoProcesso[]
+  created_date                DateTime  @default(now())
+  modified_date               DateTime  @updatedAt
 
   @@map("processo_combustivel")
 }
@@ -697,6 +733,8 @@ model ProcessoCombustivelConsorciado {
   // Relacionamentos
   processo                    Processo      @relation(fields: [processoId], references: [id])
   combustivel                 Combustivel   @relation(fields: [combustivelId], references: [id])
+  created_date                DateTime  @default(now())
+  modified_date               DateTime  @updatedAt
 
   @@unique([processoId, combustivelId], name: "unique_processo_combustivel_consorciado")
   @@map("processo_combustivel_consorciado")
@@ -716,6 +754,8 @@ model ProcessoPrefeituraConsorcio {
   // Relacionamentos
   processo                Processo      @relation(fields: [processoId], references: [id])
   prefeitura              Prefeitura    @relation(fields: [prefeituraId], references: [id])
+  created_date            DateTime  @default(now())
+  modified_date           DateTime  @updatedAt
 
   @@map("processo_prefeitura_consorcio")
 }
@@ -735,6 +775,8 @@ model ProcessoPrefeituraCombustivelConsorcio {
   processo                    Processo      @relation(fields: [processoId], references: [id])
   prefeitura                  Prefeitura    @relation(fields: [prefeituraId], references: [id])
   combustivel                 Combustivel   @relation(fields: [combustivelId], references: [id])
+  created_date                DateTime  @default(now())
+  modified_date               DateTime  @updatedAt
 
   @@unique([processoId, prefeituraId, combustivelId], name: "unique_processo_prefeitura_combustivel")
   @@map("processo_prefeitura_combustivel_consorcio")
@@ -761,6 +803,8 @@ model EmpresaPrecoCombustivel {
   // Relacionamentos
   empresa           Empresa       @relation(fields: [empresa_id], references: [id])
   combustivel       Combustivel   @relation(fields: [combustivel_id], references: [id])
+  created_date      DateTime  @default(now())
+  modified_date     DateTime  @updatedAt
 
   @@map("empresa_preco_combustivel")
 }
@@ -779,6 +823,8 @@ model AditivoContrato {
   ativo               Boolean   @default(true)
   createdAt           DateTime?
   updatedAt           DateTime?
+  created_date        DateTime  @default(now())
+  modified_date       DateTime  @updatedAt
 
   // Relacionamentos
   contrato            Contrato  @relation(fields: [contratoId], references: [id])
@@ -802,6 +848,8 @@ model AditivoProcesso {
   ativo               Boolean   @default(true)
   createdAt           DateTime?
   updatedAt           DateTime?
+  created_date        DateTime  @default(now())
+  modified_date       DateTime  @updatedAt
 
   // Relacionamentos
   processo            Processo            @relation(fields: [processoId], references: [id])
@@ -817,6 +865,8 @@ model AnpSemana {
   ativo           Boolean   @default(false)
   observacoes     String?   @db.Text
   importado_em    DateTime?
+  created_date    DateTime  @default(now())
+  modified_date   DateTime  @updatedAt
 
   // Relacionamentos
   precos          AnpPrecosUf[]
@@ -838,6 +888,8 @@ model AnpPrecosUf {
 
   // Relacionamentos
   anpSemana           AnpSemana @relation(fields: [anp_semana_id], references: [id])
+  created_date        DateTime  @default(now())
+  modified_date       DateTime  @updatedAt
 
   @@map("anp_precos_uf")
 }
@@ -855,6 +907,8 @@ model LogsAlteracoes {
   contexto          String?   @db.VarChar(100)
   ip_address        String?   @db.VarChar(45)
   user_agent        String?   @db.Text
+  created_date      DateTime  @default(now())
+  modified_date     DateTime  @updatedAt
 
   // Relacionamentos
   usuario           Usuario?  @relation(fields: [executado_por], references: [id])
@@ -874,6 +928,8 @@ model Notificacao {
   notificado_por      String?
   dados_extras        Json?
   ativo               Boolean   @default(true)
+  created_date        DateTime  @default(now())
+  modified_date       DateTime  @updatedAt
 
   @@map("notificacao")
 }
@@ -882,6 +938,8 @@ model OnOff {
   id                  Int       @id @default(autoincrement())
   ligadodesligado     Boolean   @default(true)
   status_system       StatusSystem?
+  created_date        DateTime  @default(now())
+  modified_date       DateTime  @updatedAt
 
   @@map("onoff")
 }
@@ -890,6 +948,8 @@ model OnOffApp {
   id                  Int       @id @default(autoincrement())
   ligadodesligado     Boolean   @default(false)
   status_system       StatusSystem?
+  created_date        DateTime  @default(now())
+  modified_date       DateTime  @updatedAt
 
   @@map("onoffapp")
 }
@@ -901,6 +961,8 @@ model ParametrosTeto {
   excecoes_combustivel    String?   @db.Text
   ativo                   Boolean   @default(true)
   observacoes             String?   @db.Text
+  created_date            DateTime  @default(now())
+  modified_date           DateTime  @updatedAt
 
   @@map("parametros_teto")
 }
@@ -915,6 +977,8 @@ model RefreshToken {
   ipCriacao       String?
   ipRevogacao     String?
   userAgent       String?
+  created_date    DateTime  @default(now())
+  modified_date   DateTime  @updatedAt
 
   // Relacionamentos
   usuario         Usuario   @relation(fields: [usuarioId], references: [id])
@@ -954,6 +1018,8 @@ model SolicitacaoAbastecimento {
   observacoes                 String?   @db.Text
   created_at                  DateTime?
   updated_at                  DateTime?
+  created_date                DateTime  @default(now())
+  modified_date               DateTime  @updatedAt
 
   // Relacionamentos
   prefeitura                  Prefeitura    @relation(fields: [prefeituraId], references: [id])
@@ -976,6 +1042,8 @@ model VeiculoCotaPeriodo {
   quantidade_disponivel   Decimal   @db.Decimal(10, 1)
   periodicidade           Periodicidade
   ativo                   Boolean   @default(true)
+  created_date            DateTime  @default(now())
+  modified_date           DateTime  @updatedAt
 
   // Relacionamentos
   veiculo                 Veiculo   @relation(fields: [veiculoId], references: [id])
@@ -995,6 +1063,7 @@ model SolicitacoesQrCodeVeiculo {
   prefeitura_id             Int
   foto                      String?
   codigo_qrcode             String?                         @unique @db.VarChar(8)
+  modified_date             DateTime  @updatedAt
 
   // Relacionamentos
   veiculo                   Veiculo                         @relation(fields: [idVeiculo], references: [id])
@@ -1015,6 +1084,7 @@ model QrCodeMotorista {
   prefeitura_id             Int
   foto                      String?
   codigo_qrcode             String?                 @unique @db.VarChar(8)
+  modified_date             DateTime  @updatedAt
 
   // Relacionamentos
   motorista                 Motorista               @relation(fields: [idMotorista], references: [id])

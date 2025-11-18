@@ -78,15 +78,24 @@ export class MotoristaController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     // Converter strings para tipos corretos quando vêm de multipart/form-data
+    // Se vier como JSON puro, os tipos já devem estar corretos
     const processedDto: CreateMotoristaDto = {
       ...createMotoristaDto,
-      prefeituraId: createMotoristaDto.prefeituraId ? parseInt(createMotoristaDto.prefeituraId) : undefined,
+      prefeituraId: typeof createMotoristaDto.prefeituraId === 'string' 
+        ? parseInt(createMotoristaDto.prefeituraId) 
+        : createMotoristaDto.prefeituraId,
       ativo:
         createMotoristaDto.ativo === 'true' || createMotoristaDto.ativo === true || createMotoristaDto.ativo === undefined
           ? true
-          : false,
+          : createMotoristaDto.ativo === 'false' || createMotoristaDto.ativo === false
+          ? false
+          : true,
       data_vencimento_cnh: createMotoristaDto.data_vencimento_cnh
-        ? new Date(createMotoristaDto.data_vencimento_cnh)
+        ? typeof createMotoristaDto.data_vencimento_cnh === 'string'
+          ? new Date(createMotoristaDto.data_vencimento_cnh)
+          : createMotoristaDto.data_vencimento_cnh instanceof Date
+          ? createMotoristaDto.data_vencimento_cnh
+          : new Date(createMotoristaDto.data_vencimento_cnh)
         : undefined,
     };
 
