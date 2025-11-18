@@ -263,7 +263,7 @@ export class VeiculoService {
 
     // Se tipo_abastecimento for COTA, criar registro em VeiculoCotaPeriodo automaticamente
     if (
-      (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA || veiculo.tipo_abastecimento === 'COTA') &&
+      veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA &&
       createVeiculoDto.periodicidade &&
       createVeiculoDto.quantidade
     ) {

@@ -182,7 +182,7 @@ export class MotoristaService {
               prefeitura_id: true,
               foto: true,
               codigo_qrcode: true,
-            },
+            } as any,
             orderBy: {
               data_cadastro: 'desc',
             },
@@ -197,7 +197,7 @@ export class MotoristaService {
     ]);
 
     // Processar motoristas para adicionar informações sobre solicitações de QR Code
-    const motoristasComSolicitacao = motoristas.map((motorista) => {
+    const motoristasComSolicitacao = motoristas.map((motorista: any) => {
       const solicitacoesDoMotorista = motorista.solicitacoesQrCode || [];
       
       // Verificar se existe solicitação com status "Solicitado" (independente de outras)
@@ -286,7 +286,7 @@ export class MotoristaService {
       }
 
       // Remover solicitacoesQrCode do objeto original e adicionar a estrutura processada
-      const { solicitacoesQrCode, ...motoristaSemSolicitacao } = motorista;
+      const { solicitacoesQrCode, ...motoristaSemSolicitacao } = motorista as any;
 
       return {
         ...motoristaSemSolicitacao,
@@ -353,7 +353,7 @@ export class MotoristaService {
             prefeitura_id: true,
             foto: true,
             codigo_qrcode: true,
-          },
+          } as any,
           orderBy: {
             data_cadastro: 'desc',
           },
@@ -372,7 +372,7 @@ export class MotoristaService {
     }
 
     // Processar informações de QR Code similar ao findAll
-    const solicitacoesDoMotorista = motorista.solicitacoesQrCode || [];
+    const solicitacoesDoMotorista = (motorista as any).solicitacoesQrCode || [];
     
     // Buscar solicitação com status "Solicitado" primeiro (prioridade)
     const solicitacaoSolicitada = solicitacoesDoMotorista.find(
