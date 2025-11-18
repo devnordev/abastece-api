@@ -31,7 +31,11 @@ export class CategoriaService {
   }
 
   async findAll(page = 1, limit = 10, prefeituraId?: number, tipo_categoria?: TipoCategoria, ativo?: boolean) {
-    const skip = (page - 1) * limit;
+    // Garantir que page e limit sejam números válidos
+    const pageNumber = Math.max(1, Math.floor(page) || 1);
+    const limitNumber = Math.max(1, Math.floor(limit) || 10);
+    const skip = (pageNumber - 1) * limitNumber;
+    
     const where: any = {};
     if (prefeituraId) where.prefeituraId = prefeituraId;
     if (tipo_categoria) where.tipo_categoria = tipo_categoria;
@@ -40,8 +44,8 @@ export class CategoriaService {
     const [categorias, total] = await Promise.all([
       this.prisma.categoria.findMany({
         where,
-        skip,
-        take: limit,
+        skip: skip >= 0 ? skip : 0,
+        take: limitNumber,
         include: {
           prefeitura: {
             select: { id: true, nome: true, cnpj: true },
@@ -55,7 +59,7 @@ export class CategoriaService {
     return {
       message: 'Categorias encontradas com sucesso',
       categorias,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      pagination: { page: pageNumber, limit: limitNumber, total, totalPages: Math.ceil(total / limitNumber) },
     };
   }
 
