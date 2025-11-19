@@ -46,6 +46,55 @@ export class BackupService {
     { model: 'qrCodeMotorista', table: 'qrcode_motorista' },
   ];
 
+  /**
+   * Mapeamento de dependências das tabelas (foreign keys)
+   * Define a ordem correta de execução para evitar erros de constraint
+   */
+  private readonly TABLE_DEPENDENCIES: Map<string, string[]> = new Map([
+    // Tabelas sem dependências (podem ser executadas primeiro)
+    ['prefeitura', []],
+    ['empresa', []],
+    ['combustivel', []],
+    ['anp_semana', []],
+    ['parametros_teto', []],
+    ['onoff', []],
+    ['onoffapp', []],
+    
+    // Tabelas que dependem de prefeitura
+    ['orgao', ['prefeitura']],
+    ['categoria', ['prefeitura']],
+    ['motorista', ['prefeitura']],
+    ['conta_faturamento_orgao', ['prefeitura', 'orgao']],
+    ['usuario', ['prefeitura', 'empresa']],
+    ['processo', ['prefeitura']],
+    ['veiculo', ['prefeitura', 'orgao', 'conta_faturamento_orgao']],
+    
+    // Tabelas que dependem de outras
+    ['usuario_orgao', ['usuario', 'orgao']],
+    ['contrato', ['empresa']],
+    ['contrato_combustivel', ['contrato', 'combustivel']],
+    ['aditivo_contrato', ['contrato']],
+    ['processo_combustivel', ['processo', 'combustivel']],
+    ['processo_combustivel_consorciado', ['processo', 'combustivel']],
+    ['processo_prefeitura_consorcio', ['processo', 'prefeitura']],
+    ['processo_prefeitura_combustivel_consorcio', ['processo', 'prefeitura', 'combustivel']],
+    ['aditivo_processo', ['processo', 'processo_combustivel']],
+    ['cota_orgao', ['processo', 'orgao', 'combustivel']],
+    ['veiculo_categoria', ['veiculo', 'categoria']],
+    ['veiculo_combustivel', ['veiculo', 'combustivel']],
+    ['veiculo_motorista', ['veiculo', 'motorista']],
+    ['veiculo_cota_periodo', ['veiculo']],
+    ['empresa_preco_combustivel', ['empresa', 'combustivel']],
+    ['abastecimento', ['veiculo', 'motorista', 'combustivel', 'empresa', 'usuario', 'conta_faturamento_orgao', 'cota_orgao']],
+    ['solicitacoes_abastecimento', ['prefeitura', 'veiculo', 'motorista', 'combustivel', 'empresa', 'abastecimento']],
+    ['solicitacoes_qrcode_veiculo', ['veiculo', 'prefeitura']],
+    ['qrcode_motorista', ['motorista', 'prefeitura']],
+    ['anp_precos_uf', ['anp_semana']],
+    ['logs_alteracoes', ['usuario']],
+    ['notificacao', []],
+    ['refresh_token', ['usuario']],
+  ]);
+
   constructor(private prisma: PrismaService) {
     // Criar diretório de backups se não existir
     if (!fs.existsSync(this.backupDir)) {
@@ -54,7 +103,61 @@ export class BackupService {
   }
 
   /**
+   * Ordena tabelas por dependências usando ordenação topológica
+   * Garante que tabelas dependentes sejam executadas após suas dependências
+   */
+  private sortTablesByDependencies(tables: Array<{ model: string; table: string }>): Array<{ model: string; table: string }> {
+    const tableMap = new Map<string, { model: string; table: string }>();
+    tables.forEach((t) => tableMap.set(t.table, t));
+
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+    const result: Array<{ model: string; table: string }> = [];
+
+    const visit = (tableName: string) => {
+      if (visiting.has(tableName)) {
+        // Ciclo detectado, mas continuamos (pode ser dependência circular opcional)
+        return;
+      }
+      if (visited.has(tableName)) {
+        return;
+      }
+
+      visiting.add(tableName);
+      const dependencies = this.TABLE_DEPENDENCIES.get(tableName) || [];
+      
+      // Visitar dependências primeiro
+      for (const dep of dependencies) {
+        if (tableMap.has(dep)) {
+          visit(dep);
+        }
+      }
+
+      visiting.delete(tableName);
+      visited.add(tableName);
+
+      // Adicionar à lista ordenada
+      if (tableMap.has(tableName) && !result.find((t) => t.table === tableName)) {
+        result.push(tableMap.get(tableName)!);
+      }
+    };
+
+    // Visitar todas as tabelas
+    tables.forEach((t) => visit(t.table));
+
+    // Adicionar tabelas que não estão no mapeamento de dependências
+    tables.forEach((t) => {
+      if (!visited.has(t.table)) {
+        result.push(t);
+      }
+    });
+
+    return result;
+  }
+
+  /**
    * Gera backup completo do banco de dados (apenas SUPER_ADMIN)
+   * Agora com ordenação correta das tabelas
    */
   async generateFullBackup(): Promise<string> {
     const timestamp = this.getTimestamp();
@@ -62,16 +165,20 @@ export class BackupService {
     const filepath = path.join(this.backupDir, filename);
 
     try {
+      // Ordenar tabelas por dependências
+      const orderedTables = this.sortTablesByDependencies(this.FULL_BACKUP_MODELS);
+
       let sqlContent = `-- ============================================
 -- BACKUP COMPLETO DO BANCO DE DADOS
 -- Data/Hora: ${new Date().toLocaleString('pt-BR')}
 -- Timestamp: ${timestamp}
 -- Tipo: Backup Completo
 -- Gerado via: API Backup Service
+-- Ordem de execução: Tabelas ordenadas por dependências
 -- ============================================
 
 `;
-      for (const { model, table } of this.FULL_BACKUP_MODELS) {
+      for (const { model, table } of orderedTables) {
         const records = await this.fetchAllRecords(model);
         if (records.length > 0) {
           sqlContent += this.generateInsertSQL(table, records);
@@ -89,24 +196,28 @@ export class BackupService {
 
   /**
    * Gera backup filtrado por perfil de usuário
+   * Agora com ordenação correta das tabelas para garantir restauração sem erros
    */
   async generateBackupByUser(user: any): Promise<string> {
     const timestamp = this.getTimestamp();
     let filename: string;
-    let sqlContent = '';
 
     // Determinar tipo de backup baseado no perfil
     if (user.tipo_usuario === 'SUPER_ADMIN') {
       return this.generateFullBackup();
     }
 
+    // Coletar todas as tabelas e dados primeiro
+    const tablesData: Array<{ table: string; records: any[] }> = [];
+
     // Cabeçalho do backup
-    sqlContent += `-- ============================================
+    const header = `-- ============================================
 -- BACKUP DO BANCO DE DADOS
 -- Data/Hora: ${new Date().toLocaleString('pt-BR')}
 -- Timestamp: ${timestamp}
 -- Perfil: ${user.tipo_usuario}
 -- Usuário: ${user.nome} (${user.email})
+-- Ordem de execução: Tabelas ordenadas por dependências
 `;
 
     if (user.tipo_usuario === 'ADMIN_PREFEITURA' || user.tipo_usuario === 'COLABORADOR_PREFEITURA') {
@@ -115,10 +226,6 @@ export class BackupService {
       }
 
       filename = `backup_${timestamp}.sql`;
-      sqlContent += `-- Prefeitura ID: ${user.prefeituraId}
--- ============================================
-
-`;
 
       // Buscar dados da prefeitura
       const prefeitura = await this.prisma.prefeitura.findUnique({
@@ -129,73 +236,97 @@ export class BackupService {
         throw new NotFoundException('Prefeitura não encontrada');
       }
 
-      // Gerar SQL para prefeitura
-      sqlContent += this.generateInsertSQL('prefeitura', [prefeitura]);
+      filename = `backup_${timestamp}.sql`;
+      
+      // Coletar dados da prefeitura
+      tablesData.push({ table: 'prefeitura', records: [prefeitura] });
 
-      // Buscar e gerar SQL para órgãos
+      // Buscar dados
       const orgaos = await this.prisma.orgao.findMany({
         where: { prefeituraId: user.prefeituraId },
       });
       if (orgaos.length > 0) {
-        sqlContent += this.generateInsertSQL('orgao', orgaos);
+        tablesData.push({ table: 'orgao', records: orgaos });
       }
 
-      // Buscar e gerar SQL para veículos
-      const veiculos = await this.prisma.veiculo.findMany({
-        where: { prefeituraId: user.prefeituraId },
-      });
-      if (veiculos.length > 0) {
-        sqlContent += this.generateInsertSQL('veiculo', veiculos);
-      }
-
-      // Buscar e gerar SQL para motoristas
       const motoristas = await this.prisma.motorista.findMany({
         where: { prefeituraId: user.prefeituraId },
       });
       if (motoristas.length > 0) {
-        sqlContent += this.generateInsertSQL('motorista', motoristas);
+        tablesData.push({ table: 'motorista', records: motoristas });
       }
 
-      // Buscar e gerar SQL para usuários da prefeitura
-      const usuarios = await this.prisma.usuario.findMany({
-        where: { prefeituraId: user.prefeituraId },
-      });
-      if (usuarios.length > 0) {
-        sqlContent += this.generateInsertSQL('usuario', usuarios);
-      }
-
-      // Buscar e gerar SQL para categorias
       const categorias = await this.prisma.categoria.findMany({
         where: { prefeituraId: user.prefeituraId },
       });
       if (categorias.length > 0) {
-        sqlContent += this.generateInsertSQL('categoria', categorias);
+        tablesData.push({ table: 'categoria', records: categorias });
       }
 
-      // Buscar e gerar SQL para processos
-      const processos = await this.prisma.processo.findMany({
-        where: { prefeituraId: user.prefeituraId },
-      });
-      if (processos.length > 0) {
-        sqlContent += this.generateInsertSQL('processo', processos);
-      }
-
-      // Buscar e gerar SQL para contas de faturamento
       const contasFaturamento = await this.prisma.contaFaturamentoOrgao.findMany({
         where: { prefeituraId: user.prefeituraId },
       });
       if (contasFaturamento.length > 0) {
-        sqlContent += this.generateInsertSQL('conta_faturamento_orgao', contasFaturamento);
+        tablesData.push({ table: 'conta_faturamento_orgao', records: contasFaturamento });
       }
 
-      // Buscar e gerar SQL para abastecimentos relacionados
+      const veiculos = await this.prisma.veiculo.findMany({
+        where: { prefeituraId: user.prefeituraId },
+      });
+      if (veiculos.length > 0) {
+        tablesData.push({ table: 'veiculo', records: veiculos });
+      }
+
+      const usuarios = await this.prisma.usuario.findMany({
+        where: { prefeituraId: user.prefeituraId },
+      });
+      if (usuarios.length > 0) {
+        tablesData.push({ table: 'usuario', records: usuarios });
+      }
+
+      const processos = await this.prisma.processo.findMany({
+        where: { prefeituraId: user.prefeituraId },
+      });
+      if (processos.length > 0) {
+        tablesData.push({ table: 'processo', records: processos });
+      }
+
+      // Buscar dados relacionados
       const veiculoIds = veiculos.map((v) => v.id);
       if (veiculoIds.length > 0) {
         const abastecimentos = await this.prisma.abastecimento.findMany({
           where: { veiculoId: { in: veiculoIds } },
         });
         if (abastecimentos.length > 0) {
-          sqlContent += this.generateInsertSQL('abastecimento', abastecimentos);
+          tablesData.push({ table: 'abastecimento', records: abastecimentos });
+        }
+
+        const veiculoCategorias = await this.prisma.veiculoCategoria.findMany({
+          where: { veiculoId: { in: veiculoIds } },
+        });
+        if (veiculoCategorias.length > 0) {
+          tablesData.push({ table: 'veiculo_categoria', records: veiculoCategorias });
+        }
+
+        const veiculoCombustiveis = await this.prisma.veiculoCombustivel.findMany({
+          where: { veiculoId: { in: veiculoIds } },
+        });
+        if (veiculoCombustiveis.length > 0) {
+          tablesData.push({ table: 'veiculo_combustivel', records: veiculoCombustiveis });
+        }
+
+        const veiculoMotoristas = await this.prisma.veiculoMotorista.findMany({
+          where: { veiculoId: { in: veiculoIds } },
+        });
+        if (veiculoMotoristas.length > 0) {
+          tablesData.push({ table: 'veiculo_motorista', records: veiculoMotoristas });
+        }
+
+        const veiculoCotaPeriodos = await this.prisma.veiculoCotaPeriodo.findMany({
+          where: { veiculoId: { in: veiculoIds } },
+        });
+        if (veiculoCotaPeriodos.length > 0) {
+          tablesData.push({ table: 'veiculo_cota_periodo', records: veiculoCotaPeriodos });
         }
       }
 
@@ -203,76 +334,40 @@ export class BackupService {
         where: { prefeituraId: user.prefeituraId },
       });
       if (solicitacoes.length > 0) {
-        sqlContent += this.generateInsertSQL('solicitacoes_abastecimento', solicitacoes);
+        tablesData.push({ table: 'solicitacoes_abastecimento', records: solicitacoes });
       }
 
-      // Buscar e gerar SQL para solicitações de QR Code de veículos
       const solicitacoesQrCodeVeiculo = await this.prisma.solicitacoesQrCodeVeiculo.findMany({
         where: { prefeitura_id: user.prefeituraId },
       });
       if (solicitacoesQrCodeVeiculo.length > 0) {
-        sqlContent += this.generateInsertSQL('solicitacoes_qrcode_veiculo', solicitacoesQrCodeVeiculo);
+        tablesData.push({ table: 'solicitacoes_qrcode_veiculo', records: solicitacoesQrCodeVeiculo });
       }
 
-      // Buscar e gerar SQL para QR Codes de motoristas
       const qrCodesMotorista = await this.prisma.qrCodeMotorista.findMany({
         where: { prefeitura_id: user.prefeituraId },
       });
       if (qrCodesMotorista.length > 0) {
-        sqlContent += this.generateInsertSQL('qrcode_motorista', qrCodesMotorista);
+        tablesData.push({ table: 'qrcode_motorista', records: qrCodesMotorista });
       }
 
-      // Buscar e gerar SQL para tabelas relacionadas
       if (processos.length > 0) {
         const processoIds = processos.map((p) => p.id);
         const cotasOrgao = await this.prisma.cotaOrgao.findMany({
           where: { processoId: { in: processoIds } },
         });
         if (cotasOrgao.length > 0) {
-          sqlContent += this.generateInsertSQL('cota_orgao', cotasOrgao);
+          tablesData.push({ table: 'cota_orgao', records: cotasOrgao });
         }
 
         const processoCombustiveis = await this.prisma.processoCombustivel.findMany({
           where: { processoId: { in: processoIds } },
         });
         if (processoCombustiveis.length > 0) {
-          sqlContent += this.generateInsertSQL('processo_combustivel', processoCombustiveis);
+          tablesData.push({ table: 'processo_combustivel', records: processoCombustiveis });
         }
       }
 
-      // Buscar tabelas de relacionamento
-      if (veiculos.length > 0) {
-        const veiculoIds = veiculos.map((v) => v.id);
-        const veiculoCategorias = await this.prisma.veiculoCategoria.findMany({
-          where: { veiculoId: { in: veiculoIds } },
-        });
-        if (veiculoCategorias.length > 0) {
-          sqlContent += this.generateInsertSQL('veiculo_categoria', veiculoCategorias);
-        }
-
-        const veiculoCombustiveis = await this.prisma.veiculoCombustivel.findMany({
-          where: { veiculoId: { in: veiculoIds } },
-        });
-        if (veiculoCombustiveis.length > 0) {
-          sqlContent += this.generateInsertSQL('veiculo_combustivel', veiculoCombustiveis);
-        }
-
-        const veiculoMotoristas = await this.prisma.veiculoMotorista.findMany({
-          where: { veiculoId: { in: veiculoIds } },
-        });
-        if (veiculoMotoristas.length > 0) {
-          sqlContent += this.generateInsertSQL('veiculo_motorista', veiculoMotoristas);
-        }
-
-        const veiculoCotaPeriodos = await this.prisma.veiculoCotaPeriodo.findMany({
-          where: { veiculoId: { in: veiculoIds } },
-        });
-        if (veiculoCotaPeriodos.length > 0) {
-          sqlContent += this.generateInsertSQL('veiculo_cota_periodo', veiculoCotaPeriodos);
-        }
-      }
-
-      // Buscar usuários órgãos
       if (usuarios.length > 0 && orgaos.length > 0) {
         const usuarioIds = usuarios.map((u) => u.id);
         const orgaoIds = orgaos.map((o) => o.id);
@@ -283,7 +378,7 @@ export class BackupService {
           },
         });
         if (usuarioOrgaos.length > 0) {
-          sqlContent += this.generateInsertSQL('usuario_orgao', usuarioOrgaos);
+          tablesData.push({ table: 'usuario_orgao', records: usuarioOrgaos });
         }
       }
     } else if (user.tipo_usuario === 'ADMIN_EMPRESA' || user.tipo_usuario === 'COLABORADOR_EMPRESA') {
@@ -292,10 +387,6 @@ export class BackupService {
       }
 
       filename = `backup_${timestamp}.sql`;
-      sqlContent += `-- Empresa ID: ${user.empresaId}
--- ============================================
-
-`;
 
       // Buscar dados da empresa
       const empresa = await this.prisma.empresa.findUnique({
@@ -306,52 +397,47 @@ export class BackupService {
         throw new NotFoundException('Empresa não encontrada');
       }
 
-      // Gerar SQL para empresa
-      sqlContent += this.generateInsertSQL('empresa', [empresa]);
+      tablesData.push({ table: 'empresa', records: [empresa] });
 
-      // Buscar e gerar SQL para usuários da empresa
+      // Buscar dados
       const usuarios = await this.prisma.usuario.findMany({
         where: { empresaId: user.empresaId },
       });
       if (usuarios.length > 0) {
-        sqlContent += this.generateInsertSQL('usuario', usuarios);
+        tablesData.push({ table: 'usuario', records: usuarios });
       }
 
-      // Buscar e gerar SQL para contratos
       const contratos = await this.prisma.contrato.findMany({
         where: { empresaId: user.empresaId },
       });
       if (contratos.length > 0) {
-        sqlContent += this.generateInsertSQL('contrato', contratos);
+        tablesData.push({ table: 'contrato', records: contratos });
       }
 
-      // Buscar tabelas relacionadas aos contratos
       if (contratos.length > 0) {
         const contratoIds = contratos.map((c) => c.id);
         const contratoCombustiveis = await this.prisma.contratoCombustivel.findMany({
           where: { contratoId: { in: contratoIds } },
         });
         if (contratoCombustiveis.length > 0) {
-          sqlContent += this.generateInsertSQL('contrato_combustivel', contratoCombustiveis);
+          tablesData.push({ table: 'contrato_combustivel', records: contratoCombustiveis });
         }
 
         const aditivosContrato = await this.prisma.aditivoContrato.findMany({
           where: { contratoId: { in: contratoIds } },
         });
         if (aditivosContrato.length > 0) {
-          sqlContent += this.generateInsertSQL('aditivo_contrato', aditivosContrato);
+          tablesData.push({ table: 'aditivo_contrato', records: aditivosContrato });
         }
       }
 
-      // Buscar e gerar SQL para preços de combustíveis
       const precosCombustiveis = await this.prisma.empresaPrecoCombustivel.findMany({
         where: { empresa_id: user.empresaId },
       });
       if (precosCombustiveis.length > 0) {
-        sqlContent += this.generateInsertSQL('empresa_preco_combustivel', precosCombustiveis);
+        tablesData.push({ table: 'empresa_preco_combustivel', records: precosCombustiveis });
       }
 
-      // Buscar abastecimentos relacionados à empresa
       const abastecimentos = await this.prisma.abastecimento.findMany({
         where: {
           OR: [
@@ -361,24 +447,42 @@ export class BackupService {
         },
       });
       if (abastecimentos.length > 0) {
-        sqlContent += this.generateInsertSQL('abastecimento', abastecimentos);
+        tablesData.push({ table: 'abastecimento', records: abastecimentos });
       }
 
       const solicitacoes = await this.prisma.solicitacaoAbastecimento.findMany({
         where: { empresaId: user.empresaId },
       });
       if (solicitacoes.length > 0) {
-        sqlContent += this.generateInsertSQL('solicitacoes_abastecimento', solicitacoes);
+        tablesData.push({ table: 'solicitacoes_abastecimento', records: solicitacoes });
       }
 
       const notificacoes = await this.prisma.notificacao.findMany({
         where: { empresa_id: user.empresaId },
       });
       if (notificacoes.length > 0) {
-        sqlContent += this.generateInsertSQL('notificacao', notificacoes);
+        tablesData.push({ table: 'notificacao', records: notificacoes });
       }
     } else {
       throw new ForbiddenException('Perfil de usuário não tem permissão para gerar backup');
+    }
+
+    // Ordenar tabelas por dependências antes de gerar SQL
+    const orderedTablesData = this.sortTablesDataByDependencies(tablesData);
+
+    // Gerar SQL ordenado
+    let sqlContent = header;
+    if (user.tipo_usuario === 'ADMIN_PREFEITURA' || user.tipo_usuario === 'COLABORADOR_PREFEITURA') {
+      sqlContent += `-- Prefeitura ID: ${user.prefeituraId}\n`;
+    } else if (user.tipo_usuario === 'ADMIN_EMPRESA' || user.tipo_usuario === 'COLABORADOR_EMPRESA') {
+      sqlContent += `-- Empresa ID: ${user.empresaId}\n`;
+    }
+    sqlContent += `-- ============================================\n\n`;
+
+    for (const { table, records } of orderedTablesData) {
+      if (records.length > 0) {
+        sqlContent += this.generateInsertSQL(table, records);
+      }
     }
 
     // Salvar arquivo
@@ -386,6 +490,53 @@ export class BackupService {
     fs.writeFileSync(filepath, sqlContent, 'utf8');
 
     return filename;
+  }
+
+  /**
+   * Ordena dados de tabelas por dependências
+   */
+  private sortTablesDataByDependencies(tablesData: Array<{ table: string; records: any[] }>): Array<{ table: string; records: any[] }> {
+    const tableMap = new Map<string, { table: string; records: any[] }>();
+    tablesData.forEach((t) => tableMap.set(t.table, t));
+
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+    const result: Array<{ table: string; records: any[] }> = [];
+
+    const visit = (tableName: string) => {
+      if (visiting.has(tableName)) {
+        return;
+      }
+      if (visited.has(tableName)) {
+        return;
+      }
+
+      visiting.add(tableName);
+      const dependencies = this.TABLE_DEPENDENCIES.get(tableName) || [];
+      
+      for (const dep of dependencies) {
+        if (tableMap.has(dep)) {
+          visit(dep);
+        }
+      }
+
+      visiting.delete(tableName);
+      visited.add(tableName);
+
+      if (tableMap.has(tableName) && !result.find((t) => t.table === tableName)) {
+        result.push(tableMap.get(tableName)!);
+      }
+    };
+
+    tablesData.forEach((t) => visit(t.table));
+
+    tablesData.forEach((t) => {
+      if (!visited.has(t.table)) {
+        result.push(t);
+      }
+    });
+
+    return result;
   }
 
   /**
@@ -643,8 +794,50 @@ export class BackupService {
   }
 
   /**
+   * Verifica se uma tabela tem registros atualizados (com modified_date ou created_date recente)
+   */
+  private async hasUpdatedRecords(table: string): Promise<boolean> {
+    try {
+      // Escapar o nome da tabela para evitar SQL injection
+      const escapedTable = table.replace(/"/g, '""');
+      
+      // Verificar se a tabela tem coluna modified_date ou created_date
+      const hasModifiedDate = await this.prisma.$queryRawUnsafe(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = '${escapedTable}' 
+          AND column_name IN ('modified_date', 'created_date', 'data_cadastro')
+        LIMIT 1
+      `);
+
+      if (!hasModifiedDate || (hasModifiedDate as any[]).length === 0) {
+        // Se não tiver coluna de data, considerar que tem registros atualizados
+        return true;
+      }
+
+      // Verificar se há registros com modified_date ou created_date não nulo
+      const result = await this.prisma.$queryRawUnsafe(`
+        SELECT COUNT(*) as count
+        FROM "${escapedTable}"
+        WHERE modified_date IS NOT NULL 
+           OR created_date IS NOT NULL 
+           OR data_cadastro IS NOT NULL
+        LIMIT 1
+      `);
+
+      const count = (result as any[])[0]?.count || 0;
+      return count > 0;
+    } catch (error: any) {
+      // Em caso de erro, considerar que a tabela tem registros atualizados
+      console.warn(`Erro ao verificar registros atualizados na tabela ${table}:`, error.message);
+      return true;
+    }
+  }
+
+  /**
    * Gera backup geral por tabela, criando uma pasta com data_hora e um arquivo SQL para cada tabela
-   * Busca TODAS as tabelas do banco de dados dinamicamente
+   * Agora filtra apenas tabelas que foram atualizadas (têm registros com modified_date ou created_date)
    * Cada backup é salvo em uma pasta única com timestamp incluindo milissegundos
    */
   async generateBackupByTable(): Promise<{
@@ -679,9 +872,16 @@ export class BackupService {
       const tables: Array<{ table: string; filename: string; records: number; size: number }> = [];
       let totalSize = 0;
 
-      // Gerar arquivo SQL para cada tabela encontrada no banco
+      // Gerar arquivo SQL apenas para tabelas atualizadas
       for (const { model, table } of allTables) {
         try {
+          // Verificar se a tabela tem registros atualizados
+          const hasUpdated = await this.hasUpdatedRecords(table);
+          if (!hasUpdated) {
+            // Pular tabelas sem registros atualizados
+            continue;
+          }
+
           // Tentar buscar registros usando o modelo Prisma
           let records: any[] = [];
           try {
@@ -740,7 +940,7 @@ export class BackupService {
       }
 
       // Criar arquivo de índice com informações do backup
-      const indexContent = this.generateBackupIndex(folderName, timestamp, tables, totalSize);
+      const indexContent = this.generateBackupIndex(folderName, timestamp, tables, totalSize, allTables.length);
       const indexPath = path.join(folderPath, 'BACKUP_INFO.txt');
       fs.writeFileSync(indexPath, indexContent, 'utf8');
 
@@ -764,6 +964,7 @@ export class BackupService {
     timestamp: string,
     tables: Array<{ table: string; filename: string; records: number; size: number }>,
     totalSize: number,
+    totalTablesInDb?: number,
   ): string {
     const now = new Date();
     let content = `============================================
@@ -772,8 +973,10 @@ INFORMAÇÕES DO BACKUP
 Nome da Pasta: ${folderName}
 Timestamp: ${timestamp}
 Data/Hora: ${now.toLocaleString('pt-BR')}
-Total de Tabelas: ${tables.length}
+Total de Tabelas no Banco: ${totalTablesInDb || 'N/A'}
+Total de Tabelas no Backup: ${tables.length}
 Tamanho Total: ${this.formatBytes(totalSize)}
+Nota: Este backup contém apenas tabelas atualizadas (com registros que possuem modified_date, created_date ou data_cadastro)
 ============================================
 
 TABELAS INCLUÍDAS NO BACKUP:
