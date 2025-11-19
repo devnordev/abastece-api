@@ -189,6 +189,12 @@ export class SolicitacaoAbastecimentoService {
     // Verificar e liberar litros de solicitações expiradas para este veículo
     await this.liberarLitrosSolicitacoesExpiradas(createDto.veiculoId);
 
+    // Processar todas as solicitações expiradas do sistema (em background, não bloqueia)
+    // Isso garante que solicitações de outros veículos também sejam processadas
+    this.processarSolicitacoesExpiradas().catch((error) => {
+      console.error('Erro ao processar solicitações expiradas em background:', error);
+    });
+
     // Criar solicitação e atualizar VeiculoCotaPeriodo em transação
     const solicitacao = await this.prisma.$transaction(async (tx) => {
       const data: Prisma.SolicitacaoAbastecimentoUncheckedCreateInput = {
@@ -250,6 +256,11 @@ export class SolicitacaoAbastecimentoService {
   }
 
   async findAll(query: FindSolicitacaoAbastecimentoDto) {
+    // Processar solicitações expiradas em background (não bloqueia a resposta)
+    this.processarSolicitacoesExpiradas().catch((error) => {
+      console.error('Erro ao processar solicitações expiradas em background:', error);
+    });
+
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const skip = (page - 1) * limit;
@@ -421,6 +432,11 @@ export class SolicitacaoAbastecimentoService {
   }
 
   async findOne(id: number) {
+    // Processar solicitações expiradas em background (não bloqueia a resposta)
+    this.processarSolicitacoesExpiradas().catch((error) => {
+      console.error('Erro ao processar solicitações expiradas em background:', error);
+    });
+
     const solicitacao = await this.prisma.solicitacaoAbastecimento.findUnique({
       where: { id },
       include: this.solicitacaoInclude,
@@ -1662,6 +1678,7 @@ export class SolicitacaoAbastecimentoService {
   /**
    * Libera litros de uma solicitação expirada específica
    * Quando uma solicitação expira, os litros devem voltar para a cota período
+   * Busca o período que estava ativo quando a solicitação foi criada
    */
   private async liberarLitrosSolicitacaoExpirada(
     solicitacao: {
@@ -1686,6 +1703,7 @@ export class SolicitacaoAbastecimentoService {
       await this.prisma.$transaction(async (tx) => {
         // Buscar a cota de período que estava ativa quando a solicitação foi criada
         // Usar a data_solicitacao para encontrar o período correto
+        // Isso é importante porque o período pode ter mudado desde que a solicitação foi criada
         const cotaPeriodo = await tx.veiculoCotaPeriodo.findFirst({
           where: {
             veiculoId: veiculo.id,
@@ -1705,12 +1723,14 @@ export class SolicitacaoAbastecimentoService {
           const quantidadeDisponivelAtual = Number(cotaPeriodo.quantidade_disponivel.toString());
           const quantidadePermitida = Number(cotaPeriodo.quantidade_permitida.toString());
 
-          // Liberar os litros: decrementar quantidade_utilizada e incrementar quantidade_disponivel
+          // Liberar os litros: decrementar quantidade_utilizada e recalcular quantidade_disponivel
+          // A quantidade_utilizada não pode ficar negativa
           const novaQuantidadeUtilizada = Math.max(quantidadeUtilizadaAtual - quantidadeSolicitacao, 0);
-          const novaQuantidadeDisponivel = Math.min(
-            quantidadeDisponivelAtual + quantidadeSolicitacao,
-            quantidadePermitida,
-          );
+          
+          // Recalcular quantidade_disponivel baseado na fórmula:
+          // quantidade_utilizada + quantidade_disponivel = quantidade_permitida
+          // Então: quantidade_disponivel = quantidade_permitida - quantidade_utilizada
+          const novaQuantidadeDisponivel = Math.max(quantidadePermitida - novaQuantidadeUtilizada, 0);
 
           // Atualizar VeiculoCotaPeriodo
           await tx.veiculoCotaPeriodo.update({
@@ -1723,6 +1743,75 @@ export class SolicitacaoAbastecimentoService {
         }
       });
     }
+  }
+
+  /**
+   * Processa todas as solicitações expiradas do sistema
+   * Atualiza o status para EXPIRADA e libera os litros de volta para VeiculoCotaPeriodo
+   */
+  async processarSolicitacoesExpiradas(): Promise<{ processadas: number; liberadas: number }> {
+    const dataAtual = new Date();
+
+    // Buscar todas as solicitações expiradas que ainda não foram processadas
+    // Status deve ser PENDENTE ou APROVADA (não EFETIVADA, REJEITADA, CANCELADA ou EXPIRADA)
+    const solicitacoesExpiradas = await this.prisma.solicitacaoAbastecimento.findMany({
+      where: {
+        data_expiracao: { lt: dataAtual },
+        status: {
+          in: [StatusSolicitacao.PENDENTE, StatusSolicitacao.APROVADA],
+        },
+        ativo: true,
+      },
+      include: {
+        veiculo: {
+          select: {
+            id: true,
+            tipo_abastecimento: true,
+            periodicidade: true,
+          },
+        },
+      },
+    });
+
+    if (solicitacoesExpiradas.length === 0) {
+      return { processadas: 0, liberadas: 0 };
+    }
+
+    let liberadas = 0;
+
+    // Processar cada solicitação expirada
+    for (const solicitacao of solicitacoesExpiradas) {
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          // Atualizar status da solicitação para EXPIRADA
+          await tx.solicitacaoAbastecimento.update({
+            where: { id: solicitacao.id },
+            data: {
+              status: StatusSolicitacao.EXPIRADA,
+              updated_at: new Date(),
+            },
+          });
+        });
+
+        // Liberar litros da solicitação (se for tipo COTA)
+        const veiculo = solicitacao.veiculo;
+        if (
+          veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA &&
+          veiculo.periodicidade
+        ) {
+          await this.liberarLitrosSolicitacaoExpirada(solicitacao);
+          liberadas++;
+        }
+      } catch (error) {
+        console.error(`Erro ao processar solicitação expirada ${solicitacao.id}:`, error);
+        // Continua processando as outras solicitações mesmo se uma falhar
+      }
+    }
+
+    return {
+      processadas: solicitacoesExpiradas.length,
+      liberadas,
+    };
   }
 
   /**
