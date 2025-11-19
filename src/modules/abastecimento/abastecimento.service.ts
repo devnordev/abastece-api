@@ -107,6 +107,35 @@ export class AbastecimentoService {
   }
 
   /**
+   * Valida e normaliza valores numéricos para cálculos
+   */
+  private validarEConverterValor(valor: any, nomeCampo: string, permiteNegativo = false): number {
+    if (valor === null || valor === undefined) {
+      return 0;
+    }
+
+    const valorNumero = typeof valor === 'string' ? parseFloat(valor) : Number(valor);
+
+    if (isNaN(valorNumero) || !isFinite(valorNumero)) {
+      throw new Error(`Valor inválido para ${nomeCampo}: ${valor}`);
+    }
+
+    if (!permiteNegativo && valorNumero < 0) {
+      throw new Error(`Valor negativo não permitido para ${nomeCampo}: ${valorNumero}`);
+    }
+
+    return valorNumero;
+  }
+
+  /**
+   * Arredonda valor para precisão decimal adequada
+   */
+  private arredondarDecimal(valor: number, casasDecimais: number = 2): number {
+    const multiplicador = Math.pow(10, casasDecimais);
+    return Math.round(valor * multiplicador) / multiplicador;
+  }
+
+  /**
    * Atualiza a cota do órgão após um abastecimento
    * Incrementa quantidade_utilizada e valor_utilizado
    * Recalcula restante = quantidade - quantidade_utilizada
@@ -118,6 +147,18 @@ export class AbastecimentoService {
     quantidade: number,
     valorTotal: number,
   ): Promise<void> {
+    // Validar valores de entrada
+    const quantidadeValidada = this.validarEConverterValor(quantidade, 'quantidade', false);
+    const valorTotalValidado = this.validarEConverterValor(valorTotal, 'valor_total', false);
+
+    if (quantidadeValidada <= 0) {
+      throw new Error(`Quantidade deve ser maior que zero: ${quantidadeValidada}`);
+    }
+
+    if (valorTotalValidado < 0) {
+      throw new Error(`Valor total não pode ser negativo: ${valorTotalValidado}`);
+    }
+
     // Buscar cota atual dentro da transação (incluindo processoId)
     const cota = await tx.cotaOrgao.findUnique({
       where: { id: cotaId },
@@ -139,14 +180,42 @@ export class AbastecimentoService {
       });
     }
 
-    // Calcular novos valores
-    const quantidadeUtilizadaAtual = Number(cota.quantidade_utilizada?.toString() || '0');
-    const valorUtilizadoAtual = Number(cota.valor_utilizado?.toString() || '0');
-    const quantidadeTotal = Number(cota.quantidade.toString());
+    // Validar e converter valores da cota
+    const quantidadeUtilizadaAtual = this.validarEConverterValor(
+      cota.quantidade_utilizada,
+      'quantidade_utilizada',
+      false,
+    );
+    const valorUtilizadoAtual = this.validarEConverterValor(
+      cota.valor_utilizado,
+      'valor_utilizado',
+      false,
+    );
+    const quantidadeTotal = this.validarEConverterValor(cota.quantidade, 'quantidade', false);
 
-    const novaQuantidadeUtilizada = quantidadeUtilizadaAtual + quantidade;
-    const novoValorUtilizado = valorUtilizadoAtual + valorTotal;
-    const restante = Math.max(0, quantidadeTotal - novaQuantidadeUtilizada);
+    if (quantidadeTotal <= 0) {
+      throw new Error(`Quantidade total da cota deve ser maior que zero: ${quantidadeTotal}`);
+    }
+
+    // Calcular novos valores com arredondamento adequado
+    // quantidade_utilizada: Decimal(10, 1) - 1 casa decimal
+    const novaQuantidadeUtilizada = this.arredondarDecimal(
+      quantidadeUtilizadaAtual + quantidadeValidada,
+      1,
+    );
+
+    // valor_utilizado: Decimal(10, 2) - 2 casas decimais
+    const novoValorUtilizado = this.arredondarDecimal(valorUtilizadoAtual + valorTotalValidado, 2);
+
+    // restante e saldo_disponivel_cota: Decimal(10, 1) - 1 casa decimal
+    const restante = Math.max(0, this.arredondarDecimal(quantidadeTotal - novaQuantidadeUtilizada, 1));
+
+    // Validar que quantidade utilizada não excede a quantidade total
+    if (novaQuantidadeUtilizada > quantidadeTotal) {
+      console.warn(
+        `Aviso: Quantidade utilizada (${novaQuantidadeUtilizada}) excede quantidade total (${quantidadeTotal}) na cota ${cotaId}. Restante será 0.`,
+      );
+    }
 
     // Atualizar cota
     await tx.cotaOrgao.update({
@@ -161,7 +230,7 @@ export class AbastecimentoService {
 
     // Atualizar Processo usando o processoId da cota
     if (cota.processoId) {
-      await this.atualizarProcessoPorId(tx, cota.processoId, valorTotal);
+      await this.atualizarProcessoPorId(tx, cota.processoId, valorTotalValidado);
     }
   }
 
@@ -175,6 +244,13 @@ export class AbastecimentoService {
     processoId: number,
     valorTotal: number,
   ): Promise<void> {
+    // Validar valor de entrada
+    const valorTotalValidado = this.validarEConverterValor(valorTotal, 'valor_total', false);
+
+    if (valorTotalValidado < 0) {
+      throw new Error(`Valor total não pode ser negativo: ${valorTotalValidado}`);
+    }
+
     // Buscar processo por ID
     const processo = await tx.processo.findUnique({
       where: { id: processoId },
@@ -187,14 +263,40 @@ export class AbastecimentoService {
 
     if (!processo) {
       // Se não encontrar processo, não lançar erro (pode não existir)
+      console.warn(`Processo ${processoId} não encontrado ao tentar atualizar após abastecimento`);
       return;
     }
 
-    // Calcular novos valores
-    const valorUtilizadoAtual = Number(processo.valor_utilizado?.toString() || '0');
-    const litrosDesejados = Number(processo.litros_desejados?.toString() || '0');
-    const novoValorUtilizado = valorUtilizadoAtual + valorTotal;
-    const valorDisponivel = Math.max(0, litrosDesejados - novoValorUtilizado);
+    // Validar e converter valores do processo
+    const valorUtilizadoAtual = this.validarEConverterValor(
+      processo.valor_utilizado,
+      'valor_utilizado',
+      false,
+    );
+    const litrosDesejados = this.validarEConverterValor(
+      processo.litros_desejados,
+      'litros_desejados',
+      true, // Pode ser null/undefined
+    );
+
+    // Calcular novos valores com arredondamento adequado
+    // valor_utilizado e valor_disponivel: Decimal(10, 2) - 2 casas decimais
+    const novoValorUtilizado = this.arredondarDecimal(valorUtilizadoAtual + valorTotalValidado, 2);
+
+    // valor_disponivel = litros_desejados - valor_utilizado
+    // Nota: litros_desejados está em litros, mas valor_utilizado está em reais
+    // O cálculo correto seria considerar o preço médio, mas seguindo a especificação:
+    const valorDisponivel = Math.max(
+      0,
+      this.arredondarDecimal(litrosDesejados - novoValorUtilizado, 2),
+    );
+
+    // Validar que valor utilizado não excede litros desejados (considerando conversão)
+    if (novoValorUtilizado > litrosDesejados && litrosDesejados > 0) {
+      console.warn(
+        `Aviso: Valor utilizado (${novoValorUtilizado}) excede litros desejados (${litrosDesejados}) no processo ${processoId}. Valor disponível será 0.`,
+      );
+    }
 
     // Atualizar processo
     await tx.processo.update({
@@ -602,28 +704,45 @@ export class AbastecimentoService {
 
       // Atualizar CotaOrgao se encontrada (isso também atualiza o Processo automaticamente)
       if (cotaIdParaUsar) {
-        await this.atualizarCotaOrgao(tx, cotaIdParaUsar, quantidade, valor_total);
-        
-        // Buscar cota atualizada para incluir no resultado
-        const cotaAtualizada = await tx.cotaOrgao.findUnique({
-          where: { id: cotaIdParaUsar },
-          select: {
-            id: true,
-            quantidade: true,
-            quantidade_utilizada: true,
-            valor_utilizado: true,
-            restante: true,
-            saldo_disponivel_cota: true,
-          },
-        });
-        
-        // Atualizar cota no objeto retornado
-        if (cotaAtualizada) {
-          abastecimentoCriado.cota = cotaAtualizada;
+        try {
+          await this.atualizarCotaOrgao(tx, cotaIdParaUsar, quantidade, valor_total);
+          
+          // Buscar cota atualizada para incluir no resultado
+          const cotaAtualizada = await tx.cotaOrgao.findUnique({
+            where: { id: cotaIdParaUsar },
+            select: {
+              id: true,
+              quantidade: true,
+              quantidade_utilizada: true,
+              valor_utilizado: true,
+              restante: true,
+              saldo_disponivel_cota: true,
+            },
+          });
+          
+          // Atualizar cota no objeto retornado
+          if (cotaAtualizada) {
+            abastecimentoCriado.cota = cotaAtualizada;
+          }
+        } catch (error) {
+          // Se for uma exceção conhecida, relançar
+          if (error instanceof AbastecimentoCotaNotFoundException) {
+            throw error;
+          }
+          // Caso contrário, transformar em erro mais descritivo
+          console.error(`Erro ao atualizar CotaOrgao ${cotaIdParaUsar}:`, error);
+          throw new Error(
+            `Falha ao atualizar cota do órgão após abastecimento: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       } else {
         // Se não há cota, ainda tenta atualizar processo por prefeitura (método legado)
-        await this.atualizarProcesso(tx, prefeituraId, valor_total);
+        try {
+          await this.atualizarProcesso(tx, prefeituraId, valor_total);
+        } catch (error) {
+          // Log do erro mas não falha a transação se processo não for encontrado
+          console.warn(`Erro ao atualizar Processo para prefeitura ${prefeituraId}:`, error);
+        }
       }
 
       return abastecimentoCriado;
@@ -1298,17 +1417,29 @@ export class AbastecimentoService {
 
       // PASSO 5: Atualizar CotaOrgao se encontrada
       if (cotaIdParaUsar) {
-        const quantidadeAbastecimento = Number(solicitacao.quantidade.toString());
-        await this.atualizarCotaOrgao(tx, cotaIdParaUsar, quantidadeAbastecimento, valorTotal);
-        
-        // Atualizar cota_id no abastecimento se não estava vinculada
-        if (!cotaId) {
-          await tx.abastecimento.update({
-            where: { id: abastecimento.id },
-            data: {
-              cota_id: cotaIdParaUsar,
-            },
-          });
+        try {
+          const quantidadeAbastecimento = Number(solicitacao.quantidade.toString());
+          await this.atualizarCotaOrgao(tx, cotaIdParaUsar, quantidadeAbastecimento, valorTotal);
+          
+          // Atualizar cota_id no abastecimento se não estava vinculada
+          if (!cotaId) {
+            await tx.abastecimento.update({
+              where: { id: abastecimento.id },
+              data: {
+                cota_id: cotaIdParaUsar,
+              },
+            });
+          }
+        } catch (error) {
+          // Se for uma exceção conhecida, relançar
+          if (error instanceof AbastecimentoCotaNotFoundException) {
+            throw error;
+          }
+          // Caso contrário, transformar em erro mais descritivo
+          console.error(`Erro ao atualizar CotaOrgao ${cotaIdParaUsar}:`, error);
+          throw new Error(
+            `Falha ao atualizar cota do órgão após abastecimento: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
         
         // Buscar cota atualizada para incluir no resultado
@@ -1976,24 +2107,36 @@ export class AbastecimentoService {
       });
 
       // Atualizar CotaOrgao (isso também atualiza o Processo automaticamente)
-      await this.atualizarCotaOrgao(tx, cotaOrgao.id, quantidade, valor_total);
-      
-      // Buscar cota atualizada para incluir no resultado
-      const cotaAtualizada = await tx.cotaOrgao.findUnique({
-        where: { id: cotaOrgao.id },
-        select: {
-          id: true,
-          quantidade: true,
-          quantidade_utilizada: true,
-          valor_utilizado: true,
-          restante: true,
-          saldo_disponivel_cota: true,
-        },
-      });
-      
-      // Atualizar cota no objeto retornado
-      if (cotaAtualizada) {
-        abastecimentoCriado.cota = cotaAtualizada;
+      try {
+        await this.atualizarCotaOrgao(tx, cotaOrgao.id, quantidade, valor_total);
+        
+        // Buscar cota atualizada para incluir no resultado
+        const cotaAtualizada = await tx.cotaOrgao.findUnique({
+          where: { id: cotaOrgao.id },
+          select: {
+            id: true,
+            quantidade: true,
+            quantidade_utilizada: true,
+            valor_utilizado: true,
+            restante: true,
+            saldo_disponivel_cota: true,
+          },
+        });
+        
+        // Atualizar cota no objeto retornado
+        if (cotaAtualizada) {
+          abastecimentoCriado.cota = cotaAtualizada;
+        }
+      } catch (error) {
+        // Se for uma exceção conhecida, relançar
+        if (error instanceof AbastecimentoCotaNotFoundException) {
+          throw error;
+        }
+        // Caso contrário, transformar em erro mais descritivo
+        console.error(`Erro ao atualizar CotaOrgao ${cotaOrgao.id}:`, error);
+        throw new Error(
+          `Falha ao atualizar cota do órgão após abastecimento: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
 
       return abastecimentoCriado;
