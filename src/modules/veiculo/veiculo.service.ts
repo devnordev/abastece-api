@@ -993,15 +993,37 @@ export class VeiculoService {
 
     // Atualizar relacionamentos com combustíveis (se fornecido)
     if (combustivelIds !== undefined) {
+      // Sanitizar e validar combustivelIds
+      let combustiveisValidos: number[] = [];
+      
+      if (Array.isArray(combustivelIds)) {
+        // Converter para números e filtrar valores inválidos
+        combustiveisValidos = combustivelIds
+          .map(id => {
+            const numId = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+            return isNaN(numId) ? null : numId;
+          })
+          .filter((id): id is number => id !== null && id > 0);
+      } else {
+        // Se não for array, tentar tratar como string
+        const idsString = String(combustivelIds || '');
+        if (idsString.trim()) {
+          combustiveisValidos = idsString
+            .split(',')
+            .map(id => parseInt(id.trim(), 10))
+            .filter(id => !isNaN(id) && id > 0);
+        }
+      }
+
       // Validar se combustíveis existem
-      if (combustivelIds.length > 0) {
+      if (combustiveisValidos.length > 0) {
         const combustiveis = await this.prisma.combustivel.findMany({
           where: {
-            id: { in: combustivelIds },
+            id: { in: combustiveisValidos },
           },
         });
 
-        if (combustiveis.length !== combustivelIds.length) {
+        if (combustiveis.length !== combustiveisValidos.length) {
           throw new NotFoundException('Um ou mais combustíveis não foram encontrados');
         }
       }
@@ -1012,9 +1034,9 @@ export class VeiculoService {
       });
 
       // Criar novos relacionamentos
-      if (combustivelIds.length > 0) {
+      if (combustiveisValidos.length > 0) {
         await this.prisma.veiculoCombustivel.createMany({
-          data: combustivelIds.map(combustivelId => ({
+          data: combustiveisValidos.map(combustivelId => ({
             veiculoId: id,
             combustivelId,
             ativo: true,
@@ -1025,15 +1047,37 @@ export class VeiculoService {
 
     // Atualizar relacionamentos com categorias (se fornecido)
     if (categoriaIds !== undefined) {
+      // Sanitizar e validar categoriaIds
+      let categoriasValidas: number[] = [];
+      
+      if (Array.isArray(categoriaIds)) {
+        // Converter para números e filtrar valores inválidos
+        categoriasValidas = categoriaIds
+          .map(id => {
+            const numId = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+            return isNaN(numId) ? null : numId;
+          })
+          .filter((id): id is number => id !== null && id > 0);
+      } else {
+        // Se não for array, tentar tratar como string
+        const idsString = String(categoriaIds || '');
+        if (idsString.trim()) {
+          categoriasValidas = idsString
+            .split(',')
+            .map(id => parseInt(id.trim(), 10))
+            .filter(id => !isNaN(id) && id > 0);
+        }
+      }
+
       // Validar se categorias existem
-      if (categoriaIds.length > 0) {
+      if (categoriasValidas.length > 0) {
         const categorias = await this.prisma.categoria.findMany({
           where: {
-            id: { in: categoriaIds },
+            id: { in: categoriasValidas },
           },
         });
 
-        if (categorias.length !== categoriaIds.length) {
+        if (categorias.length !== categoriasValidas.length) {
           throw new NotFoundException('Uma ou mais categorias não foram encontradas');
         }
       }
@@ -1044,9 +1088,9 @@ export class VeiculoService {
       });
 
       // Criar novos relacionamentos
-      if (categoriaIds.length > 0) {
+      if (categoriasValidas.length > 0) {
         await this.prisma.veiculoCategoria.createMany({
-          data: categoriaIds.map(categoriaId => ({
+          data: categoriasValidas.map(categoriaId => ({
             veiculoId: id,
             categoriaId,
             ativo: true,
@@ -1057,16 +1101,38 @@ export class VeiculoService {
 
     // Atualizar relacionamentos com motoristas (se fornecido)
     if (motoristaIds !== undefined) {
+      // Sanitizar e validar motoristaIds
+      let motoristasValidos: number[] = [];
+      
+      if (Array.isArray(motoristaIds)) {
+        // Converter para números e filtrar valores inválidos
+        motoristasValidos = motoristaIds
+          .map(id => {
+            const numId = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+            return isNaN(numId) ? null : numId;
+          })
+          .filter((id): id is number => id !== null && id > 0);
+      } else {
+        // Se não for array, tentar tratar como string
+        const idsString = String(motoristaIds || '');
+        if (idsString.trim()) {
+          motoristasValidos = idsString
+            .split(',')
+            .map(id => parseInt(id.trim(), 10))
+            .filter(id => !isNaN(id) && id > 0);
+        }
+      }
+
       // Validar se motoristas existem e pertencem à prefeitura
-      if (motoristaIds.length > 0) {
+      if (motoristasValidos.length > 0) {
         const motoristas = await this.prisma.motorista.findMany({
           where: {
-            id: { in: motoristaIds },
+            id: { in: motoristasValidos },
             prefeituraId: existingVeiculo.prefeituraId,
           },
         });
 
-        if (motoristas.length !== motoristaIds.length) {
+        if (motoristas.length !== motoristasValidos.length) {
           throw new NotFoundException('Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura');
         }
       }
@@ -1084,14 +1150,77 @@ export class VeiculoService {
       });
 
       // Criar novos relacionamentos
-      if (motoristaIds.length > 0) {
+      if (motoristasValidos.length > 0) {
         await this.prisma.veiculoMotorista.createMany({
-          data: motoristaIds.map(motoristaId => ({
+          data: motoristasValidos.map(motoristaId => ({
             veiculoId: id,
             motoristaId,
             data_inicio: new Date(),
             ativo: true,
           })),
+        });
+      }
+    }
+
+    // Se tipo_abastecimento for COTA e periodicidade/quantidade foram fornecidas, criar/atualizar VeiculoCotaPeriodo
+    const tipoAbastecimentoFinal = updateVeiculoDto.tipo_abastecimento !== undefined 
+      ? updateVeiculoDto.tipo_abastecimento 
+      : existingVeiculo.tipo_abastecimento;
+    
+    const periodicidadeFinal = updateVeiculoDto.periodicidade !== undefined 
+      ? updateVeiculoDto.periodicidade 
+      : existingVeiculo.periodicidade;
+    
+    const quantidadeFinal = updateVeiculoDto.quantidade !== undefined 
+      ? updateVeiculoDto.quantidade 
+      : existingVeiculo.quantidade;
+
+    if (
+      tipoAbastecimentoFinal === TipoAbastecimentoVeiculo.COTA &&
+      periodicidadeFinal &&
+      quantidadeFinal
+    ) {
+      const dataAtual = new Date();
+      const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, periodicidadeFinal as Periodicidade);
+
+      // Verificar se já existe um registro para este período
+      const cotaPeriodoExistente = await this.prisma.veiculoCotaPeriodo.findFirst({
+        where: {
+          veiculoId: id,
+          periodicidade: periodicidadeFinal as Periodicidade,
+          data_inicio_periodo: { lte: dataAtual },
+          data_fim_periodo: { gte: dataAtual },
+          ativo: true,
+        },
+      });
+
+      if (cotaPeriodoExistente) {
+        // Atualizar registro existente
+        // Recalcular quantidade_disponivel baseado na quantidade_permitida e quantidade_utilizada
+        const quantidadeUtilizadaAtual = Number(cotaPeriodoExistente.quantidade_utilizada.toString());
+        const novaQuantidadePermitida = Number(quantidadeFinal.toString());
+        const novaQuantidadeDisponivel = Math.max(novaQuantidadePermitida - quantidadeUtilizadaAtual, 0);
+
+        await this.prisma.veiculoCotaPeriodo.update({
+          where: { id: cotaPeriodoExistente.id },
+          data: {
+            quantidade_permitida: quantidadeFinal,
+            quantidade_disponivel: novaQuantidadeDisponivel,
+          },
+        });
+      } else {
+        // Criar novo registro
+        await this.prisma.veiculoCotaPeriodo.create({
+          data: {
+            veiculoId: id,
+            data_inicio_periodo: inicio,
+            data_fim_periodo: fim,
+            quantidade_permitida: quantidadeFinal,
+            quantidade_utilizada: 0,
+            quantidade_disponivel: quantidadeFinal,
+            periodicidade: periodicidadeFinal as Periodicidade,
+            ativo: true,
+          },
         });
       }
     }
@@ -1158,6 +1287,7 @@ export class VeiculoService {
             },
           },
         },
+        cotasPeriodo: true,
       },
     });
 
