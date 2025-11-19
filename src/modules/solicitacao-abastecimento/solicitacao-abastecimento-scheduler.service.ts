@@ -31,5 +31,26 @@ export class SolicitacaoAbastecimentoSchedulerService {
       this.logger.error('Erro ao processar solicitações expiradas automaticamente:', error);
     }
   }
+
+  /**
+   * Executa a cada hora para resetar períodos expirados
+   * Cria novos períodos quando o período atual expira (diário, semanal, mensal)
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async resetarPeriodosExpiradosAutomaticamente() {
+    this.logger.log('Iniciando reset automático de períodos expirados...');
+    
+    try {
+      const resultado = await this.solicitacaoAbastecimentoService.resetarPeriodosExpirados();
+      
+      if (resultado.resetados > 0) {
+        this.logger.log(
+          `Resetados ${resultado.resetados} período(s) expirado(s). Novos períodos foram criados.`
+        );
+      }
+    } catch (error) {
+      this.logger.error('Erro ao resetar períodos expirados automaticamente:', error);
+    }
+  }
 }
 

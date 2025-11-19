@@ -236,13 +236,15 @@ export class SolicitacaoAbastecimentoService {
       });
 
       // Se o veículo for do tipo COM_COTA, atualizar VeiculoCotaPeriodo
-      if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA && veiculo.periodicidade) {
+      if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA && veiculo.periodicidade && veiculo.quantidade) {
+        const quantidadePermitida = Number(veiculo.quantidade.toString());
         await this.atualizarVeiculoCotaPeriodo(
           tx,
           veiculo.id,
           veiculo.periodicidade,
           dataSolicitacao,
           createDto.quantidade,
+          quantidadePermitida,
         );
       }
 
@@ -1625,6 +1627,60 @@ export class SolicitacaoAbastecimentoService {
   }
 
   /**
+   * Garante que existe um período ativo para o veículo
+   * Se o período atual expirou, cria um novo período resetado
+   */
+  private async garantirPeriodoAtivo(
+    tx: Prisma.TransactionClient,
+    veiculoId: number,
+    periodicidade: Periodicidade,
+    dataAtual: Date,
+    quantidadePermitida: number,
+  ): Promise<void> {
+    // Buscar período ativo atual
+    const periodoAtual = await tx.veiculoCotaPeriodo.findFirst({
+      where: {
+        veiculoId,
+        periodicidade,
+        data_inicio_periodo: { lte: dataAtual },
+        data_fim_periodo: { gte: dataAtual },
+        ativo: true,
+      },
+      orderBy: {
+        data_inicio_periodo: 'desc',
+      },
+    });
+
+    // Se não existe período ativo ou o período atual já expirou, criar novo
+    if (!periodoAtual || periodoAtual.data_fim_periodo < dataAtual) {
+      // Desativar períodos antigos se necessário
+      if (periodoAtual) {
+        await tx.veiculoCotaPeriodo.update({
+          where: { id: periodoAtual.id },
+          data: { ativo: false },
+        });
+      }
+
+      // Calcular novo intervalo de período
+      const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, periodicidade);
+
+      // Criar novo período resetado
+      await tx.veiculoCotaPeriodo.create({
+        data: {
+          veiculoId,
+          data_inicio_periodo: inicio,
+          data_fim_periodo: fim,
+          quantidade_permitida: this.toDecimal(quantidadePermitida),
+          quantidade_utilizada: 0,
+          quantidade_disponivel: this.toDecimal(quantidadePermitida),
+          periodicidade,
+          ativo: true,
+        },
+      });
+    }
+  }
+
+  /**
    * Atualiza VeiculoCotaPeriodo ao criar uma solicitação de abastecimento
    * Incrementa quantidade_utilizada e decrementa quantidade_disponivel
    */
@@ -1634,7 +1690,11 @@ export class SolicitacaoAbastecimentoService {
     periodicidade: Periodicidade,
     dataSolicitacao: Date,
     quantidade: number,
+    quantidadePermitida: number,
   ): Promise<void> {
+    // Garantir que existe um período ativo (criar novo se necessário)
+    await this.garantirPeriodoAtivo(tx, veiculoId, periodicidade, dataSolicitacao, quantidadePermitida);
+
     // Buscar a cota de período ativa que contém a data da solicitação
     const cotaPeriodo = await tx.veiculoCotaPeriodo.findFirst({
       where: {
@@ -1659,7 +1719,7 @@ export class SolicitacaoAbastecimentoService {
 
     const quantidadeUtilizadaAtual = Number(cotaPeriodo.quantidade_utilizada.toString());
     const quantidadeDisponivelAtual = Number(cotaPeriodo.quantidade_disponivel.toString());
-    const quantidadePermitida = Number(cotaPeriodo.quantidade_permitida.toString());
+    const quantidadePermitidaAtual = Number(cotaPeriodo.quantidade_permitida.toString());
 
     // Calcular novos valores
     const novaQuantidadeUtilizada = quantidadeUtilizadaAtual + quantidade;
@@ -1743,6 +1803,92 @@ export class SolicitacaoAbastecimentoService {
         }
       });
     }
+  }
+
+  /**
+   * Reseta períodos expirados para veículos com tipo COTA
+   * Cria novos períodos quando o período atual expira (diário, semanal, mensal)
+   */
+  async resetarPeriodosExpirados(): Promise<{ resetados: number }> {
+    const dataAtual = new Date();
+
+    // Buscar todos os veículos com tipo COTA e periodicidade configurada
+    const veiculosComCota = await this.prisma.veiculo.findMany({
+      where: {
+        tipo_abastecimento: TipoAbastecimentoVeiculo.COTA,
+        periodicidade: { not: null },
+        quantidade: { not: null },
+        ativo: true,
+      },
+      select: {
+        id: true,
+        periodicidade: true,
+        quantidade: true,
+      },
+    });
+
+    let resetados = 0;
+
+    for (const veiculo of veiculosComCota) {
+      if (!veiculo.periodicidade || !veiculo.quantidade) {
+        continue;
+      }
+
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          // Verificar se existe período ativo
+          const periodoAtual = await tx.veiculoCotaPeriodo.findFirst({
+            where: {
+              veiculoId: veiculo.id,
+              periodicidade: veiculo.periodicidade,
+              data_inicio_periodo: { lte: dataAtual },
+              data_fim_periodo: { gte: dataAtual },
+              ativo: true,
+            },
+            orderBy: {
+              data_inicio_periodo: 'desc',
+            },
+          });
+
+          // Se não existe período ativo ou o período atual já expirou, criar novo
+          if (!periodoAtual || periodoAtual.data_fim_periodo < dataAtual) {
+            // Desativar períodos antigos se necessário
+            if (periodoAtual) {
+              await tx.veiculoCotaPeriodo.update({
+                where: { id: periodoAtual.id },
+                data: { ativo: false },
+              });
+            }
+
+            // Calcular novo intervalo de período
+            const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, veiculo.periodicidade);
+
+            const quantidadePermitida = Number(veiculo.quantidade.toString());
+
+            // Criar novo período resetado
+            await tx.veiculoCotaPeriodo.create({
+              data: {
+                veiculoId: veiculo.id,
+                data_inicio_periodo: inicio,
+                data_fim_periodo: fim,
+                quantidade_permitida: this.toDecimal(quantidadePermitida),
+                quantidade_utilizada: 0,
+                quantidade_disponivel: this.toDecimal(quantidadePermitida),
+                periodicidade: veiculo.periodicidade,
+                ativo: true,
+              },
+            });
+
+            resetados++;
+          }
+        });
+      } catch (error) {
+        console.error(`Erro ao resetar período para veículo ${veiculo.id}:`, error);
+        // Continua processando os outros veículos mesmo se um falhar
+      }
+    }
+
+    return { resetados };
   }
 
   /**
