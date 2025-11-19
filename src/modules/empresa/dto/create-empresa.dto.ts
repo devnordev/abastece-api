@@ -37,6 +37,15 @@ export class CreateEmpresaDto {
   endereco?: string;
 
   @ApiProperty({
+    description: 'Cidade da empresa (opcional)',
+    example: 'São Paulo',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'Cidade deve ser uma string' })
+  cidade?: string;
+
+  @ApiProperty({
     description: 'Contato da empresa (opcional)',
     example: 'João Silva',
     required: false,

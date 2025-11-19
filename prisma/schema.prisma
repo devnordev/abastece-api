@@ -298,6 +298,7 @@ model Empresa {
   nome                    String
   cnpj                    String
   endereco                String?
+  cidade                  String?
   uf                      UF
   contato                 String?
   ativo                   Boolean
