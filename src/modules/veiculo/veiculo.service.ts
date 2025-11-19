@@ -993,15 +993,37 @@ export class VeiculoService {
 
     // Atualizar relacionamentos com combustíveis (se fornecido)
     if (combustivelIds !== undefined) {
+      // Sanitizar e validar combustivelIds
+      let combustiveisValidos: number[] = [];
+      
+      if (Array.isArray(combustivelIds)) {
+        // Converter para números e filtrar valores inválidos
+        combustiveisValidos = combustivelIds
+          .map(id => {
+            const numId = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+            return isNaN(numId) ? null : numId;
+          })
+          .filter((id): id is number => id !== null && id > 0);
+      } else {
+        // Se não for array, tentar tratar como string
+        const idsString = String(combustivelIds || '');
+        if (idsString.trim()) {
+          combustiveisValidos = idsString
+            .split(',')
+            .map(id => parseInt(id.trim(), 10))
+            .filter(id => !isNaN(id) && id > 0);
+        }
+      }
+
       // Validar se combustíveis existem
-      if (combustivelIds.length > 0) {
+      if (combustiveisValidos.length > 0) {
         const combustiveis = await this.prisma.combustivel.findMany({
           where: {
-            id: { in: combustivelIds },
+            id: { in: combustiveisValidos },
           },
         });
 
-        if (combustiveis.length !== combustivelIds.length) {
+        if (combustiveis.length !== combustiveisValidos.length) {
           throw new NotFoundException('Um ou mais combustíveis não foram encontrados');
         }
       }
@@ -1012,9 +1034,9 @@ export class VeiculoService {
       });
 
       // Criar novos relacionamentos
-      if (combustivelIds.length > 0) {
+      if (combustiveisValidos.length > 0) {
         await this.prisma.veiculoCombustivel.createMany({
-          data: combustivelIds.map(combustivelId => ({
+          data: combustiveisValidos.map(combustivelId => ({
             veiculoId: id,
             combustivelId,
             ativo: true,
@@ -1025,15 +1047,37 @@ export class VeiculoService {
 
     // Atualizar relacionamentos com categorias (se fornecido)
     if (categoriaIds !== undefined) {
+      // Sanitizar e validar categoriaIds
+      let categoriasValidas: number[] = [];
+      
+      if (Array.isArray(categoriaIds)) {
+        // Converter para números e filtrar valores inválidos
+        categoriasValidas = categoriaIds
+          .map(id => {
+            const numId = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+            return isNaN(numId) ? null : numId;
+          })
+          .filter((id): id is number => id !== null && id > 0);
+      } else {
+        // Se não for array, tentar tratar como string
+        const idsString = String(categoriaIds || '');
+        if (idsString.trim()) {
+          categoriasValidas = idsString
+            .split(',')
+            .map(id => parseInt(id.trim(), 10))
+            .filter(id => !isNaN(id) && id > 0);
+        }
+      }
+
       // Validar se categorias existem
-      if (categoriaIds.length > 0) {
+      if (categoriasValidas.length > 0) {
         const categorias = await this.prisma.categoria.findMany({
           where: {
-            id: { in: categoriaIds },
+            id: { in: categoriasValidas },
           },
         });
 
-        if (categorias.length !== categoriaIds.length) {
+        if (categorias.length !== categoriasValidas.length) {
           throw new NotFoundException('Uma ou mais categorias não foram encontradas');
         }
       }
@@ -1044,9 +1088,9 @@ export class VeiculoService {
       });
 
       // Criar novos relacionamentos
-      if (categoriaIds.length > 0) {
+      if (categoriasValidas.length > 0) {
         await this.prisma.veiculoCategoria.createMany({
-          data: categoriaIds.map(categoriaId => ({
+          data: categoriasValidas.map(categoriaId => ({
             veiculoId: id,
             categoriaId,
             ativo: true,
@@ -1057,16 +1101,38 @@ export class VeiculoService {
 
     // Atualizar relacionamentos com motoristas (se fornecido)
     if (motoristaIds !== undefined) {
+      // Sanitizar e validar motoristaIds
+      let motoristasValidos: number[] = [];
+      
+      if (Array.isArray(motoristaIds)) {
+        // Converter para números e filtrar valores inválidos
+        motoristasValidos = motoristaIds
+          .map(id => {
+            const numId = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+            return isNaN(numId) ? null : numId;
+          })
+          .filter((id): id is number => id !== null && id > 0);
+      } else {
+        // Se não for array, tentar tratar como string
+        const idsString = String(motoristaIds || '');
+        if (idsString.trim()) {
+          motoristasValidos = idsString
+            .split(',')
+            .map(id => parseInt(id.trim(), 10))
+            .filter(id => !isNaN(id) && id > 0);
+        }
+      }
+
       // Validar se motoristas existem e pertencem à prefeitura
-      if (motoristaIds.length > 0) {
+      if (motoristasValidos.length > 0) {
         const motoristas = await this.prisma.motorista.findMany({
           where: {
-            id: { in: motoristaIds },
+            id: { in: motoristasValidos },
             prefeituraId: existingVeiculo.prefeituraId,
           },
         });
 
-        if (motoristas.length !== motoristaIds.length) {
+        if (motoristas.length !== motoristasValidos.length) {
           throw new NotFoundException('Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura');
         }
       }
@@ -1084,9 +1150,9 @@ export class VeiculoService {
       });
 
       // Criar novos relacionamentos
-      if (motoristaIds.length > 0) {
+      if (motoristasValidos.length > 0) {
         await this.prisma.veiculoMotorista.createMany({
-          data: motoristaIds.map(motoristaId => ({
+          data: motoristasValidos.map(motoristaId => ({
             veiculoId: id,
             motoristaId,
             data_inicio: new Date(),
