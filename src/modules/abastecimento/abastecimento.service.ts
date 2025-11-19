@@ -110,6 +110,7 @@ export class AbastecimentoService {
    * Atualiza a cota do órgão após um abastecimento
    * Incrementa quantidade_utilizada e valor_utilizado
    * Recalcula restante = quantidade - quantidade_utilizada
+   * Atualiza saldo_disponivel_cota = restante
    */
   private async atualizarCotaOrgao(
     tx: Prisma.TransactionClient,
@@ -117,7 +118,7 @@ export class AbastecimentoService {
     quantidade: number,
     valorTotal: number,
   ): Promise<void> {
-    // Buscar cota atual dentro da transação
+    // Buscar cota atual dentro da transação (incluindo processoId)
     const cota = await tx.cotaOrgao.findUnique({
       where: { id: cotaId },
       select: {
@@ -125,6 +126,7 @@ export class AbastecimentoService {
         quantidade: true,
         quantidade_utilizada: true,
         valor_utilizado: true,
+        processoId: true,
       },
     });
 
@@ -144,7 +146,7 @@ export class AbastecimentoService {
 
     const novaQuantidadeUtilizada = quantidadeUtilizadaAtual + quantidade;
     const novoValorUtilizado = valorUtilizadoAtual + valorTotal;
-    const restante = quantidadeTotal - novaQuantidadeUtilizada;
+    const restante = Math.max(0, quantidadeTotal - novaQuantidadeUtilizada);
 
     // Atualizar cota
     await tx.cotaOrgao.update({
@@ -152,15 +154,61 @@ export class AbastecimentoService {
       data: {
         quantidade_utilizada: new Decimal(novaQuantidadeUtilizada),
         valor_utilizado: new Decimal(novoValorUtilizado),
-        restante: new Decimal(Math.max(0, restante)),
+        restante: new Decimal(restante),
+        saldo_disponivel_cota: new Decimal(restante),
+      },
+    });
+
+    // Atualizar Processo usando o processoId da cota
+    if (cota.processoId) {
+      await this.atualizarProcessoPorId(tx, cota.processoId, valorTotal);
+    }
+  }
+
+  /**
+   * Atualiza o Processo após um abastecimento usando o processoId
+   * Incrementa valor_utilizado com o valor_total do abastecimento
+   * Recalcula valor_disponivel = litros_desejados - valor_utilizado
+   */
+  private async atualizarProcessoPorId(
+    tx: Prisma.TransactionClient,
+    processoId: number,
+    valorTotal: number,
+  ): Promise<void> {
+    // Buscar processo por ID
+    const processo = await tx.processo.findUnique({
+      where: { id: processoId },
+      select: {
+        id: true,
+        litros_desejados: true,
+        valor_utilizado: true,
+      },
+    });
+
+    if (!processo) {
+      // Se não encontrar processo, não lançar erro (pode não existir)
+      return;
+    }
+
+    // Calcular novos valores
+    const valorUtilizadoAtual = Number(processo.valor_utilizado?.toString() || '0');
+    const litrosDesejados = Number(processo.litros_desejados?.toString() || '0');
+    const novoValorUtilizado = valorUtilizadoAtual + valorTotal;
+    const valorDisponivel = Math.max(0, litrosDesejados - novoValorUtilizado);
+
+    // Atualizar processo
+    await tx.processo.update({
+      where: { id: processoId },
+      data: {
+        valor_utilizado: new Decimal(novoValorUtilizado),
+        valor_disponivel: new Decimal(valorDisponivel),
       },
     });
   }
 
   /**
-   * Atualiza o Processo após um abastecimento
-   * Incrementa valor_utilizado com o valor_total do abastecimento
-   * Recalcula valor_disponivel = litros_desejados - valor_utilizado
+   * Atualiza o Processo após um abastecimento (método legado para compatibilidade)
+   * Busca processo ativo da prefeitura e atualiza
    */
   private async atualizarProcesso(
     tx: Prisma.TransactionClient,
@@ -187,20 +235,8 @@ export class AbastecimentoService {
       return;
     }
 
-    // Calcular novos valores
-    const valorUtilizadoAtual = Number(processo.valor_utilizado?.toString() || '0');
-    const litrosDesejados = Number(processo.litros_desejados?.toString() || '0');
-    const novoValorUtilizado = valorUtilizadoAtual + valorTotal;
-    const valorDisponivel = litrosDesejados - novoValorUtilizado;
-
-    // Atualizar processo
-    await tx.processo.update({
-      where: { id: processo.id },
-      data: {
-        valor_utilizado: new Decimal(novoValorUtilizado),
-        valor_disponivel: new Decimal(Math.max(0, valorDisponivel)),
-      },
-    });
+    // Usar o método atualizarProcessoPorId
+    await this.atualizarProcessoPorId(tx, processo.id, valorTotal);
   }
 
   async create(createAbastecimentoDto: CreateAbastecimentoDto, user: any) {
@@ -564,7 +600,7 @@ export class AbastecimentoService {
         },
       });
 
-      // Atualizar CotaOrgao se encontrada
+      // Atualizar CotaOrgao se encontrada (isso também atualiza o Processo automaticamente)
       if (cotaIdParaUsar) {
         await this.atualizarCotaOrgao(tx, cotaIdParaUsar, quantidade, valor_total);
         
@@ -585,10 +621,10 @@ export class AbastecimentoService {
         if (cotaAtualizada) {
           abastecimentoCriado.cota = cotaAtualizada;
         }
+      } else {
+        // Se não há cota, ainda tenta atualizar processo por prefeitura (método legado)
+        await this.atualizarProcesso(tx, prefeituraId, valor_total);
       }
-
-      // Atualizar Processo (sempre tenta atualizar, mesmo se não encontrar)
-      await this.atualizarProcesso(tx, prefeituraId, valor_total);
 
       return abastecimentoCriado;
     });
@@ -1294,8 +1330,10 @@ export class AbastecimentoService {
         }
       }
 
-      // PASSO 6: Atualizar Processo (sempre tenta atualizar, mesmo se não encontrar)
-      await this.atualizarProcesso(tx, prefeituraIdSolicitacao, valorTotal);
+      // PASSO 6: Se não há cota, ainda tenta atualizar processo por prefeitura (método legado)
+      if (!cotaIdParaUsar) {
+        await this.atualizarProcesso(tx, prefeituraIdSolicitacao, valorTotal);
+      }
 
       return {
         abastecimento,
@@ -1937,7 +1975,7 @@ export class AbastecimentoService {
         },
       });
 
-      // Atualizar CotaOrgao
+      // Atualizar CotaOrgao (isso também atualiza o Processo automaticamente)
       await this.atualizarCotaOrgao(tx, cotaOrgao.id, quantidade, valor_total);
       
       // Buscar cota atualizada para incluir no resultado
@@ -1957,9 +1995,6 @@ export class AbastecimentoService {
       if (cotaAtualizada) {
         abastecimentoCriado.cota = cotaAtualizada;
       }
-
-      // Atualizar Processo
-      await this.atualizarProcesso(tx, prefeituraId, valor_total);
 
       return abastecimentoCriado;
     });
