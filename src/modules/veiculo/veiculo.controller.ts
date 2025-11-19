@@ -30,7 +30,7 @@ import { RoleBlockGuard } from '../auth/guards/role-block.guard';
 
 @ApiTags('Veículos')
 @Controller('veiculos')
-@UseGuards(JwtAuthGuard, new RoleBlockGuard(['SUPER_ADMIN']))
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class VeiculoController {
   constructor(private readonly veiculoService: VeiculoService) {}

@@ -1,0 +1,91 @@
+{
+  "prefeituraId": 1,
+  "usuario": {
+    "id": 1,
+    "nome": "João Silva",
+    "email": "joao.silva@prefeitura.gov.br"
+  },
+  "cards": {
+    "totalVeiculos": 150,
+    "totalMotoristas": 80,
+    "totalProcessos": 5,
+    "totalQuantidadeAbastecida": 368933.5,
+    "totalValorAbastecido": 1945289.50
+  },
+  "abastecimentos": {
+    "totalRegistros": 10,
+    "limiteAplicado": 10,
+    "dados": [
+      {
+        "id": 1234,
+        "data_abastecimento": "2025-08-31T14:30:00.000Z",
+        "empresa": "Posto Central",
+        "veiculo": {
+          "id": 45,
+          "nome": "Caminhão Coleta",
+          "placa": "ABC-1234"
+        },
+        "orgao": "Limpeza Urbana",
+        "motorista": "Carlos Nogueira",
+        "combustivel": "Diesel S10",
+        "quantidade": 50.5,
+        "valor_total": 252.50,
+        "preco_empresa": 5.00,
+        "status": "Aprovado"
+      },
+      {
+        "id": 1233,
+        "data_abastecimento": "2025-08-31T10:15:00.000Z",
+        "empresa": "Distribuidora Norte",
+        "veiculo": {
+          "id": 23,
+          "nome": "Ambulância 01",
+          "placa": "XYZ-5678"
+        },
+        "orgao": "Saúde",
+        "motorista": "Maria Santos",
+        "combustivel": "Gasolina Aditivada",
+        "quantidade": 30.0,
+        "valor_total": 210.00,
+        "preco_empresa": 7.00,
+        "status": "Aprovado"
+      }
+    ]
+  },
+  "cotasPorOrgao": [
+    {
+      "orgaoId": 1,
+      "orgaoNome": "Limpeza Urbana",
+      "quantidadeUtilizada": 20385.0
+    },
+    {
+      "orgaoId": 2,
+      "orgaoNome": "Saúde",
+      "quantidadeUtilizada": 16700.0
+    },
+    {
+      "orgaoId": 3,
+      "orgaoNome": "Administração",
+      "quantidadeUtilizada": 14864.0
+    }
+  ],
+  "veiculosComAbastecimentosAprovados": [
+    {
+      "veiculoId": 45,
+      "nome": "Caminhão Coleta",
+      "placa": "ABC-1234",
+      "combustiveis": ["Diesel S10", "Diesel S500"],
+      "quantidadeTotal": 7317.0,
+      "valorTotal": 37535.00
+    },
+    {
+      "veiculoId": 23,
+      "nome": "Ambulância 01",
+      "placa": "XYZ-5678",
+      "combustiveis": ["Gasolina Aditivada"],
+      "quantidadeTotal": 5488.0,
+      "valorTotal": 26615.00
+    }
+  ]
+}
+
