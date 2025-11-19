@@ -135,6 +135,24 @@ export class AbastecimentoService {
     return Math.round(valor * multiplicador) / multiplicador;
   }
 
+  private adicionarInfoOrgaoAbastecimento<
+    T extends {
+      veiculo?: {
+        orgaoId?: number | null;
+        orgao?: { id: number | null; nome: string | null } | null;
+      } | null;
+    },
+  >(registro: T): T & { orgaoId: number | null; orgaoNome: string | null } {
+    const orgaoId = registro?.veiculo?.orgao?.id ?? registro?.veiculo?.orgaoId ?? null;
+    const orgaoNome = registro?.veiculo?.orgao?.nome ?? null;
+
+    return {
+      ...registro,
+      orgaoId,
+      orgaoNome,
+    };
+  }
+
   /**
    * Atualiza a cota do órgão após um abastecimento
    * Incrementa quantidade_utilizada e valor_utilizado
@@ -652,6 +670,13 @@ export class AbastecimentoService {
               nome: true,
               placa: true,
               modelo: true,
+              orgaoId: true,
+              orgao: {
+                select: {
+                  id: true,
+                  nome: true,
+                },
+              },
             },
           },
           motorista: {
@@ -825,6 +850,13 @@ export class AbastecimentoService {
               nome: true,
               placa: true,
               modelo: true,
+              orgaoId: true,
+              orgao: {
+                select: {
+                  id: true,
+                  nome: true,
+                },
+              },
             },
           },
           motorista: {
@@ -870,9 +902,13 @@ export class AbastecimentoService {
       this.prisma.abastecimento.count({ where }),
     ]);
 
+    const abastecimentosComOrgao = abastecimentos.map((item) =>
+      this.adicionarInfoOrgaoAbastecimento(item),
+    );
+
     return {
       message: 'Abastecimentos encontrados com sucesso',
-      abastecimentos,
+      abastecimentos: abastecimentosComOrgao,
       pagination: {
         page,
         limit,

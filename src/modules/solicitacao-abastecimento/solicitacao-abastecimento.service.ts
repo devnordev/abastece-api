@@ -52,6 +52,13 @@ export class SolicitacaoAbastecimentoService {
         id: true,
         placa: true,
         nome: true,
+        orgaoId: true,
+        orgao: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
       },
     },
     motorista: {
@@ -83,6 +90,24 @@ export class SolicitacaoAbastecimentoService {
       },
     },
   } as const;
+
+  private adicionarInfoOrgaoSolicitacao<
+    T extends {
+      veiculo?: {
+        orgaoId?: number | null;
+        orgao?: { id: number | null; nome: string | null } | null;
+      } | null;
+    },
+  >(registro: T): T & { orgaoId: number | null; orgaoNome: string | null } {
+    const orgaoId = registro?.veiculo?.orgao?.id ?? registro?.veiculo?.orgaoId ?? null;
+    const orgaoNome = registro?.veiculo?.orgao?.nome ?? null;
+
+    return {
+      ...registro,
+      orgaoId,
+      orgaoNome,
+    };
+  }
 
   async create(createDto: CreateSolicitacaoAbastecimentoDto) {
     const dataSolicitacao = new Date(createDto.data_solicitacao);
@@ -251,9 +276,11 @@ export class SolicitacaoAbastecimentoService {
       return novaSolicitacao;
     });
 
+    const solicitacaoComOrgao = this.adicionarInfoOrgaoSolicitacao(solicitacao);
+
     return {
       message: 'Solicitação de abastecimento criada com sucesso',
-      solicitacao,
+      solicitacao: solicitacaoComOrgao,
     };
   }
 
@@ -308,9 +335,11 @@ export class SolicitacaoAbastecimentoService {
       this.prisma.solicitacaoAbastecimento.count({ where }),
     ]);
 
+    const solicitacoesComOrgao = solicitacoes.map((item) => this.adicionarInfoOrgaoSolicitacao(item));
+
     return {
       message: 'Solicitações de abastecimento encontradas com sucesso',
-      solicitacoes,
+      solicitacoes: solicitacoesComOrgao,
       pagination: {
         page,
         limit,
@@ -403,9 +432,11 @@ export class SolicitacaoAbastecimentoService {
       this.prisma.solicitacaoAbastecimento.count({ where }),
     ]);
 
+    const solicitacoesComOrgao = solicitacoes.map((item) => this.adicionarInfoOrgaoSolicitacao(item));
+
     const response: any = {
       message: 'Solicitações de abastecimento encontradas com sucesso',
-      solicitacoes,
+      solicitacoes: solicitacoesComOrgao,
       pagination: {
         page,
         limit,
@@ -448,9 +479,11 @@ export class SolicitacaoAbastecimentoService {
       throw new NotFoundException(`Solicitação de abastecimento com ID ${id} não encontrada`);
     }
 
+    const solicitacaoComOrgao = this.adicionarInfoOrgaoSolicitacao(solicitacao);
+
     return {
       message: 'Solicitação de abastecimento encontrada com sucesso',
-      solicitacao,
+      solicitacao: solicitacaoComOrgao,
     };
   }
 
@@ -551,9 +584,11 @@ export class SolicitacaoAbastecimentoService {
       include: this.solicitacaoInclude,
     });
 
+    const solicitacaoComOrgao = this.adicionarInfoOrgaoSolicitacao(solicitacao);
+
     return {
       message: 'Solicitação de abastecimento atualizada com sucesso',
-      solicitacao,
+      solicitacao: solicitacaoComOrgao,
     };
   }
 
@@ -646,9 +681,11 @@ export class SolicitacaoAbastecimentoService {
       include: this.solicitacaoInclude,
     });
 
+    const solicitacaoComOrgao = this.adicionarInfoOrgaoSolicitacao(solicitacaoAtualizada);
+
     return {
       message: `Status da solicitação alterado para ${updateStatusDto.status}`,
-      solicitacao: solicitacaoAtualizada,
+      solicitacao: solicitacaoComOrgao,
     };
   }
 
