@@ -1162,6 +1162,69 @@ export class VeiculoService {
       }
     }
 
+    // Se tipo_abastecimento for COTA e periodicidade/quantidade foram fornecidas, criar/atualizar VeiculoCotaPeriodo
+    const tipoAbastecimentoFinal = updateVeiculoDto.tipo_abastecimento !== undefined 
+      ? updateVeiculoDto.tipo_abastecimento 
+      : existingVeiculo.tipo_abastecimento;
+    
+    const periodicidadeFinal = updateVeiculoDto.periodicidade !== undefined 
+      ? updateVeiculoDto.periodicidade 
+      : existingVeiculo.periodicidade;
+    
+    const quantidadeFinal = updateVeiculoDto.quantidade !== undefined 
+      ? updateVeiculoDto.quantidade 
+      : existingVeiculo.quantidade;
+
+    if (
+      tipoAbastecimentoFinal === TipoAbastecimentoVeiculo.COTA &&
+      periodicidadeFinal &&
+      quantidadeFinal
+    ) {
+      const dataAtual = new Date();
+      const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, periodicidadeFinal as Periodicidade);
+
+      // Verificar se já existe um registro para este período
+      const cotaPeriodoExistente = await this.prisma.veiculoCotaPeriodo.findFirst({
+        where: {
+          veiculoId: id,
+          periodicidade: periodicidadeFinal as Periodicidade,
+          data_inicio_periodo: { lte: dataAtual },
+          data_fim_periodo: { gte: dataAtual },
+          ativo: true,
+        },
+      });
+
+      if (cotaPeriodoExistente) {
+        // Atualizar registro existente
+        // Recalcular quantidade_disponivel baseado na quantidade_permitida e quantidade_utilizada
+        const quantidadeUtilizadaAtual = Number(cotaPeriodoExistente.quantidade_utilizada.toString());
+        const novaQuantidadePermitida = Number(quantidadeFinal.toString());
+        const novaQuantidadeDisponivel = Math.max(novaQuantidadePermitida - quantidadeUtilizadaAtual, 0);
+
+        await this.prisma.veiculoCotaPeriodo.update({
+          where: { id: cotaPeriodoExistente.id },
+          data: {
+            quantidade_permitida: quantidadeFinal,
+            quantidade_disponivel: novaQuantidadeDisponivel,
+          },
+        });
+      } else {
+        // Criar novo registro
+        await this.prisma.veiculoCotaPeriodo.create({
+          data: {
+            veiculoId: id,
+            data_inicio_periodo: inicio,
+            data_fim_periodo: fim,
+            quantidade_permitida: quantidadeFinal,
+            quantidade_utilizada: 0,
+            quantidade_disponivel: quantidadeFinal,
+            periodicidade: periodicidadeFinal as Periodicidade,
+            ativo: true,
+          },
+        });
+      }
+    }
+
     // Buscar o veículo completo com todos os relacionamentos atualizados
     const veiculoCompleto = await this.prisma.veiculo.findUnique({
       where: { id },
@@ -1224,6 +1287,7 @@ export class VeiculoService {
             },
           },
         },
+        cotasPeriodo: true,
       },
     });
 
