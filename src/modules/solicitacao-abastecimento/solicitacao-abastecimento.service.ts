@@ -186,42 +186,61 @@ export class SolicitacaoAbastecimentoService {
       createDto.prefeituraId,
     );
 
-    const data: Prisma.SolicitacaoAbastecimentoUncheckedCreateInput = {
-      prefeituraId: createDto.prefeituraId,
-      veiculoId: createDto.veiculoId,
-      motoristaId: createDto.motoristaId,
-      combustivelId: createDto.combustivelId,
-      empresaId: createDto.empresaId,
-      quantidade: this.toDecimal(createDto.quantidade),
-      data_solicitacao: dataSolicitacao,
-      data_expiracao: new Date(createDto.data_expiracao),
-      tipo_abastecimento: createDto.tipo_abastecimento,
-      status: createDto.status ?? StatusSolicitacao.PENDENTE,
-      nfe_chave_acesso: createDto.nfe_chave_acesso,
-      nfe_img_url: createDto.nfe_img_url,
-      motivo_rejeicao: createDto.motivo_rejeicao,
-      aprovado_por: createDto.aprovado_por,
-      aprovado_por_email: createDto.aprovado_por_email,
-      aprovado_por_empresa: createDto.aprovado_por_empresa,
-      data_aprovacao: createDto.data_aprovacao ? new Date(createDto.data_aprovacao) : undefined,
-      rejeitado_por: createDto.rejeitado_por,
-      rejeitado_por_email: createDto.rejeitado_por_email,
-      rejeitado_por_empresa: createDto.rejeitado_por_empresa,
-      data_rejeicao: createDto.data_rejeicao ? new Date(createDto.data_rejeicao) : undefined,
-      conta_faturamento_orgao_id: createDto.conta_faturamento_orgao_id,
-      abastecido_por: createDto.abastecido_por ?? 'Sistema',
-      valor_total: createDto.valor_total !== undefined ? this.toDecimal(createDto.valor_total) : undefined,
-      preco_empresa: createDto.preco_empresa !== undefined ? this.toDecimal(createDto.preco_empresa) : undefined,
-      abastecimento_id: createDto.abastecimento_id,
-      ativo: createDto.ativo ?? true,
-      observacoes: createDto.observacoes,
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
+    // Verificar e liberar litros de solicitações expiradas para este veículo
+    await this.liberarLitrosSolicitacoesExpiradas(createDto.veiculoId);
 
-    const solicitacao = await this.prisma.solicitacaoAbastecimento.create({
-      data,
-      include: this.solicitacaoInclude,
+    // Criar solicitação e atualizar VeiculoCotaPeriodo em transação
+    const solicitacao = await this.prisma.$transaction(async (tx) => {
+      const data: Prisma.SolicitacaoAbastecimentoUncheckedCreateInput = {
+        prefeituraId: createDto.prefeituraId,
+        veiculoId: createDto.veiculoId,
+        motoristaId: createDto.motoristaId,
+        combustivelId: createDto.combustivelId,
+        empresaId: createDto.empresaId,
+        quantidade: this.toDecimal(createDto.quantidade),
+        data_solicitacao: dataSolicitacao,
+        data_expiracao: new Date(createDto.data_expiracao),
+        tipo_abastecimento: createDto.tipo_abastecimento,
+        status: createDto.status ?? StatusSolicitacao.PENDENTE,
+        nfe_chave_acesso: createDto.nfe_chave_acesso,
+        nfe_img_url: createDto.nfe_img_url,
+        motivo_rejeicao: createDto.motivo_rejeicao,
+        aprovado_por: createDto.aprovado_por,
+        aprovado_por_email: createDto.aprovado_por_email,
+        aprovado_por_empresa: createDto.aprovado_por_empresa,
+        data_aprovacao: createDto.data_aprovacao ? new Date(createDto.data_aprovacao) : undefined,
+        rejeitado_por: createDto.rejeitado_por,
+        rejeitado_por_email: createDto.rejeitado_por_email,
+        rejeitado_por_empresa: createDto.rejeitado_por_empresa,
+        data_rejeicao: createDto.data_rejeicao ? new Date(createDto.data_rejeicao) : undefined,
+        conta_faturamento_orgao_id: createDto.conta_faturamento_orgao_id,
+        abastecido_por: createDto.abastecido_por ?? 'Sistema',
+        valor_total: createDto.valor_total !== undefined ? this.toDecimal(createDto.valor_total) : undefined,
+        preco_empresa: createDto.preco_empresa !== undefined ? this.toDecimal(createDto.preco_empresa) : undefined,
+        abastecimento_id: createDto.abastecimento_id,
+        ativo: createDto.ativo ?? true,
+        observacoes: createDto.observacoes,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      const novaSolicitacao = await tx.solicitacaoAbastecimento.create({
+        data,
+        include: this.solicitacaoInclude,
+      });
+
+      // Se o veículo for do tipo COM_COTA, atualizar VeiculoCotaPeriodo
+      if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA && veiculo.periodicidade) {
+        await this.atualizarVeiculoCotaPeriodo(
+          tx,
+          veiculo.id,
+          veiculo.periodicidade,
+          dataSolicitacao,
+          createDto.quantidade,
+        );
+      }
+
+      return novaSolicitacao;
     });
 
     return {
@@ -523,6 +542,15 @@ export class SolicitacaoAbastecimentoService {
   async updateStatus(id: number, updateStatusDto: { status: StatusSolicitacao; motivo_rejeicao?: string; aprovado_por?: string; aprovado_por_email?: string; aprovado_por_empresa?: string; rejeitado_por?: string; rejeitado_por_email?: string; rejeitado_por_empresa?: string }, user?: any) {
     const solicitacao = await this.prisma.solicitacaoAbastecimento.findUnique({
       where: { id },
+      include: {
+        veiculo: {
+          select: {
+            id: true,
+            tipo_abastecimento: true,
+            periodicidade: true,
+          },
+        },
+      },
     });
 
     if (!solicitacao) {
@@ -563,9 +591,17 @@ export class SolicitacaoAbastecimentoService {
       updateData.aprovado_por_empresa = null;
     }
 
-    // Se o status for EXPIRADA, apenas atualizar o status
+    // Se o status for EXPIRADA, liberar litros da cota período
     if (updateStatusDto.status === StatusSolicitacao.EXPIRADA) {
-      // Não alterar outros campos
+      // Verificar se precisa liberar litros (apenas se status anterior era PENDENTE ou APROVADA)
+      const statusAnterior = solicitacao.status;
+      if (
+        (statusAnterior === StatusSolicitacao.PENDENTE || statusAnterior === StatusSolicitacao.APROVADA) &&
+        solicitacao.veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA &&
+        solicitacao.veiculo.periodicidade
+      ) {
+        await this.liberarLitrosSolicitacaoExpirada(solicitacao);
+      }
     }
 
     // Se o status for EFETIVADA, apenas atualizar o status
@@ -1570,6 +1606,174 @@ export class SolicitacaoAbastecimentoService {
       empresa: precoCombustivel.empresa,
       updated_at: precoCombustivel.updated_at,
     };
+  }
+
+  /**
+   * Atualiza VeiculoCotaPeriodo ao criar uma solicitação de abastecimento
+   * Incrementa quantidade_utilizada e decrementa quantidade_disponivel
+   */
+  private async atualizarVeiculoCotaPeriodo(
+    tx: Prisma.TransactionClient,
+    veiculoId: number,
+    periodicidade: Periodicidade,
+    dataSolicitacao: Date,
+    quantidade: number,
+  ): Promise<void> {
+    // Buscar a cota de período ativa que contém a data da solicitação
+    const cotaPeriodo = await tx.veiculoCotaPeriodo.findFirst({
+      where: {
+        veiculoId,
+        periodicidade,
+        data_inicio_periodo: { lte: dataSolicitacao },
+        data_fim_periodo: { gte: dataSolicitacao },
+        ativo: true,
+      },
+      orderBy: {
+        data_inicio_periodo: 'desc',
+      },
+    });
+
+    if (!cotaPeriodo) {
+      throw new SolicitacaoAbastecimentoVeiculoCotaPeriodoNaoEncontradaException(
+        veiculoId,
+        periodicidade,
+        dataSolicitacao,
+      );
+    }
+
+    const quantidadeUtilizadaAtual = Number(cotaPeriodo.quantidade_utilizada.toString());
+    const quantidadeDisponivelAtual = Number(cotaPeriodo.quantidade_disponivel.toString());
+    const quantidadePermitida = Number(cotaPeriodo.quantidade_permitida.toString());
+
+    // Calcular novos valores
+    const novaQuantidadeUtilizada = quantidadeUtilizadaAtual + quantidade;
+    const novaQuantidadeDisponivel = Math.max(quantidadeDisponivelAtual - quantidade, 0);
+
+    // Atualizar VeiculoCotaPeriodo
+    await tx.veiculoCotaPeriodo.update({
+      where: { id: cotaPeriodo.id },
+      data: {
+        quantidade_utilizada: this.toDecimal(novaQuantidadeUtilizada),
+        quantidade_disponivel: this.toDecimal(novaQuantidadeDisponivel),
+      },
+    });
+  }
+
+  /**
+   * Libera litros de uma solicitação expirada específica
+   * Quando uma solicitação expira, os litros devem voltar para a cota período
+   */
+  private async liberarLitrosSolicitacaoExpirada(
+    solicitacao: {
+      id: number;
+      veiculoId: number;
+      quantidade: Decimal;
+      data_solicitacao: Date;
+      veiculo: {
+        id: number;
+        tipo_abastecimento: TipoAbastecimentoVeiculo;
+        periodicidade: Periodicidade | null;
+      };
+    },
+  ): Promise<void> {
+    const veiculo = solicitacao.veiculo;
+
+    // Apenas processar se for tipo COM_COTA e tiver periodicidade
+    if (
+      veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA &&
+      veiculo.periodicidade
+    ) {
+      await this.prisma.$transaction(async (tx) => {
+        // Buscar a cota de período que estava ativa quando a solicitação foi criada
+        // Usar a data_solicitacao para encontrar o período correto
+        const cotaPeriodo = await tx.veiculoCotaPeriodo.findFirst({
+          where: {
+            veiculoId: veiculo.id,
+            periodicidade: veiculo.periodicidade,
+            data_inicio_periodo: { lte: solicitacao.data_solicitacao },
+            data_fim_periodo: { gte: solicitacao.data_solicitacao },
+            ativo: true,
+          },
+          orderBy: {
+            data_inicio_periodo: 'desc',
+          },
+        });
+
+        if (cotaPeriodo) {
+          const quantidadeSolicitacao = Number(solicitacao.quantidade.toString());
+          const quantidadeUtilizadaAtual = Number(cotaPeriodo.quantidade_utilizada.toString());
+          const quantidadeDisponivelAtual = Number(cotaPeriodo.quantidade_disponivel.toString());
+          const quantidadePermitida = Number(cotaPeriodo.quantidade_permitida.toString());
+
+          // Liberar os litros: decrementar quantidade_utilizada e incrementar quantidade_disponivel
+          const novaQuantidadeUtilizada = Math.max(quantidadeUtilizadaAtual - quantidadeSolicitacao, 0);
+          const novaQuantidadeDisponivel = Math.min(
+            quantidadeDisponivelAtual + quantidadeSolicitacao,
+            quantidadePermitida,
+          );
+
+          // Atualizar VeiculoCotaPeriodo
+          await tx.veiculoCotaPeriodo.update({
+            where: { id: cotaPeriodo.id },
+            data: {
+              quantidade_utilizada: this.toDecimal(novaQuantidadeUtilizada),
+              quantidade_disponivel: this.toDecimal(novaQuantidadeDisponivel),
+            },
+          });
+        }
+      });
+    }
+  }
+
+  /**
+   * Libera litros de solicitações expiradas para um veículo
+   * Quando uma solicitação expira, os litros devem voltar para a cota período
+   */
+  private async liberarLitrosSolicitacoesExpiradas(veiculoId: number): Promise<void> {
+    const dataAtual = new Date();
+
+    // Buscar solicitações expiradas que ainda não foram processadas
+    // Status deve ser PENDENTE ou APROVADA (não EFETIVADA, REJEITADA ou CANCELADA)
+    const solicitacoesExpiradas = await this.prisma.solicitacaoAbastecimento.findMany({
+      where: {
+        veiculoId,
+        data_expiracao: { lt: dataAtual },
+        status: {
+          in: [StatusSolicitacao.PENDENTE, StatusSolicitacao.APROVADA],
+        },
+        ativo: true,
+      },
+      include: {
+        veiculo: {
+          select: {
+            id: true,
+            tipo_abastecimento: true,
+            periodicidade: true,
+          },
+        },
+      },
+    });
+
+    if (solicitacoesExpiradas.length === 0) {
+      return;
+    }
+
+    // Processar cada solicitação expirada
+    for (const solicitacao of solicitacoesExpiradas) {
+      await this.prisma.$transaction(async (tx) => {
+        // Atualizar status da solicitação para EXPIRADA
+        await tx.solicitacaoAbastecimento.update({
+          where: { id: solicitacao.id },
+          data: {
+            status: StatusSolicitacao.EXPIRADA,
+            updated_at: new Date(),
+          },
+        });
+      });
+
+      // Liberar litros da solicitação
+      await this.liberarLitrosSolicitacaoExpirada(solicitacao);
+    }
   }
 
   /**
