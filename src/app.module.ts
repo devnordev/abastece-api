@@ -29,6 +29,7 @@ import { ProcessoCombustivelModule } from './modules/processo-combustivel/proces
 import { SolicitacoesQrCodeVeiculoModule } from './modules/solicitacoes-qrcode-veiculo/solicitacoes-qrcode-veiculo.module';
 import { QrCodeMotoristaModule } from './modules/qrcode-motorista/qrcode-motorista.module';
 import { DashboardsModule } from './modules/dashboards/dashboards.module';
+import { RelatoriosModule } from './modules/relatorios/relatorios.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { DashboardsModule } from './modules/dashboards/dashboards.module';
     SolicitacoesQrCodeVeiculoModule,
     QrCodeMotoristaModule,
     DashboardsModule,
+    RelatoriosModule,
   ],
 })
 export class AppModule {}
