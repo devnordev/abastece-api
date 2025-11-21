@@ -549,22 +549,22 @@ export class BackupService {
     }
 
     try {
+      // Escapar o nome da tabela para evitar SQL injection
+      const escapedTableName = tableName.replace(/'/g, "''");
+      
       // Buscar informações sobre colunas enum do banco de dados
       const result = await this.prisma.$queryRawUnsafe<Array<{
         column_name: string;
         udt_name: string;
       }>>(`
         SELECT 
-          column_name,
-          udt_name
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = '${tableName}'
-          AND udt_name IN (
-            SELECT typname 
-            FROM pg_type 
-            WHERE typtype = 'e'
-          )
+          c.column_name,
+          c.udt_name
+        FROM information_schema.columns c
+        INNER JOIN pg_type t ON t.typname = c.udt_name
+        WHERE c.table_schema = 'public'
+          AND c.table_name = '${escapedTableName}'
+          AND t.typtype = 'e'
       `);
 
       const enumMap = new Map<string, string>();
@@ -576,7 +576,8 @@ export class BackupService {
       this.enumColumnsCache.set(tableName, enumMap);
 
       return enumMap;
-    } catch (error) {
+    } catch (error: any) {
+      console.warn(`Erro ao buscar colunas enum para a tabela ${tableName}:`, error.message);
       return new Map();
     }
   }
@@ -587,7 +588,8 @@ export class BackupService {
   private async processInsertCommand(command: string): Promise<string> {
     // Regex para extrair nome da tabela e valores do INSERT
     // Padrão mais flexível para capturar INSERT INTO "table" ou INSERT INTO table
-    const insertMatch = command.match(/INSERT\s+INTO\s+"?([\w]+)"?\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
+    // Também captura múltiplas linhas
+    const insertMatch = command.match(/INSERT\s+INTO\s+"?([\w]+)"?\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/is);
     
     if (!insertMatch) {
       return command;
@@ -612,6 +614,7 @@ export class BackupService {
     
     if (columns.length !== rawValues.length) {
       // Se não conseguiu fazer parse corretamente, retorna o comando original
+      console.warn(`Número de colunas (${columns.length}) não corresponde ao número de valores (${rawValues.length}) na tabela ${tableName}`);
       return command;
     }
 
@@ -622,21 +625,27 @@ export class BackupService {
       const columnName = columns[i];
       let value = rawValues[i];
       
-      if (enumColumns.has(columnName) && value !== 'NULL') {
+      if (enumColumns.has(columnName) && value !== 'NULL' && value !== null) {
         const enumType = enumColumns.get(columnName)!;
-        // Adicionar cast para enum
-        // Se o valor já é uma string com aspas, manter as aspas e adicionar cast
+        // Extrair o valor sem aspas para processar
+        let enumValue: string;
+        
         if (value.startsWith("'") && value.endsWith("'")) {
-          // Valor já tem aspas, apenas adicionar cast
-          value = `${value}::"${enumType}"`;
+          // Remover aspas simples e processar escape
+          enumValue = value.slice(1, -1).replace(/''/g, "'");
         } else if (value.startsWith('"') && value.endsWith('"')) {
-          // Valor tem aspas duplas, converter para aspas simples e adicionar cast
-          const enumValue = value.slice(1, -1);
-          value = `'${enumValue.replace(/'/g, "''")}'::"${enumType}"`;
+          // Remover aspas duplas
+          enumValue = value.slice(1, -1).replace(/""/g, '"');
         } else {
-          // Valor sem aspas, adicionar aspas e cast
-          value = `'${String(value).replace(/'/g, "''")}'::"${enumType}"`;
+          // Valor sem aspas
+          enumValue = String(value);
         }
+        
+        // Garantir que o valor está em maiúsculas (enums do PostgreSQL geralmente são case-sensitive)
+        // Mas vamos manter o valor original já que pode haver enums com valores em diferentes casos
+        // Adicionar aspas simples e cast de enum
+        const escapedValue = enumValue.replace(/'/g, "''");
+        value = `'${escapedValue}'::"${enumType}"`;
       }
       processedValues.push(value);
     }
@@ -653,6 +662,7 @@ export class BackupService {
     let current = '';
     let inString = false;
     let quoteChar = '';
+    let parenDepth = 0;
 
     for (let i = 0; i < valuesStr.length; i++) {
       const char = valuesStr[i];
@@ -673,8 +683,14 @@ export class BackupService {
           quoteChar = '';
           current += char;
         }
-      } else if (!inString && char === ',') {
-        // Nova coluna (apenas quando não está em string)
+      } else if (!inString && char === '(') {
+        parenDepth++;
+        current += char;
+      } else if (!inString && char === ')') {
+        parenDepth--;
+        current += char;
+      } else if (!inString && parenDepth === 0 && char === ',') {
+        // Nova coluna (apenas quando não está em string e não está dentro de parênteses)
         if (current.trim()) {
           values.push(current.trim());
         }
@@ -731,7 +747,7 @@ export class BackupService {
           continue;
         }
 
-        currentCommand += ' ' + line;
+        currentCommand += (currentCommand ? ' ' : '') + line;
         
         // Se a linha termina com ;, finaliza o comando
         if (trimmedLine.endsWith(';')) {
@@ -741,6 +757,11 @@ export class BackupService {
           }
           currentCommand = '';
         }
+      }
+
+      // Adicionar último comando se não terminou com ;
+      if (currentCommand.trim()) {
+        commands.push(currentCommand.trim());
       }
 
       // Executar comandos em transação
