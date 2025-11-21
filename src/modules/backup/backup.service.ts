@@ -765,32 +765,33 @@ export class BackupService {
       // Escapar o nome da tabela para evitar SQL injection
       const escapedTable = table.replace(/"/g, '""');
       
-      // Verificar se a tabela tem coluna modified_date ou created_date
-      const hasModifiedDate = await this.prisma.$queryRawUnsafe(`
+      // Verificar quais colunas de data existem na tabela
+      const columnsResult = await this.prisma.$queryRawUnsafe<Array<{ column_name: string }>>(`
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_schema = 'public' 
           AND table_name = '${escapedTable}' 
           AND column_name IN ('modified_date', 'created_date', 'data_cadastro')
-        LIMIT 1
       `);
 
-      if (!hasModifiedDate || (hasModifiedDate as any[]).length === 0) {
+      if (!columnsResult || columnsResult.length === 0) {
         // Se não tiver coluna de data, considerar que tem registros atualizados
         return true;
       }
 
-      // Verificar se há registros com modified_date ou created_date não nulo
-      const result = await this.prisma.$queryRawUnsafe(`
+      // Construir condições WHERE apenas para colunas que existem
+      const existingColumns = columnsResult.map(col => col.column_name);
+      const conditions = existingColumns.map(col => `"${col}" IS NOT NULL`).join(' OR ');
+
+      // Verificar se há registros com alguma das colunas de data não nula
+      const result = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(`
         SELECT COUNT(*) as count
         FROM "${escapedTable}"
-        WHERE modified_date IS NOT NULL 
-           OR created_date IS NOT NULL 
-           OR data_cadastro IS NOT NULL
+        WHERE ${conditions}
         LIMIT 1
       `);
 
-      const count = (result as any[])[0]?.count || 0;
+      const count = Number(result[0]?.count || 0);
       return count > 0;
     } catch (error: any) {
       // Em caso de erro, considerar que a tabela tem registros atualizados
