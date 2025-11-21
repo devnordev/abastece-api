@@ -535,6 +535,164 @@ export class BackupService {
   }
 
   /**
+   * Cache para informações de colunas enum das tabelas
+   */
+  private enumColumnsCache = new Map<string, Map<string, string>>();
+
+  /**
+   * Obtém informações sobre colunas enum de uma tabela
+   */
+  private async getEnumColumnsForTable(tableName: string): Promise<Map<string, string>> {
+    // Verificar cache primeiro
+    if (this.enumColumnsCache.has(tableName)) {
+      return this.enumColumnsCache.get(tableName)!;
+    }
+
+    try {
+      // Buscar informações sobre colunas enum do banco de dados
+      const result = await this.prisma.$queryRawUnsafe<Array<{
+        column_name: string;
+        udt_name: string;
+      }>>(`
+        SELECT 
+          column_name,
+          udt_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = '${tableName}'
+          AND udt_name IN (
+            SELECT typname 
+            FROM pg_type 
+            WHERE typtype = 'e'
+          )
+      `);
+
+      const enumMap = new Map<string, string>();
+      result.forEach((row) => {
+        enumMap.set(row.column_name, row.udt_name);
+      });
+
+      // Salvar no cache
+      this.enumColumnsCache.set(tableName, enumMap);
+
+      return enumMap;
+    } catch (error) {
+      return new Map();
+    }
+  }
+
+  /**
+   * Processa um comando SQL INSERT para adicionar cast de enum quando necessário
+   */
+  private async processInsertCommand(command: string): Promise<string> {
+    // Regex para extrair nome da tabela e valores do INSERT
+    // Padrão mais flexível para capturar INSERT INTO "table" ou INSERT INTO table
+    const insertMatch = command.match(/INSERT\s+INTO\s+"?([\w]+)"?\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
+    
+    if (!insertMatch) {
+      return command;
+    }
+
+    const tableName = insertMatch[1];
+    const columnsStr = insertMatch[2];
+    const valuesStr = insertMatch[3];
+
+    // Obter colunas enum da tabela
+    const enumColumns = await this.getEnumColumnsForTable(tableName);
+
+    if (enumColumns.size === 0) {
+      return command;
+    }
+
+    // Parse das colunas (remover aspas e espaços)
+    const columns = columnsStr.split(',').map(col => col.trim().replace(/^"|"$/g, ''));
+    
+    // Parse dos valores (considerando strings com vírgulas)
+    const rawValues = this.parseInsertValues(valuesStr);
+    
+    if (columns.length !== rawValues.length) {
+      // Se não conseguiu fazer parse corretamente, retorna o comando original
+      return command;
+    }
+
+    // Processar valores e adicionar cast para colunas enum
+    const processedValues: string[] = [];
+    
+    for (let i = 0; i < columns.length; i++) {
+      const columnName = columns[i];
+      let value = rawValues[i];
+      
+      if (enumColumns.has(columnName) && value !== 'NULL') {
+        const enumType = enumColumns.get(columnName)!;
+        // Adicionar cast para enum
+        // Se o valor já é uma string com aspas, manter as aspas e adicionar cast
+        if (value.startsWith("'") && value.endsWith("'")) {
+          // Valor já tem aspas, apenas adicionar cast
+          value = `${value}::"${enumType}"`;
+        } else if (value.startsWith('"') && value.endsWith('"')) {
+          // Valor tem aspas duplas, converter para aspas simples e adicionar cast
+          const enumValue = value.slice(1, -1);
+          value = `'${enumValue.replace(/'/g, "''")}'::"${enumType}"`;
+        } else {
+          // Valor sem aspas, adicionar aspas e cast
+          value = `'${String(value).replace(/'/g, "''")}'::"${enumType}"`;
+        }
+      }
+      processedValues.push(value);
+    }
+
+    // Reconstruir comando com casts
+    return `INSERT INTO "${tableName}" (${columns.map(c => `"${c}"`).join(', ')}) VALUES (${processedValues.join(', ')});`;
+  }
+
+  /**
+   * Faz parse dos valores de um INSERT, considerando strings com vírgulas
+   */
+  private parseInsertValues(valuesStr: string): string[] {
+    const values: string[] = [];
+    let current = '';
+    let inString = false;
+    let quoteChar = '';
+
+    for (let i = 0; i < valuesStr.length; i++) {
+      const char = valuesStr[i];
+      const nextChar = valuesStr[i + 1];
+
+      if (!inString && (char === "'" || char === '"')) {
+        inString = true;
+        quoteChar = char;
+        current += char;
+      } else if (inString && char === quoteChar) {
+        if (nextChar === quoteChar) {
+          // Escape de aspas ('' ou "")
+          current += char + nextChar;
+          i++;
+        } else {
+          // Fim da string
+          inString = false;
+          quoteChar = '';
+          current += char;
+        }
+      } else if (!inString && char === ',') {
+        // Nova coluna (apenas quando não está em string)
+        if (current.trim()) {
+          values.push(current.trim());
+        }
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    // Adicionar último valor se houver
+    if (current.trim()) {
+      values.push(current.trim());
+    }
+
+    return values;
+  }
+
+  /**
    * Restaura backup do banco de dados
    */
   async restoreBackup(filename: string, user: any): Promise<void> {
@@ -590,10 +748,19 @@ export class BackupService {
         for (const command of commands) {
           if (command.trim() && !command.trim().startsWith('--')) {
             try {
-              await tx.$executeRawUnsafe(command);
+              // Processar comando INSERT para adicionar cast de enum
+              let processedCommand = command;
+              if (command.trim().toUpperCase().startsWith('INSERT')) {
+                processedCommand = await this.processInsertCommand(command);
+              }
+              
+              await tx.$executeRawUnsafe(processedCommand);
             } catch (error: any) {
               // Ignorar erros de chave duplicada (INSERT que já existe)
               if (!error?.message?.includes('duplicate key') && !error?.message?.includes('already exists')) {
+                // Log do erro para debug
+                console.error(`Erro ao executar comando SQL:`, error.message);
+                console.error(`Comando:`, command.substring(0, 200));
                 throw error;
               }
             }
