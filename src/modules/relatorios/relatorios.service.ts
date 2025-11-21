@@ -167,169 +167,470 @@ export class RelatoriosService {
    */
   async getAdminPrefeituraRelatorio(user: any, filter?: FilterRelatorioDto) {
     const prefeituraId = this.obterPrefeituraId(user);
-    const meses = filter?.meses || 12;
 
-    // Calcular período
-    const dataFim = filter?.dataFim ? new Date(filter.dataFim) : new Date();
-    const dataInicio = filter?.dataInicio
-      ? new Date(filter.dataInicio)
-      : new Date(dataFim.getTime() - meses * 30 * 24 * 60 * 60 * 1000);
+    // Calcular período baseado nos filtros
+    let dataInicio: Date;
+    let dataFim: Date;
 
-    const periodoAnterior = this.calcularPeriodoAnterior(dataInicio, dataFim);
+    if (filter?.dataInicio && filter?.dataFim) {
+      dataInicio = new Date(filter.dataInicio);
+      dataFim = new Date(filter.dataFim);
+      dataFim.setHours(23, 59, 59, 999);
+    } else {
+      // Se não especificado, usar mês atual
+      const agora = new Date();
+      dataInicio = new Date(agora.getFullYear(), agora.getMonth(), 1);
+      dataFim = new Date(agora.getFullYear(), agora.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
 
-    // Filtros
+    // Filtros para abastecimentos aprovados
     const whereAbastecimento = this.construirFiltrosAbastecimento(prefeituraId, undefined, {
       ...filter,
       dataInicio: dataInicio.toISOString(),
       dataFim: dataFim.toISOString(),
     });
+    whereAbastecimento.status = StatusAbastecimento.Aprovado;
 
-    const whereSolicitacao = this.construirFiltrosSolicitacao(prefeituraId, undefined, {
-      ...filter,
-      dataInicio: dataInicio.toISOString(),
-      dataFim: dataFim.toISOString(),
+    // Buscar processo ativo
+    const processoAtivo = await this.prisma.processo.findFirst({
+      where: {
+        prefeituraId,
+        status: StatusProcesso.ATIVO,
+        ativo: true,
+        tipo_contrato: TipoContrato.OBJETIVO,
+      },
+      include: {
+        combustiveis: {
+          include: {
+            combustivel: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    // Buscar todos os dados em paralelo
-    const [
-      despesaAtual,
-      despesaAnterior,
-      litrosAtual,
-      litrosAnterior,
-      abastecimentosCount,
-      solicitacoesStatus,
-      taxaAprovacao,
-      saldoCota,
-      benchmarkPrecos,
-      fluxoSolicitacoes,
-      tendenciaAbastecimentos,
-      mixCombustiveis,
-      usoCotas,
-      compliance,
-      coberturaContratos,
-      redeFornecedores,
-      veiculosImpacto,
-    ] = await Promise.all([
-      // 1. Despesa com abastecimentos (atual)
-      this.prisma.abastecimento.aggregate({
-        where: whereAbastecimento,
-        _sum: { valor_total: true },
-      }),
+    // Calcular KPIs do processo ativo
+    const processoAtivoKpis = processoAtivo
+      ? processoAtivo.combustiveis.map((pc) => {
+          const quantidadeTotal = this.toNumber(pc.quantidade_litros);
+          const saldoDisponivel = pc.saldo_disponivel_processo
+            ? this.toNumber(pc.saldo_disponivel_processo)
+            : 0;
+          const quantidadeUsada = quantidadeTotal - saldoDisponivel;
+          const percentualUtilizado =
+            quantidadeTotal > 0 ? (quantidadeUsada / quantidadeTotal) * 100 : 0;
 
-      // 2. Despesa com abastecimentos (período anterior)
-      this.prisma.abastecimento.aggregate({
-        where: {
-          ...this.construirFiltrosAbastecimento(prefeituraId, undefined, {
-            dataInicio: periodoAnterior.inicio.toISOString(),
-            dataFim: periodoAnterior.fim.toISOString(),
-          }),
+          return {
+            combustivel: {
+              id: pc.combustivel.id,
+              nome: pc.combustivel.nome,
+              sigla: pc.combustivel.sigla,
+            },
+            usado: this.arredondar(quantidadeUsada, 1),
+            total: this.arredondar(quantidadeTotal, 1),
+            percentual_utilizado: this.arredondar(percentualUtilizado, 1),
+          };
+        })
+      : [];
+
+    // Buscar todos os abastecimentos para análises
+    const abastecimentos = await this.prisma.abastecimento.findMany({
+      where: whereAbastecimento,
+      include: {
+        empresa: {
+          select: {
+            id: true,
+            nome: true,
+            uf: true,
+            endereco_completo: true,
+          },
         },
-        _sum: { valor_total: true },
-      }),
-
-      // 3. Litros abastecidos (atual)
-      this.prisma.abastecimento.aggregate({
-        where: whereAbastecimento,
-        _sum: { quantidade: true },
-        _count: { id: true },
-      }),
-
-      // 4. Litros abastecidos (período anterior)
-      this.prisma.abastecimento.aggregate({
-        where: {
-          ...this.construirFiltrosAbastecimento(prefeituraId, undefined, {
-            dataInicio: periodoAnterior.inicio.toISOString(),
-            dataFim: periodoAnterior.fim.toISOString(),
-          }),
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
         },
-        _sum: { quantidade: true },
-      }),
+        veiculo: {
+          select: {
+            id: true,
+            nome: true,
+            placa: true,
+            orgao: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+              },
+            },
+          },
+        },
+        motorista: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+      },
+      orderBy: {
+        data_abastecimento: 'asc',
+      },
+    });
 
-      // 5. Contagem de abastecimentos
-      this.prisma.abastecimento.count({
-        where: whereAbastecimento,
-      }),
+    // 1. Consumo por Órgãos (gráfico de barras)
+    const consumoPorOrgao: Record<
+      number,
+      {
+        orgao: { id: number; nome: string; sigla: string };
+        litros: number;
+      }
+    > = {};
 
-      // 6. Status das solicitações
-      this.prisma.solicitacaoAbastecimento.groupBy({
-        by: ['status'],
-        where: whereSolicitacao,
-        _count: { id: true },
-      }),
+    for (const abastecimento of abastecimentos) {
+      const orgaoId = abastecimento.veiculo.orgao?.id;
+      if (!orgaoId) continue;
 
-      // 7. Taxa de aprovação
-      this.calcularTaxaAprovacao(whereSolicitacao),
+      if (!consumoPorOrgao[orgaoId]) {
+        consumoPorOrgao[orgaoId] = {
+          orgao: abastecimento.veiculo.orgao!,
+          litros: 0,
+        };
+      }
+      consumoPorOrgao[orgaoId].litros += this.toNumber(abastecimento.quantidade);
+    }
 
-      // 8. Saldo de cota disponível
-      this.calcularSaldoCota(prefeituraId, filter),
+    const consumoPorOrgaoArray = Object.values(consumoPorOrgao)
+      .map((item) => ({
+        orgao_nome: item.orgao.nome,
+        litros: this.arredondar(item.litros, 1),
+      }))
+      .sort((a, b) => b.litros - a.litros);
 
-      // 9. Benchmark de preços
-      this.calcularBenchmarkPrecos(prefeituraId, filter),
+    // 2. Abastecimentos ao Longo do Tempo (gráfico de linha)
+    const abastecimentosPorPeriodo: Record<string, number> = {};
+    for (const abastecimento of abastecimentos) {
+      if (!abastecimento.data_abastecimento) continue;
+      const data = new Date(abastecimento.data_abastecimento);
+      const chave = `${data.getDate().toString().padStart(2, '0')}/${(data.getMonth() + 1).toString().padStart(2, '0')}`;
+      if (!abastecimentosPorPeriodo[chave]) {
+        abastecimentosPorPeriodo[chave] = 0;
+      }
+      abastecimentosPorPeriodo[chave] += this.toNumber(abastecimento.quantidade);
+    }
 
-      // 10. Fluxo de solicitações
-      this.calcularFluxoSolicitacoes(whereSolicitacao),
+    const evolucaoAbastecimentos = Object.entries(abastecimentosPorPeriodo)
+      .map(([data, litros]) => ({
+        data,
+        litros: this.arredondar(litros, 1),
+      }))
+      .sort((a, b) => {
+        const [diaA, mesA] = a.data.split('/').map(Number);
+        const [diaB, mesB] = b.data.split('/').map(Number);
+        if (mesA !== mesB) return mesA - mesB;
+        return diaA - diaB;
+      });
 
-      // 11. Tendência de abastecimentos
-      this.calcularTendenciaAbastecimentos(prefeituraId, dataInicio, dataFim, filter),
+    // 3. Variação de Preços dos Combustíveis (gráfico de linha)
+    const precosPorCombustivel: Record<
+      number,
+      Record<string, { preco: number; data: string }[]>
+    > = {};
 
-      // 12. Mix de combustíveis
-      this.calcularMixCombustiveis(prefeituraId, whereAbastecimento),
+    for (const abastecimento of abastecimentos) {
+      if (!abastecimento.data_abastecimento || !abastecimento.preco_empresa) continue;
+      const combustivelId = abastecimento.combustivel.id;
+      const data = new Date(abastecimento.data_abastecimento);
+      const chave = `${data.getDate().toString().padStart(2, '0')}/${(data.getMonth() + 1).toString().padStart(2, '0')}`;
 
-      // 13. Uso de cotas
-      this.calcularUsoCotas(prefeituraId, filter),
+      if (!precosPorCombustivel[combustivelId]) {
+        precosPorCombustivel[combustivelId] = {};
+      }
+      if (!precosPorCombustivel[combustivelId][chave]) {
+        precosPorCombustivel[combustivelId][chave] = [];
+      }
+      precosPorCombustivel[combustivelId][chave].push({
+        preco: this.toNumber(abastecimento.preco_empresa),
+        data: chave,
+      });
+    }
 
-      // 14. Compliance e auditoria
-      this.calcularCompliance(prefeituraId, filter),
+    const evolucaoPrecos = Object.entries(precosPorCombustivel).map(([combustivelIdStr, precos]) => {
+      const combustivelId = Number(combustivelIdStr);
+      const abastecimentoComCombustivel = abastecimentos.find(
+        (a) => a.combustivel.id === combustivelId,
+      );
+      const combustivel = abastecimentoComCombustivel?.combustivel;
+      const precosMedios = Object.entries(precos).map(([data, valores]) => {
+        const precoMedio =
+          valores.reduce((sum, v) => sum + v.preco, 0) / valores.length;
+        return {
+          data,
+          preco: this.arredondar(precoMedio, 2),
+        };
+      });
+      return {
+        combustivel: {
+          id: combustivel?.id || 0,
+          nome: combustivel?.nome || '',
+          sigla: combustivel?.sigla || '',
+        },
+        precos: precosMedios.sort((a, b) => {
+          const [diaA, mesA] = a.data.split('/').map(Number);
+          const [diaB, mesB] = b.data.split('/').map(Number);
+          if (mesA !== mesB) return mesA - mesB;
+          return diaA - diaB;
+        }),
+      };
+    });
 
-      // 15. Cobertura de contratos
-      this.calcularCoberturaContratos(prefeituraId, filter),
+    // 4. Top 10 veículos por quantidade abastecida
+    const porVeiculo: Record<
+      number,
+      {
+        veiculo: { id: number; nome: string; placa: string };
+        litros: number;
+        valor: number;
+      }
+    > = {};
 
-      // 16. Rede de fornecedores
-      this.calcularRedeFornecedores(prefeituraId, whereAbastecimento),
+    for (const abastecimento of abastecimentos) {
+      const veiculoId = abastecimento.veiculo.id;
+      if (!porVeiculo[veiculoId]) {
+        porVeiculo[veiculoId] = {
+          veiculo: abastecimento.veiculo,
+          litros: 0,
+          valor: 0,
+        };
+      }
+      porVeiculo[veiculoId].litros += this.toNumber(abastecimento.quantidade);
+      porVeiculo[veiculoId].valor += this.toNumber(abastecimento.valor_total);
+    }
 
-      // 17. Veículos com maior impacto
-      this.calcularVeiculosImpacto(prefeituraId, whereAbastecimento),
-    ]);
+    const topVeiculos = Object.values(porVeiculo)
+      .map((item, index) => ({
+        posicao: index + 1,
+        placa: item.veiculo.placa,
+        nome: item.veiculo.nome,
+        litros: this.arredondar(item.litros, 1),
+        valor: this.arredondar(item.valor, 2),
+      }))
+      .sort((a, b) => b.litros - a.litros)
+      .slice(0, 10);
 
-    // Calcular ticket médio
-    const ticketMedio =
-      abastecimentosCount > 0
-        ? this.toNumber(despesaAtual._sum.valor_total) / abastecimentosCount
-        : 0;
+    // 5. Top 10 motoristas por quantidade abastecida
+    const porMotorista: Record<
+      number,
+      {
+        motorista: { id: number; nome: string };
+        litros: number;
+        valor: number;
+        abastecimentos: number;
+      }
+    > = {};
 
-    // Calcular variação
-    const despesaAtualNum = this.toNumber(despesaAtual._sum.valor_total);
-    const despesaAnteriorNum = this.toNumber(despesaAnterior._sum.valor_total);
-    const variacaoDespesa = despesaAnteriorNum > 0 ? despesaAtualNum - despesaAnteriorNum : 0;
+    for (const abastecimento of abastecimentos) {
+      if (!abastecimento.motorista) continue;
+      const motoristaId = abastecimento.motorista.id;
+      if (!porMotorista[motoristaId]) {
+        porMotorista[motoristaId] = {
+          motorista: abastecimento.motorista,
+          litros: 0,
+          valor: 0,
+          abastecimentos: 0,
+        };
+      }
+      porMotorista[motoristaId].litros += this.toNumber(abastecimento.quantidade);
+      porMotorista[motoristaId].valor += this.toNumber(abastecimento.valor_total);
+      porMotorista[motoristaId].abastecimentos++;
+    }
 
-    const litrosAtualNum = this.toNumber(litrosAtual._sum.quantidade);
-    const litrosAnteriorNum = this.toNumber(litrosAnterior._sum.quantidade);
-    const variacaoLitros = litrosAnteriorNum > 0 ? litrosAtualNum - litrosAnteriorNum : 0;
+    const topMotoristas = Object.values(porMotorista)
+      .map((item, index) => ({
+        posicao: index + 1,
+        nome: item.motorista.nome,
+        litros: this.arredondar(item.litros, 1),
+        valor: this.arredondar(item.valor, 2),
+        abastecimentos: item.abastecimentos,
+      }))
+      .sort((a, b) => b.litros - a.litros)
+      .slice(0, 10);
+
+    // 6. Top 10 veículos por quilometragem rodada (com odômetro)
+    const veiculosComOdometro = abastecimentos
+      .filter((a) => a.odometro && a.odometro > 0)
+      .map((a) => ({
+        veiculo: a.veiculo,
+        odometro: a.odometro!,
+        litros: this.toNumber(a.quantidade),
+      }));
+
+    const porVeiculoOdometro: Record<
+      number,
+      {
+        veiculo: { id: number; nome: string; placa: string };
+        km: number;
+        litros: number;
+      }
+    > = {};
+
+    for (const item of veiculosComOdometro) {
+      const veiculoId = item.veiculo.id;
+      if (!porVeiculoOdometro[veiculoId]) {
+        porVeiculoOdometro[veiculoId] = {
+          veiculo: item.veiculo,
+          km: item.odometro,
+          litros: 0,
+        };
+      }
+      porVeiculoOdometro[veiculoId].km = Math.max(porVeiculoOdometro[veiculoId].km, item.odometro);
+      porVeiculoOdometro[veiculoId].litros += item.litros;
+    }
+
+    const topVeiculosOdometro = Object.values(porVeiculoOdometro)
+      .map((item, index) => ({
+        posicao: index + 1,
+        placa: item.veiculo.placa,
+        nome: item.veiculo.nome,
+        km: item.km,
+        litros: this.arredondar(item.litros, 1),
+      }))
+      .sort((a, b) => b.km - a.km)
+      .slice(0, 10);
+
+    // 7. Abastecimentos por Dia da Semana (gráfico de pizza)
+    const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    const porDiaSemana: Record<number, number> = {};
+
+    for (const abastecimento of abastecimentos) {
+      if (!abastecimento.data_abastecimento) continue;
+      const data = new Date(abastecimento.data_abastecimento);
+      const diaSemana = data.getDay();
+      if (!porDiaSemana[diaSemana]) {
+        porDiaSemana[diaSemana] = 0;
+      }
+      porDiaSemana[diaSemana] += this.toNumber(abastecimento.quantidade);
+    }
+
+    const totalLitrosSemana = Object.values(porDiaSemana).reduce((sum, litros) => sum + litros, 0);
+    const distribuicaoPorDiaSemana = diasSemana.map((dia, index) => {
+      const litros = porDiaSemana[index] || 0;
+      const percentual = totalLitrosSemana > 0 ? (litros / totalLitrosSemana) * 100 : 0;
+      return {
+        dia,
+        litros: this.arredondar(litros, 1),
+        percentual: this.arredondar(percentual, 1),
+      };
+    });
+
+    // 8. Redes Credenciadas (agrupado por localização e empresa)
+    const porLocalizacaoEmpresa: Record<
+      string,
+      Record<
+        number,
+        {
+          empresa: { id: number; nome: string; uf: string };
+          combustiveis: Record<
+            number,
+            {
+              combustivel: { id: number; nome: string; sigla: string };
+              litros: number;
+              valor: number;
+            }
+          >;
+          totalValor: number;
+        }
+      >
+    > = {};
+
+    for (const abastecimento of abastecimentos) {
+      // Extrair cidade do endereço completo ou usar UF como fallback
+      const cidade = abastecimento.empresa.endereco_completo
+        ? abastecimento.empresa.endereco_completo.split(',')[0] || 'Sem cidade'
+        : 'Sem cidade';
+      const localizacao = `${cidade} - ${abastecimento.empresa.uf}`;
+      const empresaId = abastecimento.empresa.id;
+      const combustivelId = abastecimento.combustivel.id;
+
+      if (!porLocalizacaoEmpresa[localizacao]) {
+        porLocalizacaoEmpresa[localizacao] = {};
+      }
+      if (!porLocalizacaoEmpresa[localizacao][empresaId]) {
+        porLocalizacaoEmpresa[localizacao][empresaId] = {
+          empresa: {
+            id: abastecimento.empresa.id,
+            nome: abastecimento.empresa.nome,
+            uf: abastecimento.empresa.uf,
+          },
+          combustiveis: {},
+          totalValor: 0,
+        };
+      }
+      if (!porLocalizacaoEmpresa[localizacao][empresaId].combustiveis[combustivelId]) {
+        porLocalizacaoEmpresa[localizacao][empresaId].combustiveis[combustivelId] = {
+          combustivel: {
+            id: abastecimento.combustivel.id,
+            nome: abastecimento.combustivel.nome,
+            sigla: abastecimento.combustivel.sigla,
+          },
+          litros: 0,
+          valor: 0,
+        };
+      }
+
+      const litros = this.toNumber(abastecimento.quantidade);
+      const valor = this.toNumber(abastecimento.valor_total);
+      porLocalizacaoEmpresa[localizacao][empresaId].combustiveis[combustivelId].litros += litros;
+      porLocalizacaoEmpresa[localizacao][empresaId].combustiveis[combustivelId].valor += valor;
+      porLocalizacaoEmpresa[localizacao][empresaId].totalValor += valor;
+    }
+
+    const redesCredenciadas = Object.entries(porLocalizacaoEmpresa).map(([localizacao, empresas]) => {
+      const empresasArray = Object.values(empresas).map((empresa) => ({
+        empresa_nome: empresa.empresa.nome,
+        total_valor: this.arredondar(empresa.totalValor, 2),
+        combustiveis: Object.values(empresa.combustiveis).map((comb) => ({
+          combustivel_nome: comb.combustivel.nome,
+          litros: this.arredondar(comb.litros, 1),
+          valor: this.arredondar(comb.valor, 2),
+        })),
+      }));
+
+      const totalLocalizacao = empresasArray.reduce((sum, e) => sum + e.total_valor, 0);
+
+      return {
+        localizacao,
+        total_valor: this.arredondar(totalLocalizacao, 2),
+        empresas: empresasArray,
+      };
+    });
 
     return {
-      despesaAbastecimentos: {
-        valor: despesaAtualNum,
-        variacao: variacaoDespesa,
-        periodoAnterior: despesaAnteriorNum,
+      periodo: {
+        dataInicio: dataInicio.toISOString(),
+        dataFim: dataFim.toISOString(),
       },
-      litrosAbastecidos: {
-        valor: litrosAtualNum,
-        variacao: variacaoLitros,
-        periodoAnterior: litrosAnteriorNum,
-        quantidadeAbastecimentos: abastecimentosCount,
-        ticketMedio: this.arredondar(ticketMedio, 2),
-      },
-      taxaAprovacao,
-      saldoCota,
-      benchmarkPrecos,
-      fluxoSolicitacoes,
-      tendenciaAbastecimentos,
-      mixCombustiveis,
-      usoCotas,
-      compliance,
-      coberturaContratos,
-      redeFornecedores,
-      veiculosImpacto,
+      processo_ativo: processoAtivo
+        ? {
+            id: processoAtivo.id,
+            numero_processo: processoAtivo.numero_processo,
+            tipo_contrato: processoAtivo.tipo_contrato,
+            kpis: processoAtivoKpis,
+          }
+        : null,
+      consumo_por_orgao: consumoPorOrgaoArray,
+      evolucao_abastecimentos: evolucaoAbastecimentos,
+      evolucao_precos: evolucaoPrecos,
+      top_veiculos: topVeiculos,
+      top_motoristas: topMotoristas,
+      top_veiculos_odometro: topVeiculosOdometro,
+      distribuicao_por_dia_semana: distribuicaoPorDiaSemana,
+      redes_credenciadas: redesCredenciadas,
     };
   }
 
