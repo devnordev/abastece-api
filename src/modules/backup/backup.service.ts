@@ -179,7 +179,7 @@ export class BackupService {
 
 `;
       for (const { model, table } of orderedTables) {
-        const records = await this.fetchAllRecords(model);
+        const records = await this.fetchAllRecords(model, table);
         if (records.length > 0) {
           sqlContent += this.generateInsertSQL(table, records);
         }
@@ -226,143 +226,104 @@ export class BackupService {
       }
 
       filename = `backup_${timestamp}.sql`;
-
-      // Buscar dados da prefeitura
-      const prefeitura = await this.prisma.prefeitura.findUnique({
-        where: { id: user.prefeituraId },
-      });
-
-      if (!prefeitura) {
+      
+      // Coletar dados da prefeitura via SQL raw para garantir valores corretos de enum
+      const prefeituraRecords = await this.fetchRecordsByTable('prefeitura', `id = ${user.prefeituraId}`);
+      if (prefeituraRecords.length === 0) {
         throw new NotFoundException('Prefeitura não encontrada');
       }
+      tablesData.push({ table: 'prefeitura', records: prefeituraRecords });
 
-      filename = `backup_${timestamp}.sql`;
-      
-      // Coletar dados da prefeitura
-      tablesData.push({ table: 'prefeitura', records: [prefeitura] });
-
-      // Buscar dados
-      const orgaos = await this.prisma.orgao.findMany({
-        where: { prefeituraId: user.prefeituraId },
-      });
+      // Buscar dados via SQL raw para garantir valores corretos de enum
+      const orgaos = await this.fetchRecordsByTable('orgao', `"prefeituraId" = ${user.prefeituraId}`);
       if (orgaos.length > 0) {
         tablesData.push({ table: 'orgao', records: orgaos });
       }
 
-      const motoristas = await this.prisma.motorista.findMany({
-        where: { prefeituraId: user.prefeituraId },
-      });
+      const motoristas = await this.fetchRecordsByTable('motorista', `"prefeituraId" = ${user.prefeituraId}`);
       if (motoristas.length > 0) {
         tablesData.push({ table: 'motorista', records: motoristas });
       }
 
-      const categorias = await this.prisma.categoria.findMany({
-        where: { prefeituraId: user.prefeituraId },
-      });
+      const categorias = await this.fetchRecordsByTable('categoria', `"prefeituraId" = ${user.prefeituraId}`);
       if (categorias.length > 0) {
         tablesData.push({ table: 'categoria', records: categorias });
       }
 
-      const contasFaturamento = await this.prisma.contaFaturamentoOrgao.findMany({
-        where: { prefeituraId: user.prefeituraId },
-      });
+      const contasFaturamento = await this.fetchRecordsByTable('conta_faturamento_orgao', `"prefeituraId" = ${user.prefeituraId}`);
       if (contasFaturamento.length > 0) {
         tablesData.push({ table: 'conta_faturamento_orgao', records: contasFaturamento });
       }
 
-      const veiculos = await this.prisma.veiculo.findMany({
-        where: { prefeituraId: user.prefeituraId },
-      });
+      const veiculos = await this.fetchRecordsByTable('veiculo', `"prefeituraId" = ${user.prefeituraId}`);
       if (veiculos.length > 0) {
         tablesData.push({ table: 'veiculo', records: veiculos });
       }
 
-      const usuarios = await this.prisma.usuario.findMany({
-        where: { prefeituraId: user.prefeituraId },
-      });
+      const usuarios = await this.fetchRecordsByTable('usuario', `"prefeituraId" = ${user.prefeituraId}`);
       if (usuarios.length > 0) {
         tablesData.push({ table: 'usuario', records: usuarios });
       }
 
-      const processos = await this.prisma.processo.findMany({
-        where: { prefeituraId: user.prefeituraId },
-      });
+      const processos = await this.fetchRecordsByTable('processo', `"prefeituraId" = ${user.prefeituraId}`);
       if (processos.length > 0) {
         tablesData.push({ table: 'processo', records: processos });
       }
 
-      // Buscar dados relacionados
+      // Buscar dados relacionados via SQL raw
       const veiculoIds = veiculos.map((v) => v.id);
       if (veiculoIds.length > 0) {
-        const abastecimentos = await this.prisma.abastecimento.findMany({
-          where: { veiculoId: { in: veiculoIds } },
-        });
+        const veiculoIdsStr = veiculoIds.join(',');
+        const abastecimentos = await this.fetchRecordsByTable('abastecimento', `"veiculoId" IN (${veiculoIdsStr})`);
         if (abastecimentos.length > 0) {
           tablesData.push({ table: 'abastecimento', records: abastecimentos });
         }
 
-        const veiculoCategorias = await this.prisma.veiculoCategoria.findMany({
-          where: { veiculoId: { in: veiculoIds } },
-        });
+        const veiculoCategorias = await this.fetchRecordsByTable('veiculo_categoria', `"veiculoId" IN (${veiculoIdsStr})`);
         if (veiculoCategorias.length > 0) {
           tablesData.push({ table: 'veiculo_categoria', records: veiculoCategorias });
         }
 
-        const veiculoCombustiveis = await this.prisma.veiculoCombustivel.findMany({
-          where: { veiculoId: { in: veiculoIds } },
-        });
+        const veiculoCombustiveis = await this.fetchRecordsByTable('veiculo_combustivel', `"veiculoId" IN (${veiculoIdsStr})`);
         if (veiculoCombustiveis.length > 0) {
           tablesData.push({ table: 'veiculo_combustivel', records: veiculoCombustiveis });
         }
 
-        const veiculoMotoristas = await this.prisma.veiculoMotorista.findMany({
-          where: { veiculoId: { in: veiculoIds } },
-        });
+        const veiculoMotoristas = await this.fetchRecordsByTable('veiculo_motorista', `"veiculoId" IN (${veiculoIdsStr})`);
         if (veiculoMotoristas.length > 0) {
           tablesData.push({ table: 'veiculo_motorista', records: veiculoMotoristas });
         }
 
-        const veiculoCotaPeriodos = await this.prisma.veiculoCotaPeriodo.findMany({
-          where: { veiculoId: { in: veiculoIds } },
-        });
+        const veiculoCotaPeriodos = await this.fetchRecordsByTable('veiculo_cota_periodo', `"veiculoId" IN (${veiculoIdsStr})`);
         if (veiculoCotaPeriodos.length > 0) {
           tablesData.push({ table: 'veiculo_cota_periodo', records: veiculoCotaPeriodos });
         }
       }
 
-      const solicitacoes = await this.prisma.solicitacaoAbastecimento.findMany({
-        where: { prefeituraId: user.prefeituraId },
-      });
+      const solicitacoes = await this.fetchRecordsByTable('solicitacoes_abastecimento', `"prefeituraId" = ${user.prefeituraId}`);
       if (solicitacoes.length > 0) {
         tablesData.push({ table: 'solicitacoes_abastecimento', records: solicitacoes });
       }
 
-      const solicitacoesQrCodeVeiculo = await this.prisma.solicitacoesQrCodeVeiculo.findMany({
-        where: { prefeitura_id: user.prefeituraId },
-      });
+      const solicitacoesQrCodeVeiculo = await this.fetchRecordsByTable('solicitacoes_qrcode_veiculo', `"prefeitura_id" = ${user.prefeituraId}`);
       if (solicitacoesQrCodeVeiculo.length > 0) {
         tablesData.push({ table: 'solicitacoes_qrcode_veiculo', records: solicitacoesQrCodeVeiculo });
       }
 
-      const qrCodesMotorista = await this.prisma.qrCodeMotorista.findMany({
-        where: { prefeitura_id: user.prefeituraId },
-      });
+      const qrCodesMotorista = await this.fetchRecordsByTable('qrcode_motorista', `"prefeitura_id" = ${user.prefeituraId}`);
       if (qrCodesMotorista.length > 0) {
         tablesData.push({ table: 'qrcode_motorista', records: qrCodesMotorista });
       }
 
       if (processos.length > 0) {
         const processoIds = processos.map((p) => p.id);
-        const cotasOrgao = await this.prisma.cotaOrgao.findMany({
-          where: { processoId: { in: processoIds } },
-        });
+        const processoIdsStr = processoIds.join(',');
+        const cotasOrgao = await this.fetchRecordsByTable('cota_orgao', `"processoId" IN (${processoIdsStr})`);
         if (cotasOrgao.length > 0) {
           tablesData.push({ table: 'cota_orgao', records: cotasOrgao });
         }
 
-        const processoCombustiveis = await this.prisma.processoCombustivel.findMany({
-          where: { processoId: { in: processoIds } },
-        });
+        const processoCombustiveis = await this.fetchRecordsByTable('processo_combustivel', `"processoId" IN (${processoIdsStr})`);
         if (processoCombustiveis.length > 0) {
           tablesData.push({ table: 'processo_combustivel', records: processoCombustiveis });
         }
@@ -371,12 +332,9 @@ export class BackupService {
       if (usuarios.length > 0 && orgaos.length > 0) {
         const usuarioIds = usuarios.map((u) => u.id);
         const orgaoIds = orgaos.map((o) => o.id);
-        const usuarioOrgaos = await this.prisma.usuarioOrgao.findMany({
-          where: {
-            usuarioId: { in: usuarioIds },
-            orgaoId: { in: orgaoIds },
-          },
-        });
+        const usuarioIdsStr = usuarioIds.join(',');
+        const orgaoIdsStr = orgaoIds.join(',');
+        const usuarioOrgaos = await this.fetchRecordsByTable('usuario_orgao', `"usuarioId" IN (${usuarioIdsStr}) AND "orgaoId" IN (${orgaoIdsStr})`);
         if (usuarioOrgaos.length > 0) {
           tablesData.push({ table: 'usuario_orgao', records: usuarioOrgaos });
         }
@@ -388,78 +346,54 @@ export class BackupService {
 
       filename = `backup_${timestamp}.sql`;
 
-      // Buscar dados da empresa
-      const empresa = await this.prisma.empresa.findUnique({
-        where: { id: user.empresaId },
-      });
-
-      if (!empresa) {
+      // Buscar dados da empresa via SQL raw para garantir valores corretos de enum
+      const empresaRecords = await this.fetchRecordsByTable('empresa', `id = ${user.empresaId}`);
+      if (empresaRecords.length === 0) {
         throw new NotFoundException('Empresa não encontrada');
       }
+      tablesData.push({ table: 'empresa', records: empresaRecords });
 
-      tablesData.push({ table: 'empresa', records: [empresa] });
-
-      // Buscar dados
-      const usuarios = await this.prisma.usuario.findMany({
-        where: { empresaId: user.empresaId },
-      });
+      // Buscar dados via SQL raw
+      const usuarios = await this.fetchRecordsByTable('usuario', `"empresaId" = ${user.empresaId}`);
       if (usuarios.length > 0) {
         tablesData.push({ table: 'usuario', records: usuarios });
       }
 
-      const contratos = await this.prisma.contrato.findMany({
-        where: { empresaId: user.empresaId },
-      });
+      const contratos = await this.fetchRecordsByTable('contrato', `"empresaId" = ${user.empresaId}`);
       if (contratos.length > 0) {
         tablesData.push({ table: 'contrato', records: contratos });
       }
 
       if (contratos.length > 0) {
         const contratoIds = contratos.map((c) => c.id);
-        const contratoCombustiveis = await this.prisma.contratoCombustivel.findMany({
-          where: { contratoId: { in: contratoIds } },
-        });
+        const contratoIdsStr = contratoIds.join(',');
+        const contratoCombustiveis = await this.fetchRecordsByTable('contrato_combustivel', `"contratoId" IN (${contratoIdsStr})`);
         if (contratoCombustiveis.length > 0) {
           tablesData.push({ table: 'contrato_combustivel', records: contratoCombustiveis });
         }
 
-        const aditivosContrato = await this.prisma.aditivoContrato.findMany({
-          where: { contratoId: { in: contratoIds } },
-        });
+        const aditivosContrato = await this.fetchRecordsByTable('aditivo_contrato', `"contratoId" IN (${contratoIdsStr})`);
         if (aditivosContrato.length > 0) {
           tablesData.push({ table: 'aditivo_contrato', records: aditivosContrato });
         }
       }
 
-      const precosCombustiveis = await this.prisma.empresaPrecoCombustivel.findMany({
-        where: { empresa_id: user.empresaId },
-      });
+      const precosCombustiveis = await this.fetchRecordsByTable('empresa_preco_combustivel', `"empresa_id" = ${user.empresaId}`);
       if (precosCombustiveis.length > 0) {
         tablesData.push({ table: 'empresa_preco_combustivel', records: precosCombustiveis });
       }
 
-      const abastecimentos = await this.prisma.abastecimento.findMany({
-        where: {
-          OR: [
-            { empresaId: user.empresaId },
-            { abastecedorId: user.empresaId },
-          ],
-        },
-      });
+      const abastecimentos = await this.fetchRecordsByTable('abastecimento', `"empresaId" = ${user.empresaId} OR "abastecedorId" = ${user.empresaId}`);
       if (abastecimentos.length > 0) {
         tablesData.push({ table: 'abastecimento', records: abastecimentos });
       }
 
-      const solicitacoes = await this.prisma.solicitacaoAbastecimento.findMany({
-        where: { empresaId: user.empresaId },
-      });
+      const solicitacoes = await this.fetchRecordsByTable('solicitacoes_abastecimento', `"empresaId" = ${user.empresaId}`);
       if (solicitacoes.length > 0) {
         tablesData.push({ table: 'solicitacoes_abastecimento', records: solicitacoes });
       }
 
-      const notificacoes = await this.prisma.notificacao.findMany({
-        where: { empresa_id: user.empresaId },
-      });
+      const notificacoes = await this.fetchRecordsByTable('notificacao', `"empresa_id" = ${user.empresaId}`);
       if (notificacoes.length > 0) {
         tablesData.push({ table: 'notificacao', records: notificacoes });
       }
@@ -673,14 +607,44 @@ export class BackupService {
 
   /**
    * Obtém todos os registros de um delegate Prisma de forma genérica.
+   * Para garantir que os valores de enum sejam retornados corretamente (com mapeamento),
+   * busca diretamente do banco via SQL raw quando possível.
    */
-  private async fetchAllRecords(modelKey: string): Promise<any[]> {
+  private async fetchAllRecords(modelKey: string, tableName?: string, whereClause?: string): Promise<any[]> {
+    // Se temos o nome da tabela, buscar diretamente via SQL para garantir valores corretos de enum
+    if (tableName) {
+      try {
+        const where = whereClause ? ` WHERE ${whereClause}` : '';
+        const result = await this.prisma.$queryRawUnsafe(`SELECT * FROM "${tableName}"${where}`);
+        return result as any[];
+      } catch (sqlError: any) {
+        // Se falhar, tentar via Prisma
+        console.warn(`Erro ao buscar via SQL raw para ${tableName}, tentando via Prisma:`, sqlError.message);
+      }
+    }
+
+    // Fallback: usar Prisma normalmente
     const delegate = (this.prisma as Record<string, any>)[modelKey];
     if (!delegate || typeof delegate.findMany !== 'function') {
       throw new Error(`Delegate Prisma "${modelKey}" não encontrado.`);
     }
 
     return delegate.findMany();
+  }
+
+  /**
+   * Busca registros de uma tabela via SQL raw com filtro WHERE
+   * Garante que os valores de enum sejam retornados corretamente (com mapeamento)
+   */
+  private async fetchRecordsByTable(tableName: string, whereClause?: string): Promise<any[]> {
+    try {
+      const where = whereClause ? ` WHERE ${whereClause}` : '';
+      const result = await this.prisma.$queryRawUnsafe(`SELECT * FROM "${tableName}"${where}`);
+      return result as any[];
+    } catch (sqlError: any) {
+      console.warn(`Erro ao buscar via SQL raw para ${tableName}:`, sqlError.message);
+      throw sqlError;
+    }
   }
 
   /**
@@ -882,13 +846,13 @@ export class BackupService {
             continue;
           }
 
-          // Tentar buscar registros usando o modelo Prisma
+          // Buscar registros diretamente via SQL para garantir valores corretos de enum
           let records: any[] = [];
           try {
-            records = await this.fetchAllRecords(model);
+            records = await this.fetchAllRecords(model, table);
           } catch (modelError: any) {
-            // Se o modelo não existir no Prisma, tentar buscar diretamente via SQL
-            console.warn(`Modelo ${model} não encontrado no Prisma, tentando busca direta via SQL para tabela ${table}`);
+            // Se falhar, tentar buscar diretamente via SQL
+            console.warn(`Erro ao buscar via fetchAllRecords para ${table}, tentando busca direta via SQL:`, modelError.message);
             try {
               const sqlResult = await this.prisma.$queryRawUnsafe(`SELECT * FROM "${table}"`);
               records = sqlResult as any[];
