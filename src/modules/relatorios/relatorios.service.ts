@@ -1144,8 +1144,284 @@ export class RelatoriosService {
 
   // Métodos para painel de faturamento
   async getPainelFaturamentoAdminPrefeitura(user: any, filter?: FilterRelatorioDto) {
+    const prefeituraId = this.obterPrefeituraId(user);
+
+    // Calcular período baseado nos filtros
+    let dataInicio: Date;
+    let dataFim: Date;
+
+    if (filter?.dataInicio && filter?.dataFim) {
+      dataInicio = new Date(filter.dataInicio);
+      dataFim = new Date(filter.dataFim);
+      // Ajustar para incluir o dia inteiro
+      dataFim.setHours(23, 59, 59, 999);
+    } else {
+      // Se não especificado, usar mês atual
+      const agora = new Date();
+      dataInicio = new Date(agora.getFullYear(), agora.getMonth(), 1);
+      dataFim = new Date(agora.getFullYear(), agora.getMonth() + 1, 0, 23, 59, 59, 999);
+    }
+
+    // Construir filtros para abastecimentos aprovados
+    const whereAbastecimento: Prisma.AbastecimentoWhereInput = {
+      ativo: true,
+      status: StatusAbastecimento.Aprovado,
+      veiculo: {
+        prefeituraId,
+      },
+      data_abastecimento: {
+        gte: dataInicio,
+        lte: dataFim,
+      },
+    };
+
+    // Aplicar filtros adicionais
+    if (filter?.orgaoId) {
+      whereAbastecimento.veiculo = {
+        prefeituraId,
+        orgaoId: filter.orgaoId,
+      };
+    }
+
+    if (filter?.combustivelId) {
+      whereAbastecimento.combustivelId = filter.combustivelId;
+    }
+
+    if (filter?.veiculoId) {
+      whereAbastecimento.veiculoId = filter.veiculoId;
+    }
+
+    if (filter?.empresaId) {
+      whereAbastecimento.empresaId = filter.empresaId;
+    }
+
+    // Buscar todos os abastecimentos do período
+    const abastecimentos = await this.prisma.abastecimento.findMany({
+      where: whereAbastecimento,
+      include: {
+        empresa: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+        veiculo: {
+          select: {
+            id: true,
+            nome: true,
+            placa: true,
+            orgao: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+              },
+            },
+          },
+        },
+        contaFaturamento: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+      },
+    });
+
+    // Calcular overview
+    const totalAbastecido = abastecimentos.reduce(
+      (sum, a) => sum + this.toNumber(a.quantidade),
+      0,
+    );
+    const valorGasto = abastecimentos.reduce(
+      (sum, a) => sum + this.toNumber(a.valor_total),
+      0,
+    );
+    const quantidadeAbastecimentos = abastecimentos.length;
+    const ticketMedio = quantidadeAbastecimentos > 0 ? valorGasto / quantidadeAbastecimentos : 0;
+
+    // Agrupar por empresa
+    const porEmpresa: Record<
+      number,
+      {
+        empresa: { id: number; nome: string };
+        abastecimentos: number;
+        litros: number;
+        valor: number;
+      }
+    > = {};
+
+    for (const abastecimento of abastecimentos) {
+      const empresaId = abastecimento.empresa.id;
+      if (!porEmpresa[empresaId]) {
+        porEmpresa[empresaId] = {
+          empresa: abastecimento.empresa,
+          abastecimentos: 0,
+          litros: 0,
+          valor: 0,
+        };
+      }
+      porEmpresa[empresaId].abastecimentos++;
+      porEmpresa[empresaId].litros += this.toNumber(abastecimento.quantidade);
+      porEmpresa[empresaId].valor += this.toNumber(abastecimento.valor_total);
+    }
+
+    const faturamentoPorEmpresa = Object.values(porEmpresa)
+      .map((item) => ({
+        empresa_nome: item.empresa.nome,
+        abastecimentos_count: item.abastecimentos,
+        litros: this.arredondar(item.litros, 2),
+        valor: this.arredondar(item.valor, 2),
+      }))
+      .sort((a, b) => b.valor - a.valor);
+
+    // Agrupar por combustível
+    const porCombustivel: Record<
+      number,
+      {
+        combustivel: { id: number; nome: string; sigla: string };
+        abastecimentos: number;
+        litros: number;
+        valor: number;
+      }
+    > = {};
+
+    for (const abastecimento of abastecimentos) {
+      const combustivelId = abastecimento.combustivel.id;
+      if (!porCombustivel[combustivelId]) {
+        porCombustivel[combustivelId] = {
+          combustivel: abastecimento.combustivel,
+          abastecimentos: 0,
+          litros: 0,
+          valor: 0,
+        };
+      }
+      porCombustivel[combustivelId].abastecimentos++;
+      porCombustivel[combustivelId].litros += this.toNumber(abastecimento.quantidade);
+      porCombustivel[combustivelId].valor += this.toNumber(abastecimento.valor_total);
+    }
+
+    const faturamentoPorCombustivel = Object.values(porCombustivel)
+      .map((item) => ({
+        combustivel_nome: item.combustivel.nome,
+        abastecimentos_count: item.abastecimentos,
+        litros: this.arredondar(item.litros, 2),
+        valor: this.arredondar(item.valor, 2),
+      }))
+      .sort((a, b) => b.valor - a.valor);
+
+    // Agrupar por órgão
+    const porOrgao: Record<
+      number,
+      {
+        orgao: { id: number; nome: string; sigla: string } | null;
+        abastecimentos: number;
+        litros: number;
+        valor: number;
+      }
+    > = {};
+
+    for (const abastecimento of abastecimentos) {
+      const orgaoId = abastecimento.veiculo.orgao?.id;
+      if (!orgaoId) continue;
+
+      if (!porOrgao[orgaoId]) {
+        porOrgao[orgaoId] = {
+          orgao: abastecimento.veiculo.orgao,
+          abastecimentos: 0,
+          litros: 0,
+          valor: 0,
+        };
+      }
+      porOrgao[orgaoId].abastecimentos++;
+      porOrgao[orgaoId].litros += this.toNumber(abastecimento.quantidade);
+      porOrgao[orgaoId].valor += this.toNumber(abastecimento.valor_total);
+    }
+
+    const faturamentoPorOrgao = Object.values(porOrgao)
+      .map((item) => ({
+        orgao_nome: item.orgao?.nome || 'Sem órgão',
+        abastecimentos_count: item.abastecimentos,
+        litros: this.arredondar(item.litros, 2),
+        valor: this.arredondar(item.valor, 2),
+      }))
+      .sort((a, b) => b.valor - a.valor);
+
+    // Agrupar por conta de faturamento
+    const porConta: Record<
+      number,
+      {
+        conta: { id: number; nome: string } | null;
+        abastecimentos: number;
+        litros: number;
+        valor: number;
+      }
+    > = {};
+
+    for (const abastecimento of abastecimentos) {
+      const contaId = abastecimento.contaFaturamento?.id;
+      if (!contaId) continue;
+
+      if (!porConta[contaId]) {
+        porConta[contaId] = {
+          conta: abastecimento.contaFaturamento,
+          abastecimentos: 0,
+          litros: 0,
+          valor: 0,
+        };
+      }
+      porConta[contaId].abastecimentos++;
+      porConta[contaId].litros += this.toNumber(abastecimento.quantidade);
+      porConta[contaId].valor += this.toNumber(abastecimento.valor_total);
+    }
+
+    const faturamentoPorConta = Object.values(porConta)
+      .map((item) => ({
+        conta_nome: item.conta?.nome || 'Sem conta',
+        abastecimentos_count: item.abastecimentos,
+        litros: this.arredondar(item.litros, 2),
+        valor: this.arredondar(item.valor, 2),
+      }))
+      .sort((a, b) => b.valor - a.valor);
+
+    // Formatar período para exibição
+    const meses = [
+      'janeiro',
+      'fevereiro',
+      'março',
+      'abril',
+      'maio',
+      'junho',
+      'julho',
+      'agosto',
+      'setembro',
+      'outubro',
+      'novembro',
+      'dezembro',
+    ];
+    const periodoFormatado = `${meses[dataInicio.getMonth()]} de ${dataInicio.getFullYear()}`;
+
     return {
-      message: 'Painel de faturamento - em desenvolvimento',
+      periodo: periodoFormatado,
+      dataInicio: dataInicio.toISOString(),
+      dataFim: dataFim.toISOString(),
+      overview: {
+        total_abastecido_litros: this.arredondar(totalAbastecido, 2),
+        total_abastecimentos_count: quantidadeAbastecimentos,
+        valor_gasto_total: this.arredondar(valorGasto, 2),
+        ticket_medio: this.arredondar(ticketMedio, 2),
+      },
+      faturamento_por_empresa: faturamentoPorEmpresa,
+      faturamento_por_combustivel: faturamentoPorCombustivel,
+      faturamento_por_orgao: faturamentoPorOrgao,
+      faturamento_por_conta: faturamentoPorConta,
     };
   }
 
