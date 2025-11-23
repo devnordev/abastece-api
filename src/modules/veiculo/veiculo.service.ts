@@ -108,6 +108,20 @@ export class VeiculoService {
 
     // Verificar se motoristas existem e pertencem à prefeitura (se fornecidos)
     if (createVeiculoDto.motoristaIds && createVeiculoDto.motoristaIds.length > 0) {
+      // Primeiro, buscar todos os motoristas enviados (sem filtro de prefeitura) para diagnóstico
+      const todosMotoristas = await this.prisma.motorista.findMany({
+        where: {
+          id: { in: createVeiculoDto.motoristaIds },
+        },
+        select: {
+          id: true,
+          nome: true,
+          prefeituraId: true,
+          ativo: true,
+        },
+      });
+
+      // Depois, buscar apenas os que pertencem à prefeitura informada
       const motoristas = await this.prisma.motorista.findMany({
         where: {
           id: { in: createVeiculoDto.motoristaIds },
@@ -120,6 +134,16 @@ export class VeiculoService {
         const motoristasEncontradosIds = motoristas.map(m => m.id);
         const motoristasNaoEncontrados = createVeiculoDto.motoristaIds.filter(id => !motoristasEncontradosIds.includes(id));
         
+        // Buscar informações detalhadas dos motoristas que falharam
+        const motoristasFalhados = todosMotoristas.filter(m => !motoristasEncontradosIds.includes(m.id));
+        const motoristasInexistentes = motoristasNaoEncontrados.filter(
+          id => !todosMotoristas.some(m => m.id === id)
+        );
+        const motoristasPrefeituraDiferente = motoristasFalhados.filter(
+          m => m.prefeituraId !== prefeituraId
+        );
+        const motoristasInativos = motoristasFalhados.filter(m => !m.ativo);
+        
         throw new NotFoundException({
           message: 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura',
           prefeituraId: prefeituraId,
@@ -129,6 +153,20 @@ export class VeiculoService {
           motoristasNaoEncontrados: motoristasNaoEncontrados,
           totalEnviados: createVeiculoDto.motoristaIds.length,
           totalEncontrados: motoristas.length,
+          detalhes: {
+            motoristasInexistentes: motoristasInexistentes,
+            motoristasPrefeituraDiferente: motoristasPrefeituraDiferente.map(m => ({
+              id: m.id,
+              nome: m.nome,
+              prefeituraId: m.prefeituraId,
+              prefeituraIdEsperada: prefeituraId,
+            })),
+            motoristasInativos: motoristasInativos.map(m => ({
+              id: m.id,
+              nome: m.nome,
+              ativo: m.ativo,
+            })),
+          },
         });
       }
     }
@@ -1138,6 +1176,20 @@ export class VeiculoService {
 
       // Validar se motoristas existem e pertencem à prefeitura
       if (motoristasValidos.length > 0) {
+        // Primeiro, buscar todos os motoristas enviados (sem filtro de prefeitura) para diagnóstico
+        const todosMotoristas = await this.prisma.motorista.findMany({
+          where: {
+            id: { in: motoristasValidos },
+          },
+          select: {
+            id: true,
+            nome: true,
+            prefeituraId: true,
+            ativo: true,
+          },
+        });
+
+        // Depois, buscar apenas os que pertencem à prefeitura do veículo
         const motoristas = await this.prisma.motorista.findMany({
           where: {
             id: { in: motoristasValidos },
@@ -1150,6 +1202,16 @@ export class VeiculoService {
           const motoristasEncontradosIds = motoristas.map(m => m.id);
           const motoristasNaoEncontrados = motoristasValidos.filter(id => !motoristasEncontradosIds.includes(id));
           
+          // Buscar informações detalhadas dos motoristas que falharam
+          const motoristasFalhados = todosMotoristas.filter(m => !motoristasEncontradosIds.includes(m.id));
+          const motoristasInexistentes = motoristasNaoEncontrados.filter(
+            id => !todosMotoristas.some(m => m.id === id)
+          );
+          const motoristasPrefeituraDiferente = motoristasFalhados.filter(
+            m => m.prefeituraId !== existingVeiculo.prefeituraId
+          );
+          const motoristasInativos = motoristasFalhados.filter(m => !m.ativo);
+          
           throw new NotFoundException({
             message: 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura',
             prefeituraId: existingVeiculo.prefeituraId,
@@ -1159,6 +1221,20 @@ export class VeiculoService {
             motoristasNaoEncontrados: motoristasNaoEncontrados,
             totalEnviados: motoristasValidos.length,
             totalEncontrados: motoristas.length,
+            detalhes: {
+              motoristasInexistentes: motoristasInexistentes,
+              motoristasPrefeituraDiferente: motoristasPrefeituraDiferente.map(m => ({
+                id: m.id,
+                nome: m.nome,
+                prefeituraId: m.prefeituraId,
+                prefeituraIdEsperada: existingVeiculo.prefeituraId,
+              })),
+              motoristasInativos: motoristasInativos.map(m => ({
+                id: m.id,
+                nome: m.nome,
+                ativo: m.ativo,
+              })),
+            },
           });
         }
       }
