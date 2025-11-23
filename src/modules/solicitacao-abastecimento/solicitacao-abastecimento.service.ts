@@ -1792,7 +1792,8 @@ export class SolicitacaoAbastecimentoService {
   ): Promise<void> {
     const veiculo = solicitacao.veiculo;
 
-    // Apenas processar se for tipo COM_COTA e tiver periodicidade
+    // Apenas processar se for tipo COM_COTA (COTA no enum do veículo) e tiver periodicidade
+    // TipoAbastecimentoVeiculo.COTA corresponde ao tipo COM_COTA mencionado na documentação
     if (
       veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA &&
       veiculo.periodicidade
@@ -1821,13 +1822,14 @@ export class SolicitacaoAbastecimentoService {
           const quantidadePermitida = Number(cotaPeriodo.quantidade_permitida.toString());
 
           // Liberar os litros: decrementar quantidade_utilizada e recalcular quantidade_disponivel
-          // A quantidade_utilizada não pode ficar negativa
-          const novaQuantidadeUtilizada = Math.max(quantidadeUtilizadaAtual - quantidadeSolicitacao, 0);
+          // Permitir valores negativos para permitir que o veículo possa solicitar novo abastecimento
+          const novaQuantidadeUtilizada = quantidadeUtilizadaAtual - quantidadeSolicitacao;
           
           // Recalcular quantidade_disponivel baseado na fórmula:
           // quantidade_utilizada + quantidade_disponivel = quantidade_permitida
           // Então: quantidade_disponivel = quantidade_permitida - quantidade_utilizada
-          const novaQuantidadeDisponivel = Math.max(quantidadePermitida - novaQuantidadeUtilizada, 0);
+          // Se quantidade_utilizada ficar negativa, quantidade_disponivel pode exceder quantidade_permitida
+          const novaQuantidadeDisponivel = quantidadePermitida - novaQuantidadeUtilizada;
 
           // Atualizar VeiculoCotaPeriodo
           await tx.veiculoCotaPeriodo.update({
