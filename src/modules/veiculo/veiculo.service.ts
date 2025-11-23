@@ -1261,6 +1261,37 @@ export class VeiculoService {
       // Log para debug
       console.log('[DEBUG] motoristasValidos após processamento:', motoristasValidos, 'length:', motoristasValidos.length);
       if (motoristasValidos.length > 0) {
+        // Verificar se os IDs enviados são IDs de vínculos (veiculo_motorista) ao invés de motoristaId
+        const vinculosExistentes = await this.prisma.veiculoMotorista.findMany({
+          where: {
+            id: { in: motoristasValidos },
+            veiculoId: id,
+          },
+          select: {
+            id: true,
+            motoristaId: true,
+          },
+        });
+
+        let idsVinculosConvertidos: number[] = [];
+        let idsVinculosOriginais: number[] = [];
+
+        // Se encontrou vínculos, significa que foram enviados IDs de vínculos ao invés de motoristaId
+        if (vinculosExistentes.length > 0) {
+          // Converter IDs de vínculos para motoristaId
+          const motoristaIdsDosVinculos = vinculosExistentes.map(v => v.motoristaId);
+          idsVinculosOriginais = vinculosExistentes.map(v => v.id);
+          idsVinculosConvertidos = motoristaIdsDosVinculos;
+          const idsNaoSaoVinculos = motoristasValidos.filter(id => !idsVinculosOriginais.includes(id));
+          
+          // Combinar motoristaIds dos vínculos com os IDs que não são vínculos (assumindo que são motoristaId)
+          motoristasValidos = [...new Set([...motoristaIdsDosVinculos, ...idsNaoSaoVinculos])];
+          
+          console.log('[DEBUG] IDs de vínculos detectados:', idsVinculosOriginais);
+          console.log('[DEBUG] Convertidos para motoristaIds:', motoristaIdsDosVinculos);
+          console.log('[DEBUG] motoristasValidos após conversão:', motoristasValidos);
+        }
+
         // Primeiro, buscar todos os motoristas enviados (sem filtro de prefeitura) para diagnóstico
         const todosMotoristas = await this.prisma.motorista.findMany({
           where: {
@@ -1326,6 +1357,11 @@ export class VeiculoService {
           
           // Construir mensagem descritiva
           let mensagemDetalhada = 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura.';
+          
+          // Adicionar informação sobre conversão de IDs de vínculos, se houver
+          if (idsVinculosOriginais.length > 0) {
+            mensagemDetalhada += ` ATENÇÃO: Foram detectados IDs de vínculos (veiculo_motorista) ao invés de motoristaId. IDs de vínculos convertidos: ${idsVinculosOriginais.join(', ')} → motoristaIds: ${idsVinculosConvertidos.join(', ')}.`;
+          }
           
           if (motoristasNaoEncontrados.length > 0) {
             mensagemDetalhada += ` Motoristas não encontrados: ${motoristasNaoEncontrados.join(', ')}.`;
