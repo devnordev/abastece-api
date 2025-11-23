@@ -1686,39 +1686,65 @@ export class AbastecimentoService {
       };
     }
 
-    // Calcular intervalo de período baseado na periodicidade
+    // Buscar a cota de período ativa que contém a data atual
     const dataAtual = new Date();
-    const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, veiculo.periodicidade);
-
-    // Buscar abastecimentos do veículo no período
-    const abastecimentosPeriodo = await this.prisma.abastecimento.aggregate({
-      _sum: {
-        quantidade: true,
-      },
+    const cotaPeriodo = await this.prisma.veiculoCotaPeriodo.findFirst({
       where: {
         veiculoId: veiculoId,
-        data_abastecimento: {
-          gte: inicio,
-          lte: fim,
-        },
+        periodicidade: veiculo.periodicidade,
+        data_inicio_periodo: { lte: dataAtual },
+        data_fim_periodo: { gte: dataAtual },
         ativo: true,
-        // Considerar apenas abastecimentos aprovados
-        status: {
-          in: [StatusAbastecimento.Aprovado],
-        },
+      },
+      orderBy: {
+        data_inicio_periodo: 'desc',
       },
     });
 
-    const quantidadeUtilizada = abastecimentosPeriodo._sum.quantidade
-      ? Number(abastecimentosPeriodo._sum.quantidade.toString())
-      : 0;
+    // Se não encontrar cota período, calcular baseado em abastecimentos (fallback)
+    let quantidadeUtilizada = 0;
+    let quantidadeLimite = Number(veiculo.quantidade.toString());
+    let quantidadeDisponivel = quantidadeLimite;
+    let quantidadePermitida = quantidadeLimite;
 
-    const quantidadeLimite = Number(veiculo.quantidade.toString());
+    if (cotaPeriodo) {
+      // Usar dados da tabela veiculo_cota_periodo
+      quantidadeUtilizada = Number(cotaPeriodo.quantidade_utilizada.toString());
+      quantidadePermitida = Number(cotaPeriodo.quantidade_permitida.toString());
+      quantidadeDisponivel = Number(cotaPeriodo.quantidade_disponivel.toString());
+      quantidadeLimite = quantidadePermitida;
+    } else {
+      // Fallback: calcular baseado em abastecimentos
+      const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, veiculo.periodicidade);
+      const abastecimentosPeriodo = await this.prisma.abastecimento.aggregate({
+        _sum: {
+          quantidade: true,
+        },
+        where: {
+          veiculoId: veiculoId,
+          data_abastecimento: {
+            gte: inicio,
+            lte: fim,
+          },
+          ativo: true,
+          // Considerar apenas abastecimentos aprovados
+          status: {
+            in: [StatusAbastecimento.Aprovado],
+          },
+        },
+      });
+
+      quantidadeUtilizada = abastecimentosPeriodo._sum.quantidade
+        ? Number(abastecimentosPeriodo._sum.quantidade.toString())
+        : 0;
+      quantidadeDisponivel = Math.max(0, quantidadeLimite - quantidadeUtilizada);
+    }
+
+    // Verificar se excedeu: quantidade solicitada deve ser <= quantidade_disponivel
+    // Permitir quando quantidade_disponivel >= quantidade_solicitada (permite igualdade)
     const novaQuantidadeTotal = quantidadeUtilizada + qntLitros;
-    // Verificar se excedeu (maior ou igual ao limite)
-    const excedeu = novaQuantidadeTotal >= quantidadeLimite;
-    const quantidadeDisponivel = Math.max(0, quantidadeLimite - quantidadeUtilizada);
-    const excedeuPor = excedeu ? novaQuantidadeTotal - quantidadeLimite : 0;
+    const excedeu = qntLitros > quantidadeDisponivel;
+    const excedeuPor = excedeu ? qntLitros - quantidadeDisponivel : 0;
 
     // Formatar nome da periodicidade
     const periodicidadeNome = {

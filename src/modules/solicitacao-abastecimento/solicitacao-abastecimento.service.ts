@@ -887,6 +887,7 @@ export class SolicitacaoAbastecimentoService {
     }
 
     // Se a quantidade solicitada for maior que a quantidade_disponivel, não permitir
+    // Permitir quando quantidade_disponivel >= quantidade (permite igualdade)
     if (quantidade > quantidadeDisponivel) {
       throw new SolicitacaoAbastecimentoVeiculoCotaPeriodoQuantidadeInsuficienteException(
         quantidade,
