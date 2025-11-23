@@ -116,7 +116,20 @@ export class VeiculoService {
       });
 
       if (motoristas.length !== createVeiculoDto.motoristaIds.length) {
-        throw new NotFoundException('Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura');
+        // Identificar quais motoristas não foram encontrados
+        const motoristasEncontradosIds = motoristas.map(m => m.id);
+        const motoristasNaoEncontrados = createVeiculoDto.motoristaIds.filter(id => !motoristasEncontradosIds.includes(id));
+        
+        throw new NotFoundException({
+          message: 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura',
+          prefeituraId: prefeituraId,
+          veiculoId: null, // Ainda não foi criado
+          motoristasEnviados: createVeiculoDto.motoristaIds,
+          motoristasEncontrados: motoristasEncontradosIds,
+          motoristasNaoEncontrados: motoristasNaoEncontrados,
+          totalEnviados: createVeiculoDto.motoristaIds.length,
+          totalEncontrados: motoristas.length,
+        });
       }
     }
 
@@ -1133,7 +1146,20 @@ export class VeiculoService {
         });
 
         if (motoristas.length !== motoristasValidos.length) {
-          throw new NotFoundException('Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura');
+          // Identificar quais motoristas não foram encontrados
+          const motoristasEncontradosIds = motoristas.map(m => m.id);
+          const motoristasNaoEncontrados = motoristasValidos.filter(id => !motoristasEncontradosIds.includes(id));
+          
+          throw new NotFoundException({
+            message: 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura',
+            prefeituraId: existingVeiculo.prefeituraId,
+            veiculoId: id,
+            motoristasEnviados: motoristasValidos,
+            motoristasEncontrados: motoristasEncontradosIds,
+            motoristasNaoEncontrados: motoristasNaoEncontrados,
+            totalEnviados: motoristasValidos.length,
+            totalEncontrados: motoristas.length,
+          });
         }
       }
 
