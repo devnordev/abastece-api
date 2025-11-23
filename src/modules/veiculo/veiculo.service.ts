@@ -1225,41 +1225,40 @@ export class VeiculoService {
     }
 
     // Atualizar relacionamentos com motoristas (se fornecido)
-    // Só processa se motoristaIds foi explicitamente fornecido e não está vazio
-    // Log para debug (remover em produção se necessário)
+    // Só processa se motoristaIds foi explicitamente fornecido
     if (motoristaIds !== undefined && motoristaIds !== null) {
-      console.log('[DEBUG] motoristaIds recebido:', JSON.stringify(motoristaIds), 'tipo:', typeof motoristaIds, 'é array:', Array.isArray(motoristaIds));
       // Sanitizar e validar motoristaIds
       let motoristasValidos: number[] = [];
       
       if (Array.isArray(motoristaIds)) {
-        // Se for array vazio, não processa
+        // Se for array vazio, significa remover todos os motoristas
         if (motoristaIds.length === 0) {
-          // Array vazio significa remover todos os motoristas
           motoristasValidos = [];
         } else {
-          // Converter para números e filtrar valores inválidos
-          motoristasValidos = motoristaIds
-            .map(id => {
-              const numId = typeof id === 'string' ? parseInt(id, 10) : Number(id);
-              return isNaN(numId) ? null : numId;
-            })
-            .filter((id): id is number => id !== null && id > 0);
+          // Converter para números e filtrar valores inválidos, removendo duplicatas
+          motoristasValidos = [...new Set(
+            motoristaIds
+              .map(id => {
+                const numId = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+                return isNaN(numId) ? null : numId;
+              })
+              .filter((id): id is number => id !== null && id > 0)
+          )];
         }
       } else {
         // Se não for array, tentar tratar como string
         const idsString = String(motoristaIds || '').trim();
         if (idsString && idsString !== '') {
-          motoristasValidos = idsString
-            .split(',')
-            .map(id => parseInt(id.trim(), 10))
-            .filter(id => !isNaN(id) && id > 0);
+          motoristasValidos = [...new Set(
+            idsString
+              .split(',')
+              .map(id => parseInt(id.trim(), 10))
+              .filter(id => !isNaN(id) && id > 0)
+          )];
         }
       }
 
       // Validar se motoristas existem e pertencem à prefeitura
-      // Log para debug
-      console.log('[DEBUG] motoristasValidos após processamento:', motoristasValidos, 'length:', motoristasValidos.length);
       if (motoristasValidos.length > 0) {
         // Verificar se os IDs enviados são IDs de vínculos (veiculo_motorista) ao invés de motoristaId
         const vinculosExistentes = await this.prisma.veiculoMotorista.findMany({
@@ -1273,26 +1272,17 @@ export class VeiculoService {
           },
         });
 
-        let idsVinculosConvertidos: number[] = [];
-        let idsVinculosOriginais: number[] = [];
-
-        // Se encontrou vínculos, significa que foram enviados IDs de vínculos ao invés de motoristaId
+        // Se encontrou vínculos, converter IDs de vínculos para motoristaId
         if (vinculosExistentes.length > 0) {
-          // Converter IDs de vínculos para motoristaId
           const motoristaIdsDosVinculos = vinculosExistentes.map(v => v.motoristaId);
-          idsVinculosOriginais = vinculosExistentes.map(v => v.id);
-          idsVinculosConvertidos = motoristaIdsDosVinculos;
+          const idsVinculosOriginais = vinculosExistentes.map(v => v.id);
           const idsNaoSaoVinculos = motoristasValidos.filter(id => !idsVinculosOriginais.includes(id));
           
           // Combinar motoristaIds dos vínculos com os IDs que não são vínculos (assumindo que são motoristaId)
           motoristasValidos = [...new Set([...motoristaIdsDosVinculos, ...idsNaoSaoVinculos])];
-          
-          console.log('[DEBUG] IDs de vínculos detectados:', idsVinculosOriginais);
-          console.log('[DEBUG] Convertidos para motoristaIds:', motoristaIdsDosVinculos);
-          console.log('[DEBUG] motoristasValidos após conversão:', motoristasValidos);
         }
 
-        // Primeiro, buscar todos os motoristas enviados (sem filtro de prefeitura) para diagnóstico
+        // Buscar todos os motoristas enviados (sem filtro de prefeitura) para diagnóstico
         const todosMotoristas = await this.prisma.motorista.findMany({
           where: {
             id: { in: motoristasValidos },
@@ -1305,7 +1295,7 @@ export class VeiculoService {
           },
         });
 
-        // Depois, buscar apenas os que pertencem à prefeitura do veículo
+        // Buscar apenas os que pertencem à prefeitura do veículo
         const motoristas = await this.prisma.motorista.findMany({
           where: {
             id: { in: motoristasValidos },
@@ -1357,11 +1347,6 @@ export class VeiculoService {
           
           // Construir mensagem descritiva
           let mensagemDetalhada = 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura.';
-          
-          // Adicionar informação sobre conversão de IDs de vínculos, se houver
-          if (idsVinculosOriginais.length > 0) {
-            mensagemDetalhada += ` ATENÇÃO: Foram detectados IDs de vínculos (veiculo_motorista) ao invés de motoristaId. IDs de vínculos convertidos: ${idsVinculosOriginais.join(', ')} → motoristaIds: ${idsVinculosConvertidos.join(', ')}.`;
-          }
           
           if (motoristasNaoEncontrados.length > 0) {
             mensagemDetalhada += ` Motoristas não encontrados: ${motoristasNaoEncontrados.join(', ')}.`;
@@ -1419,28 +1404,91 @@ export class VeiculoService {
         }
       }
 
-      // Remover relacionamentos antigos (apenas os ativos)
-      await this.prisma.veiculoMotorista.updateMany({
+      // Buscar vínculos ativos atuais do veículo
+      const vinculosAtivosAtuais = await this.prisma.veiculoMotorista.findMany({
         where: {
           veiculoId: id,
           ativo: true,
         },
-        data: {
-          ativo: false,
-          data_fim: new Date(),
+        select: {
+          id: true,
+          motoristaId: true,
         },
       });
 
-      // Criar novos relacionamentos
-      if (motoristasValidos.length > 0) {
-        await this.prisma.veiculoMotorista.createMany({
-          data: motoristasValidos.map(motoristaId => ({
-            veiculoId: id,
-            motoristaId,
-            data_inicio: new Date(),
-            ativo: true,
-          })),
+      const motoristasIdsAtuais = vinculosAtivosAtuais.map(v => v.motoristaId);
+      
+      // Identificar motoristas que devem ser mantidos (já estão vinculados e estão na lista)
+      const motoristasParaManter = motoristasValidos.filter(id => motoristasIdsAtuais.includes(id));
+      
+      // Identificar motoristas que devem ser removidos (estão vinculados mas não estão na lista)
+      const motoristasParaRemover = motoristasIdsAtuais.filter(id => !motoristasValidos.includes(id));
+      
+      // Identificar motoristas que devem ser adicionados (não estão vinculados mas estão na lista)
+      const motoristasParaAdicionar = motoristasValidos.filter(id => !motoristasIdsAtuais.includes(id));
+
+      // Desativar apenas os vínculos que devem ser removidos
+      if (motoristasParaRemover.length > 0) {
+        const vinculosParaDesativar = vinculosAtivosAtuais.filter(
+          v => motoristasParaRemover.includes(v.motoristaId)
+        );
+        
+        await this.prisma.veiculoMotorista.updateMany({
+          where: {
+            id: { in: vinculosParaDesativar.map(v => v.id) },
+          },
+          data: {
+            ativo: false,
+            data_fim: new Date(),
+          },
         });
+      }
+
+      // Criar apenas novos vínculos para motoristas que não estão vinculados
+      if (motoristasParaAdicionar.length > 0) {
+        // Verificar se já existem vínculos inativos para esses motoristas (para evitar duplicação)
+        const vinculosInativosExistentes = await this.prisma.veiculoMotorista.findMany({
+          where: {
+            veiculoId: id,
+            motoristaId: { in: motoristasParaAdicionar },
+            ativo: false,
+          },
+          select: {
+            id: true,
+            motoristaId: true,
+          },
+        });
+
+        const motoristasComVinculoInativo = vinculosInativosExistentes.map(v => v.motoristaId);
+        const motoristasSemVinculo = motoristasParaAdicionar.filter(
+          id => !motoristasComVinculoInativo.includes(id)
+        );
+
+        // Reativar vínculos inativos existentes (atualizar data_inicio e ativo)
+        if (vinculosInativosExistentes.length > 0) {
+          await this.prisma.veiculoMotorista.updateMany({
+            where: {
+              id: { in: vinculosInativosExistentes.map(v => v.id) },
+            },
+            data: {
+              ativo: true,
+              data_inicio: new Date(),
+              data_fim: null,
+            },
+          });
+        }
+
+        // Criar apenas vínculos novos para motoristas que nunca foram vinculados
+        if (motoristasSemVinculo.length > 0) {
+          await this.prisma.veiculoMotorista.createMany({
+            data: motoristasSemVinculo.map(motoristaId => ({
+              veiculoId: id,
+              motoristaId,
+              data_inicio: new Date(),
+              ativo: true,
+            })),
+          });
+        }
       }
     }
 
