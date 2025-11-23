@@ -445,6 +445,9 @@ export class VeiculoService {
           },
         },
         motoristas: {
+          where: {
+            ativo: true,
+          },
           include: {
             motorista: {
               select: {
@@ -843,6 +846,9 @@ export class VeiculoService {
           },
         },
         motoristas: {
+          where: {
+            ativo: true,
+          },
           include: {
             motorista: {
               select: {
