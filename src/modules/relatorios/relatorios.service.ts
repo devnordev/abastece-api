@@ -1760,9 +1760,11 @@ export class RelatoriosService {
     };
 
     // Aplicar filtros adicionais
-    if (filter?.orgaoId) {
+    if (filter?.prefeituraId || filter?.orgaoId) {
       whereAbastecimento.veiculo = {
-        orgaoId: filter.orgaoId,
+        ...(whereAbastecimento.veiculo as any),
+        ...(filter?.prefeituraId && { prefeituraId: filter.prefeituraId }),
+        ...(filter?.orgaoId && { orgaoId: filter.orgaoId }),
       };
     }
 

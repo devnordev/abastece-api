@@ -56,6 +56,15 @@ export class FilterRelatorioDto {
   empresaId?: number;
 
   @ApiPropertyOptional({
+    description: 'ID da prefeitura para filtrar',
+    example: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'ID da prefeitura deve ser um número inteiro' })
+  prefeituraId?: number;
+
+  @ApiPropertyOptional({
     description: 'Número de meses para análise (padrão: 12)',
     example: 12,
     default: 12,
