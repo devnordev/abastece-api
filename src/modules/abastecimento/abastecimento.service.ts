@@ -1701,6 +1701,9 @@ export class AbastecimentoService {
       },
     });
 
+    // Calcular intervalo de período para uso no retorno
+    const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, veiculo.periodicidade);
+
     // Se não encontrar cota período, calcular baseado em abastecimentos (fallback)
     let quantidadeUtilizada = 0;
     let quantidadeLimite = Number(veiculo.quantidade.toString());
@@ -1715,7 +1718,6 @@ export class AbastecimentoService {
       quantidadeLimite = quantidadePermitida;
     } else {
       // Fallback: calcular baseado em abastecimentos
-      const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, veiculo.periodicidade);
       const abastecimentosPeriodo = await this.prisma.abastecimento.aggregate({
         _sum: {
           quantidade: true,
