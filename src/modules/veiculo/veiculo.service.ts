@@ -1410,11 +1410,10 @@ export class VeiculoService {
         }
       }
 
-      // Buscar vínculos ativos atuais do veículo
-      const vinculosAtivosAtuais = await this.prisma.veiculoMotorista.findMany({
+      // Buscar todos os vínculos atuais do veículo
+      const vinculosAtuais = await this.prisma.veiculoMotorista.findMany({
         where: {
           veiculoId: id,
-          ativo: true,
         },
         select: {
           id: true,
@@ -1422,7 +1421,7 @@ export class VeiculoService {
         },
       });
 
-      const motoristasIdsAtuais = vinculosAtivosAtuais.map(v => v.motoristaId);
+      const motoristasIdsAtuais = vinculosAtuais.map(v => v.motoristaId);
       
       // Identificar motoristas que devem ser mantidos (já estão vinculados e estão na lista)
       const motoristasParaManter = motoristasValidos.filter(id => motoristasIdsAtuais.includes(id));
@@ -1433,68 +1432,29 @@ export class VeiculoService {
       // Identificar motoristas que devem ser adicionados (não estão vinculados mas estão na lista)
       const motoristasParaAdicionar = motoristasValidos.filter(id => !motoristasIdsAtuais.includes(id));
 
-      // Desativar apenas os vínculos que devem ser removidos
+      // Deletar os vínculos que devem ser removidos
       if (motoristasParaRemover.length > 0) {
-        const vinculosParaDesativar = vinculosAtivosAtuais.filter(
+        const vinculosParaDeletar = vinculosAtuais.filter(
           v => motoristasParaRemover.includes(v.motoristaId)
         );
         
-        await this.prisma.veiculoMotorista.updateMany({
+        await this.prisma.veiculoMotorista.deleteMany({
           where: {
-            id: { in: vinculosParaDesativar.map(v => v.id) },
-          },
-          data: {
-            ativo: false,
-            data_fim: new Date(),
+            id: { in: vinculosParaDeletar.map(v => v.id) },
           },
         });
       }
 
-      // Criar apenas novos vínculos para motoristas que não estão vinculados
+      // Criar novos vínculos apenas para motoristas que não estão vinculados
       if (motoristasParaAdicionar.length > 0) {
-        // Verificar se já existem vínculos inativos para esses motoristas (para evitar duplicação)
-        const vinculosInativosExistentes = await this.prisma.veiculoMotorista.findMany({
-          where: {
+        await this.prisma.veiculoMotorista.createMany({
+          data: motoristasParaAdicionar.map(motoristaId => ({
             veiculoId: id,
-            motoristaId: { in: motoristasParaAdicionar },
-            ativo: false,
-          },
-          select: {
-            id: true,
-            motoristaId: true,
-          },
+            motoristaId,
+            data_inicio: new Date(),
+            ativo: true,
+          })),
         });
-
-        const motoristasComVinculoInativo = vinculosInativosExistentes.map(v => v.motoristaId);
-        const motoristasSemVinculo = motoristasParaAdicionar.filter(
-          id => !motoristasComVinculoInativo.includes(id)
-        );
-
-        // Reativar vínculos inativos existentes (atualizar data_inicio e ativo)
-        if (vinculosInativosExistentes.length > 0) {
-          await this.prisma.veiculoMotorista.updateMany({
-            where: {
-              id: { in: vinculosInativosExistentes.map(v => v.id) },
-            },
-            data: {
-              ativo: true,
-              data_inicio: new Date(),
-              data_fim: null,
-            },
-          });
-        }
-
-        // Criar apenas vínculos novos para motoristas que nunca foram vinculados
-        if (motoristasSemVinculo.length > 0) {
-          await this.prisma.veiculoMotorista.createMany({
-            data: motoristasSemVinculo.map(motoristaId => ({
-              veiculoId: id,
-              motoristaId,
-              data_inicio: new Date(),
-              ativo: true,
-            })),
-          });
-        }
       }
     }
 
