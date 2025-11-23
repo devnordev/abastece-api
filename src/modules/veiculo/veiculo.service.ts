@@ -144,10 +144,45 @@ export class VeiculoService {
         );
         const motoristasInativos = motoristasFalhados.filter(m => !m.ativo);
         
+        // Buscar nome da prefeitura
+        const prefeitura = await this.prisma.prefeitura.findUnique({
+          where: { id: prefeituraId },
+          select: { id: true, nome: true },
+        });
+        
+        // Buscar informações do usuário logado (se disponível)
+        let usuarioInfo = null;
+        if (currentUserId) {
+          const usuario = await this.prisma.usuario.findUnique({
+            where: { id: currentUserId },
+            select: { id: true, prefeituraId: true },
+          });
+          
+          if (usuario?.prefeituraId) {
+            const prefeituraUsuario = await this.prisma.prefeitura.findUnique({
+              where: { id: usuario.prefeituraId },
+              select: { id: true, nome: true },
+            });
+            usuarioInfo = {
+              userId: usuario.id,
+              prefeituraId: usuario.prefeituraId,
+              prefeituraNome: prefeituraUsuario?.nome || null,
+            };
+          }
+        }
+        
         throw new NotFoundException({
           message: 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura',
-          prefeituraId: prefeituraId,
-          veiculoId: null, // Ainda não foi criado
+          veiculo: {
+            id: null,
+            nome: createVeiculoDto.nome || null,
+            placa: createVeiculoDto.placa || null,
+          },
+          prefeitura: {
+            id: prefeituraId,
+            nome: prefeitura?.nome || null,
+          },
+          usuario: usuarioInfo,
           motoristasEnviados: createVeiculoDto.motoristaIds,
           motoristasEncontrados: motoristasEncontradosIds,
           motoristasNaoEncontrados: motoristasNaoEncontrados,
@@ -895,10 +930,22 @@ export class VeiculoService {
     };
   }
 
-  async update(id: number, updateVeiculoDto: UpdateVeiculoDto, file?: Express.Multer.File) {
+  async update(id: number, updateVeiculoDto: UpdateVeiculoDto, currentUserId?: number, file?: Express.Multer.File) {
     // Verificar se veículo existe
     const existingVeiculo = await this.prisma.veiculo.findUnique({
       where: { id },
+      select: {
+        id: true,
+        nome: true,
+        placa: true,
+        prefeituraId: true,
+        orgaoId: true,
+        contaFaturamentoOrgaoId: true,
+        foto_veiculo: true,
+        tipo_abastecimento: true,
+        periodicidade: true,
+        quantidade: true,
+      },
     });
 
     if (!existingVeiculo) {
@@ -1212,10 +1259,45 @@ export class VeiculoService {
           );
           const motoristasInativos = motoristasFalhados.filter(m => !m.ativo);
           
+          // Buscar nome da prefeitura
+          const prefeitura = await this.prisma.prefeitura.findUnique({
+            where: { id: existingVeiculo.prefeituraId },
+            select: { id: true, nome: true },
+          });
+          
+          // Buscar informações do usuário logado (se disponível)
+          let usuarioInfo = null;
+          if (currentUserId) {
+            const usuario = await this.prisma.usuario.findUnique({
+              where: { id: currentUserId },
+              select: { id: true, prefeituraId: true },
+            });
+            
+            if (usuario?.prefeituraId) {
+              const prefeituraUsuario = await this.prisma.prefeitura.findUnique({
+                where: { id: usuario.prefeituraId },
+                select: { id: true, nome: true },
+              });
+              usuarioInfo = {
+                userId: usuario.id,
+                prefeituraId: usuario.prefeituraId,
+                prefeituraNome: prefeituraUsuario?.nome || null,
+              };
+            }
+          }
+          
           throw new NotFoundException({
             message: 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura',
-            prefeituraId: existingVeiculo.prefeituraId,
-            veiculoId: id,
+            veiculo: {
+              id: id,
+              nome: existingVeiculo.nome,
+              placa: existingVeiculo.placa,
+            },
+            prefeitura: {
+              id: existingVeiculo.prefeituraId,
+              nome: prefeitura?.nome || null,
+            },
+            usuario: usuarioInfo,
             motoristasEnviados: motoristasValidos,
             motoristasEncontrados: motoristasEncontradosIds,
             motoristasNaoEncontrados: motoristasNaoEncontrados,

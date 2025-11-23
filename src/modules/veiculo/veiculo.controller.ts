@@ -259,6 +259,7 @@ export class VeiculoController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateVeiculoDto: any,
+    @Request() req,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     // Converter strings para tipos corretos quando vêm de multipart/form-data
@@ -305,7 +306,7 @@ export class VeiculoController {
         : undefined,
     };
 
-    return this.veiculoService.update(id, processedDto, file);
+    return this.veiculoService.update(id, processedDto, req.user?.id, file);
   }
 
   @Delete(':id')
