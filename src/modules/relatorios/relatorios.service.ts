@@ -1731,8 +1731,293 @@ export class RelatoriosService {
   }
 
   async getPainelFaturamentoAdminEmpresa(user: any, filter?: FilterRelatorioDto) {
+    const empresaId = this.obterEmpresaId(user);
+
+    // Calcular período baseado nos filtros
+    let dataInicio: Date;
+    let dataFim: Date;
+
+    if (filter?.dataInicio && filter?.dataFim) {
+      dataInicio = new Date(filter.dataInicio);
+      dataFim = new Date(filter.dataFim);
+      dataFim.setHours(23, 59, 59, 999);
+    } else {
+      // Se não especificado, usar últimos 7 dias
+      const agora = new Date();
+      dataFim = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23, 59, 59, 999);
+      dataInicio = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 6, 0, 0, 0, 0);
+    }
+
+    // Construir filtros para abastecimentos aprovados da empresa
+    const whereAbastecimento: Prisma.AbastecimentoWhereInput = {
+      ativo: true,
+      status: StatusAbastecimento.Aprovado,
+      empresaId,
+      data_abastecimento: {
+        gte: dataInicio,
+        lte: dataFim,
+      },
+    };
+
+    // Aplicar filtros adicionais
+    if (filter?.orgaoId) {
+      whereAbastecimento.veiculo = {
+        orgaoId: filter.orgaoId,
+      };
+    }
+
+    if (filter?.combustivelId) {
+      whereAbastecimento.combustivelId = filter.combustivelId;
+    }
+
+    if (filter?.veiculoId) {
+      whereAbastecimento.veiculoId = filter.veiculoId;
+    }
+
+    // Buscar todos os abastecimentos do período
+    const abastecimentos = await this.prisma.abastecimento.findMany({
+      where: whereAbastecimento,
+      include: {
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+        veiculo: {
+          select: {
+            id: true,
+            nome: true,
+            placa: true,
+            orgao: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // 1. CALCULAR OVERVIEW (Cards principais)
+    const totalFaturado = abastecimentos.reduce(
+      (sum, a) => sum + this.toNumber(a.valor_total),
+      0,
+    );
+    const totalLitros = abastecimentos.reduce(
+      (sum, a) => sum + this.toNumber(a.quantidade),
+      0,
+    );
+    const quantidadeAbastecimentos = abastecimentos.length;
+    const ticketMedio = quantidadeAbastecimentos > 0 ? totalFaturado / quantidadeAbastecimentos : 0;
+
+    // 2. FATURAMENTO POR PERÍODO (Últimos 7 dias)
+    const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const faturamentoPorDia: Record<string, { faturamento: number; meta: number }> = {};
+
+    // Inicializar todos os dias do período
+    const periodoDias: Date[] = [];
+    for (let d = new Date(dataInicio); d <= dataFim; d.setDate(d.getDate() + 1)) {
+      periodoDias.push(new Date(d));
+    }
+
+    periodoDias.forEach((dia) => {
+      const chave = dia.toISOString().split('T')[0];
+      faturamentoPorDia[chave] = { faturamento: 0, meta: 0 };
+    });
+
+    // Calcular faturamento real por dia
+    abastecimentos.forEach((abastecimento) => {
+      if (abastecimento.data_abastecimento) {
+        const data = new Date(abastecimento.data_abastecimento);
+        const chave = data.toISOString().split('T')[0];
+        if (faturamentoPorDia[chave]) {
+          faturamentoPorDia[chave].faturamento += this.toNumber(abastecimento.valor_total);
+        }
+      }
+    });
+
+    // Calcular meta diária (média do período / número de dias)
+    const metaDiaria = periodoDias.length > 0 ? totalFaturado / periodoDias.length : 0;
+    Object.keys(faturamentoPorDia).forEach((chave) => {
+      faturamentoPorDia[chave].meta = metaDiaria;
+    });
+
+    const faturamentoPorPeriodo = periodoDias.map((dia) => {
+      const chave = dia.toISOString().split('T')[0];
+      const dados = faturamentoPorDia[chave] || { faturamento: 0, meta: 0 };
+      return {
+        dia: diasSemana[dia.getDay()],
+        data: chave,
+        faturamento_real: this.arredondar(dados.faturamento, 2),
+        meta_diaria: this.arredondar(dados.meta, 2),
+      };
+    });
+
+    // 3. VENDAS POR COMBUSTÍVEL
+    const porCombustivel: Record<
+      number,
+      {
+        combustivel: { id: number; nome: string; sigla: string };
+        litros: number;
+        valor: number;
+      }
+    > = {};
+
+    abastecimentos.forEach((abastecimento) => {
+      const combustivelId = abastecimento.combustivel.id;
+      if (!porCombustivel[combustivelId]) {
+        porCombustivel[combustivelId] = {
+          combustivel: abastecimento.combustivel,
+          litros: 0,
+          valor: 0,
+        };
+      }
+      porCombustivel[combustivelId].litros += this.toNumber(abastecimento.quantidade);
+      porCombustivel[combustivelId].valor += this.toNumber(abastecimento.valor_total);
+    });
+
+    const vendasPorCombustivel = Object.values(porCombustivel)
+      .map((item) => ({
+        combustivel_id: item.combustivel.id,
+        combustivel_nome: item.combustivel.nome,
+        combustivel_sigla: item.combustivel.sigla,
+        litros: this.arredondar(item.litros, 2),
+        valor: this.arredondar(item.valor, 2),
+        percentual: totalFaturado > 0 ? this.arredondar((item.valor / totalFaturado) * 100, 2) : 0,
+      }))
+      .sort((a, b) => b.valor - a.valor);
+
+    // 4. TOP CLIENTES (ÓRGÃOS)
+    const porOrgao: Record<
+      number,
+      {
+        orgao: { id: number; nome: string; sigla: string } | null;
+        valor: number;
+        litros: number;
+        abastecimentos: number;
+      }
+    > = {};
+
+    abastecimentos.forEach((abastecimento) => {
+      const orgaoId = abastecimento.veiculo.orgao?.id;
+      if (!orgaoId) return;
+
+      if (!porOrgao[orgaoId]) {
+        porOrgao[orgaoId] = {
+          orgao: abastecimento.veiculo.orgao,
+          valor: 0,
+          litros: 0,
+          abastecimentos: 0,
+        };
+      }
+      porOrgao[orgaoId].valor += this.toNumber(abastecimento.valor_total);
+      porOrgao[orgaoId].litros += this.toNumber(abastecimento.quantidade);
+      porOrgao[orgaoId].abastecimentos++;
+    });
+
+    const topClientes = Object.values(porOrgao)
+      .map((item) => ({
+        orgao_id: item.orgao?.id || 0,
+        orgao_nome: item.orgao?.nome || 'Sem órgão',
+        orgao_sigla: item.orgao?.sigla || '',
+        valor: this.arredondar(item.valor, 2),
+        litros: this.arredondar(item.litros, 2),
+        abastecimentos: item.abastecimentos,
+        percentual: totalFaturado > 0 ? this.arredondar((item.valor / totalFaturado) * 100, 2) : 0,
+      }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 10);
+
+    // 5. INDICADORES DE PERFORMANCE
+    // Calcular período anterior para comparação
+    const duracaoPeriodo = dataFim.getTime() - dataInicio.getTime();
+    const periodoAnteriorInicio = new Date(dataInicio.getTime() - duracaoPeriodo);
+    const periodoAnteriorFim = new Date(dataInicio.getTime() - 1);
+
+    const abastecimentosAnteriores = await this.prisma.abastecimento.findMany({
+      where: {
+        ...whereAbastecimento,
+        data_abastecimento: {
+          gte: periodoAnteriorInicio,
+          lte: periodoAnteriorFim,
+        },
+      },
+    });
+
+    const totalFaturadoAnterior = abastecimentosAnteriores.reduce(
+      (sum, a) => sum + this.toNumber(a.valor_total),
+      0,
+    );
+
+    // Crescimento
+    const crescimento =
+      totalFaturadoAnterior > 0
+        ? ((totalFaturado - totalFaturadoAnterior) / totalFaturadoAnterior) * 100
+        : totalFaturado > 0
+          ? 100
+          : 0;
+
+    // Meta Atingida (assumindo que a meta é o total faturado do período anterior ou uma meta fixa)
+    // Por enquanto, vamos usar 100% se não houver meta definida
+    const metaAtingida = totalFaturadoAnterior > 0 ? (totalFaturado / totalFaturadoAnterior) * 100 : 0;
+
+    // Melhor Dia
+    const melhorDia = faturamentoPorPeriodo.reduce(
+      (melhor, atual) =>
+        atual.faturamento_real > melhor.faturamento_real ? atual : melhor,
+      faturamentoPorPeriodo[0] || { dia: 'Nenhum', faturamento_real: 0 },
+    );
+
+    // Melhor Combustível
+    const melhorCombustivel =
+      vendasPorCombustivel.length > 0
+        ? vendasPorCombustivel[0].combustivel_nome
+        : 'Nenhum';
+
+    // 6. VENDAS POR DIA DA SEMANA
+    const vendasPorDiaSemana: Record<number, number> = {};
+    diasSemana.forEach((_, index) => {
+      vendasPorDiaSemana[index] = 0;
+    });
+
+    abastecimentos.forEach((abastecimento) => {
+      if (abastecimento.data_abastecimento) {
+        const dia = new Date(abastecimento.data_abastecimento).getDay();
+        vendasPorDiaSemana[dia] += this.toNumber(abastecimento.valor_total);
+      }
+    });
+
+    const vendasPorDiaSemanaArray = diasSemana.map((dia, index) => ({
+      dia,
+      valor: this.arredondar(vendasPorDiaSemana[index] || 0, 2),
+    }));
+
     return {
-      message: 'Painel de faturamento empresa - em desenvolvimento',
+      periodo: {
+        data_inicio: dataInicio.toISOString(),
+        data_fim: dataFim.toISOString(),
+        dias: periodoDias.length,
+      },
+      overview: {
+        total_faturado: this.arredondar(totalFaturado, 2),
+        total_litros: this.arredondar(totalLitros, 2),
+        total_abastecimentos: quantidadeAbastecimentos,
+        ticket_medio: this.arredondar(ticketMedio, 2),
+      },
+      faturamento_por_periodo: faturamentoPorPeriodo,
+      vendas_por_combustivel: vendasPorCombustivel,
+      top_clientes: topClientes,
+      indicadores_performance: {
+        crescimento: this.arredondar(crescimento, 1),
+        meta_atingida: this.arredondar(metaAtingida, 1),
+        melhor_dia: melhorDia.dia !== 'Nenhum' ? melhorDia.dia : 'Nenhum',
+        melhor_combustivel: melhorCombustivel,
+      },
+      vendas_por_dia_semana: vendasPorDiaSemanaArray,
     };
   }
 

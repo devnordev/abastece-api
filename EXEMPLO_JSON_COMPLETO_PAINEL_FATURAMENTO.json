@@ -1,0 +1,175 @@
+{
+  "periodo": {
+    "data_inicio": "2024-01-15T00:00:00.000Z",
+    "data_fim": "2024-01-21T23:59:59.999Z",
+    "dias": 7
+  },
+  "overview": {
+    "total_faturado": 15750.75,
+    "total_litros": 1325.50,
+    "total_abastecimentos": 48,
+    "ticket_medio": 328.14
+  },
+  "faturamento_por_periodo": [
+    {
+      "dia": "Seg",
+      "data": "2024-01-15",
+      "faturamento_real": 2200.50,
+      "meta_diaria": 2250.11
+    },
+    {
+      "dia": "Ter",
+      "data": "2024-01-16",
+      "faturamento_real": 2450.25,
+      "meta_diaria": 2250.11
+    },
+    {
+      "dia": "Qua",
+      "data": "2024-01-17",
+      "faturamento_real": 2100.00,
+      "meta_diaria": 2250.11
+    },
+    {
+      "dia": "Qui",
+      "data": "2024-01-18",
+      "faturamento_real": 2300.75,
+      "meta_diaria": 2250.11
+    },
+    {
+      "dia": "Sex",
+      "data": "2024-01-19",
+      "faturamento_real": 2500.00,
+      "meta_diaria": 2250.11
+    },
+    {
+      "dia": "Sáb",
+      "data": "2024-01-20",
+      "faturamento_real": 2100.25,
+      "meta_diaria": 2250.11
+    },
+    {
+      "dia": "Dom",
+      "data": "2024-01-21",
+      "faturamento_real": 2099.00,
+      "meta_diaria": 2250.11
+    }
+  ],
+  "vendas_por_combustivel": [
+    {
+      "combustivel_id": 1,
+      "combustivel_nome": "Gasolina Comum",
+      "combustivel_sigla": "GAS",
+      "litros": 550.25,
+      "valor": 8250.50,
+      "percentual": 52.38
+    },
+    {
+      "combustivel_id": 2,
+      "combustivel_nome": "Etanol",
+      "combustivel_sigla": "ETN",
+      "litros": 425.75,
+      "valor": 5100.00,
+      "percentual": 32.38
+    },
+    {
+      "combustivel_id": 3,
+      "combustivel_nome": "Diesel S10",
+      "combustivel_sigla": "DIE",
+      "litros": 300.00,
+      "valor": 2400.25,
+      "percentual": 15.24
+    },
+    {
+      "combustivel_id": 4,
+      "combustivel_nome": "GNV",
+      "combustivel_sigla": "GNV",
+      "litros": 49.50,
+      "valor": 0.00,
+      "percentual": 0.00
+    }
+  ],
+  "top_clientes": [
+    {
+      "orgao_id": 1,
+      "orgao_nome": "Secretaria de Saúde",
+      "orgao_sigla": "SMS",
+      "valor": 8500.75,
+      "litros": 700.25,
+      "abastecimentos": 28,
+      "percentual": 53.97
+    },
+    {
+      "orgao_id": 2,
+      "orgao_nome": "Secretaria de Educação",
+      "orgao_sigla": "SME",
+      "valor": 4500.50,
+      "litros": 380.50,
+      "abastecimentos": 12,
+      "percentual": 28.57
+    },
+    {
+      "orgao_id": 3,
+      "orgao_nome": "Secretaria de Transporte",
+      "orgao_sigla": "SMT",
+      "valor": 2000.25,
+      "litros": 180.00,
+      "abastecimentos": 6,
+      "percentual": 12.70
+    },
+    {
+      "orgao_id": 4,
+      "orgao_nome": "Secretaria de Obras",
+      "orgao_sigla": "SMO",
+      "valor": 500.25,
+      "litros": 45.75,
+      "abastecimentos": 2,
+      "percentual": 3.18
+    },
+    {
+      "orgao_id": 5,
+      "orgao_nome": "Secretaria de Meio Ambiente",
+      "orgao_sigla": "SMA",
+      "valor": 249.00,
+      "litros": 19.00,
+      "abastecimentos": 0,
+      "percentual": 1.58
+    }
+  ],
+  "indicadores_performance": {
+    "crescimento": 12.5,
+    "meta_atingida": 105.8,
+    "melhor_dia": "Sex",
+    "melhor_combustivel": "Gasolina Comum"
+  },
+  "vendas_por_dia_semana": [
+    {
+      "dia": "Dom",
+      "valor": 2099.00
+    },
+    {
+      "dia": "Seg",
+      "valor": 2200.50
+    },
+    {
+      "dia": "Ter",
+      "valor": 2450.25
+    },
+    {
+      "dia": "Qua",
+      "valor": 2100.00
+    },
+    {
+      "dia": "Qui",
+      "valor": 2300.75
+    },
+    {
+      "dia": "Sex",
+      "valor": 2500.00
+    },
+    {
+      "dia": "Sáb",
+      "valor": 2100.25
+    }
+  ]
+}
+
