@@ -1822,14 +1822,19 @@ export class SolicitacaoAbastecimentoService {
           const quantidadePermitida = Number(cotaPeriodo.quantidade_permitida.toString());
 
           // Liberar os litros: decrementar quantidade_utilizada e recalcular quantidade_disponivel
-          // Permitir valores negativos para permitir que o veículo possa solicitar novo abastecimento
-          const novaQuantidadeUtilizada = quantidadeUtilizadaAtual - quantidadeSolicitacao;
+          // Regras:
+          // - quantidade_utilizada: valores de 0 até quantidade_permitida (não pode ser negativo, não pode exceder quantidade_permitida)
+          // - quantidade_disponivel: valores de quantidade_permitida até 0 (não pode ser negativo, não pode exceder quantidade_permitida)
+          // - Relação: quantidade_utilizada + quantidade_disponivel = quantidade_permitida
+          
+          // Calcular nova quantidade_utilizada (subtrair a quantidade solicitada)
+          // Garantir que fique entre 0 e quantidade_permitida
+          const novaQuantidadeUtilizada = Math.max(0, Math.min(quantidadePermitida, quantidadeUtilizadaAtual - quantidadeSolicitacao));
           
           // Recalcular quantidade_disponivel baseado na fórmula:
-          // quantidade_utilizada + quantidade_disponivel = quantidade_permitida
-          // Então: quantidade_disponivel = quantidade_permitida - quantidade_utilizada
-          // Se quantidade_utilizada ficar negativa, quantidade_disponivel pode exceder quantidade_permitida
-          const novaQuantidadeDisponivel = quantidadePermitida - novaQuantidadeUtilizada;
+          // quantidade_disponivel = quantidade_permitida - quantidade_utilizada
+          // Garantir que fique entre 0 e quantidade_permitida
+          const novaQuantidadeDisponivel = Math.max(0, Math.min(quantidadePermitida, quantidadePermitida - novaQuantidadeUtilizada));
 
           // Atualizar VeiculoCotaPeriodo
           await tx.veiculoCotaPeriodo.update({
