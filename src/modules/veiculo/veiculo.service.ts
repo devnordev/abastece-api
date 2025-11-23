@@ -171,8 +171,35 @@ export class VeiculoService {
           }
         }
         
+        // Construir mensagem descritiva
+        let mensagemDetalhada = 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura.';
+        
+        if (motoristasNaoEncontrados.length > 0) {
+          mensagemDetalhada += ` Motoristas não encontrados: ${motoristasNaoEncontrados.join(', ')}.`;
+        }
+        
+        if (motoristasPrefeituraDiferente.length > 0) {
+          const nomesPrefeituraDiferente = motoristasPrefeituraDiferente.map(m => `${m.nome} (ID: ${m.id}, Prefeitura: ${m.prefeituraId})`).join(', ');
+          mensagemDetalhada += ` Motoristas de prefeitura diferente: ${nomesPrefeituraDiferente}.`;
+        }
+        
+        if (motoristasInativos.length > 0) {
+          const nomesInativos = motoristasInativos.map(m => `${m.nome} (ID: ${m.id})`).join(', ');
+          mensagemDetalhada += ` Motoristas inativos: ${nomesInativos}.`;
+        }
+        
+        if (createVeiculoDto.nome) {
+          mensagemDetalhada += ` Veículo: ${createVeiculoDto.nome}${createVeiculoDto.placa ? ` (Placa: ${createVeiculoDto.placa})` : ''}.`;
+        }
+        
+        mensagemDetalhada += ` Prefeitura: ${prefeitura?.nome || 'N/A'} (ID: ${prefeituraId}).`;
+        
+        if (usuarioInfo) {
+          mensagemDetalhada += ` Usuário logado: Prefeitura ${usuarioInfo.prefeituraNome || 'N/A'} (ID: ${usuarioInfo.prefeituraId}).`;
+        }
+        
         throw new NotFoundException({
-          message: 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura',
+          message: mensagemDetalhada,
           veiculo: {
             id: null,
             nome: createVeiculoDto.nome || null,
@@ -1198,22 +1225,31 @@ export class VeiculoService {
     }
 
     // Atualizar relacionamentos com motoristas (se fornecido)
-    if (motoristaIds !== undefined) {
+    // Só processa se motoristaIds foi explicitamente fornecido e não está vazio
+    // Log para debug (remover em produção se necessário)
+    if (motoristaIds !== undefined && motoristaIds !== null) {
+      console.log('[DEBUG] motoristaIds recebido:', JSON.stringify(motoristaIds), 'tipo:', typeof motoristaIds, 'é array:', Array.isArray(motoristaIds));
       // Sanitizar e validar motoristaIds
       let motoristasValidos: number[] = [];
       
       if (Array.isArray(motoristaIds)) {
-        // Converter para números e filtrar valores inválidos
-        motoristasValidos = motoristaIds
-          .map(id => {
-            const numId = typeof id === 'string' ? parseInt(id, 10) : Number(id);
-            return isNaN(numId) ? null : numId;
-          })
-          .filter((id): id is number => id !== null && id > 0);
+        // Se for array vazio, não processa
+        if (motoristaIds.length === 0) {
+          // Array vazio significa remover todos os motoristas
+          motoristasValidos = [];
+        } else {
+          // Converter para números e filtrar valores inválidos
+          motoristasValidos = motoristaIds
+            .map(id => {
+              const numId = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+              return isNaN(numId) ? null : numId;
+            })
+            .filter((id): id is number => id !== null && id > 0);
+        }
       } else {
         // Se não for array, tentar tratar como string
-        const idsString = String(motoristaIds || '');
-        if (idsString.trim()) {
+        const idsString = String(motoristaIds || '').trim();
+        if (idsString && idsString !== '') {
           motoristasValidos = idsString
             .split(',')
             .map(id => parseInt(id.trim(), 10))
@@ -1222,6 +1258,8 @@ export class VeiculoService {
       }
 
       // Validar se motoristas existem e pertencem à prefeitura
+      // Log para debug
+      console.log('[DEBUG] motoristasValidos após processamento:', motoristasValidos, 'length:', motoristasValidos.length);
       if (motoristasValidos.length > 0) {
         // Primeiro, buscar todos os motoristas enviados (sem filtro de prefeitura) para diagnóstico
         const todosMotoristas = await this.prisma.motorista.findMany({
@@ -1286,8 +1324,32 @@ export class VeiculoService {
             }
           }
           
+          // Construir mensagem descritiva
+          let mensagemDetalhada = 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura.';
+          
+          if (motoristasNaoEncontrados.length > 0) {
+            mensagemDetalhada += ` Motoristas não encontrados: ${motoristasNaoEncontrados.join(', ')}.`;
+          }
+          
+          if (motoristasPrefeituraDiferente.length > 0) {
+            const nomesPrefeituraDiferente = motoristasPrefeituraDiferente.map(m => `${m.nome} (ID: ${m.id}, Prefeitura: ${m.prefeituraId})`).join(', ');
+            mensagemDetalhada += ` Motoristas de prefeitura diferente: ${nomesPrefeituraDiferente}.`;
+          }
+          
+          if (motoristasInativos.length > 0) {
+            const nomesInativos = motoristasInativos.map(m => `${m.nome} (ID: ${m.id})`).join(', ');
+            mensagemDetalhada += ` Motoristas inativos: ${nomesInativos}.`;
+          }
+          
+          mensagemDetalhada += ` Veículo: ${existingVeiculo.nome} (ID: ${id}, Placa: ${existingVeiculo.placa}).`;
+          mensagemDetalhada += ` Prefeitura do veículo: ${prefeitura?.nome || 'N/A'} (ID: ${existingVeiculo.prefeituraId}).`;
+          
+          if (usuarioInfo) {
+            mensagemDetalhada += ` Usuário logado: Prefeitura ${usuarioInfo.prefeituraNome || 'N/A'} (ID: ${usuarioInfo.prefeituraId}).`;
+          }
+          
           throw new NotFoundException({
-            message: 'Um ou mais motoristas não foram encontrados ou não pertencem a esta prefeitura',
+            message: mensagemDetalhada,
             veiculo: {
               id: id,
               nome: existingVeiculo.nome,

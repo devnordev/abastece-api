@@ -297,10 +297,12 @@ export class VeiculoController {
             ? updateVeiculoDto.combustivelIds.split(',').map((id: string) => parseInt(id.trim()))
             : undefined
         : undefined,
-      motoristaIds: updateVeiculoDto.motoristaIds
+      motoristaIds: updateVeiculoDto.motoristaIds !== undefined && updateVeiculoDto.motoristaIds !== null
         ? Array.isArray(updateVeiculoDto.motoristaIds)
-          ? updateVeiculoDto.motoristaIds.map((id: any) => parseInt(id))
-          : typeof updateVeiculoDto.motoristaIds === 'string'
+          ? updateVeiculoDto.motoristaIds.length > 0
+            ? updateVeiculoDto.motoristaIds.map((id: any) => parseInt(id))
+            : [] // Array vazio explícito para remover todos os motoristas
+          : typeof updateVeiculoDto.motoristaIds === 'string' && updateVeiculoDto.motoristaIds.trim() !== ''
             ? updateVeiculoDto.motoristaIds.split(',').map((id: string) => parseInt(id.trim()))
             : undefined
         : undefined,
