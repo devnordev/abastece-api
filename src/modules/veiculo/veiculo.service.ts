@@ -180,7 +180,7 @@ export class VeiculoService {
         
         if (motoristasPrefeituraDiferente.length > 0) {
           const nomesPrefeituraDiferente = motoristasPrefeituraDiferente.map(m => `${m.nome} (ID: ${m.id}, Prefeitura: ${m.prefeituraId})`).join(', ');
-          mensagemDetalhada += ` Motoristas de prefeitura diferente: ${nomesPrefeituraDiferente}.`;
+          mensagemDetalhada += ` Motoristas de prefeitura diferente(s): ${nomesPrefeituraDiferente}.`;
         }
         
         if (motoristasInativos.length > 0) {
