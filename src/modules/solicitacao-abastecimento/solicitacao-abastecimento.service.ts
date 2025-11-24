@@ -474,6 +474,26 @@ export class SolicitacaoAbastecimentoService {
     return response;
   }
 
+  async findAllByVeiculoId(
+    veiculoId: number,
+    user: {
+      id: number;
+      tipo_usuario: string;
+      prefeitura?: { id: number; nome: string; cnpj: string };
+      empresa?: { id: number; nome: string; cnpj: string; uf?: string | null };
+    },
+    query: FindSolicitacaoAbastecimentoDto,
+  ) {
+    const mergedQuery: FindSolicitacaoAbastecimentoDto = {
+      ...query,
+      veiculoId,
+      page: query.page ?? 1,
+      limit: query.limit ?? 10,
+    };
+
+    return this.findAllByPrefeitura(user, mergedQuery);
+  }
+
   async findOne(id: number) {
     // Processar solicitações expiradas em background (não bloqueia a resposta)
     this.processarSolicitacoesExpiradas().catch((error) => {

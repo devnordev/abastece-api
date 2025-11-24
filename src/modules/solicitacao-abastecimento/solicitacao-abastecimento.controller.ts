@@ -61,6 +61,18 @@ export class SolicitacaoAbastecimentoController {
     return this.solicitacaoService.findAllByPrefeitura(req.user, query);
   }
 
+  @Get('veiculo/:veiculoId/solicitacoes')
+  @UseGuards(AdminPrefeituraEmpresaColaboradorGuard)
+  @ApiOperation({ summary: 'Listar solicitações de abastecimento de um veículo específico' })
+  @ApiResponse({ status: 200, description: 'Solicitações retornadas com sucesso' })
+  async findAllByVeiculo(
+    @Param('veiculoId', ParseIntPipe) veiculoId: number,
+    @Query() query: FindSolicitacaoAbastecimentoDto,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.solicitacaoService.findAllByVeiculoId(veiculoId, req.user, query);
+  }
+
   @Get('preco-combustivel')
   @ApiOperation({
     summary: 'Obter preço atual do combustível para uma empresa',
