@@ -2197,7 +2197,13 @@ export class SolicitacaoAbastecimentoService {
       return null;
     }
 
-    const localTime = new Date(value.getTime() + this.timezoneOffsetMinutes * 60 * 1000);
+    // Quando o Prisma retorna uma data do banco, ela vem em UTC
+    // Se salvamos "13:04" em Fortaleza (-03:00), o banco salva como "10:04 UTC"
+    // Para mostrar "13:04 -03:00", precisamos ADICIONAR 3 horas (180 minutos)
+    // timezoneOffsetMinutes = -180, então precisamos fazer: value.getTime() - (-180) * 60 * 1000
+    // que é equivalente a: value.getTime() + 180 * 60 * 1000
+    const offsetMs = -this.timezoneOffsetMinutes * 60 * 1000; // Converte -180 para +180 minutos em ms
+    const localTime = new Date(value.getTime() + offsetMs);
     const iso = localTime.toISOString().replace('Z', this.defaultTimezoneOffset);
     return iso;
   }
