@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   Periodicidade,
   Prisma,
@@ -91,6 +91,9 @@ export class SolicitacaoAbastecimentoService {
     },
   } as const;
 
+  private readonly defaultTimezoneOffset = '-03:00';
+  private readonly timezoneSuffixRegex = /([zZ]|[+\-]\d{2}:\d{2})$/;
+
   private adicionarInfoOrgaoSolicitacao<
     T extends {
       veiculo?: {
@@ -110,7 +113,14 @@ export class SolicitacaoAbastecimentoService {
   }
 
   async create(createDto: CreateSolicitacaoAbastecimentoDto) {
-    const dataSolicitacao = new Date(createDto.data_solicitacao);
+    const dataSolicitacao = this.ensureDate(
+      this.normalizeDateInput(createDto.data_solicitacao),
+      'data_solicitacao',
+    );
+    const dataExpiracao = this.ensureDate(
+      this.normalizeDateInput(createDto.data_expiracao),
+      'data_expiracao',
+    );
 
     // Buscar veículo com todos os dados necessários
     const veiculo = await this.prisma.veiculo.findUnique({
@@ -230,7 +240,7 @@ export class SolicitacaoAbastecimentoService {
         empresaId: createDto.empresaId,
         quantidade: this.toDecimal(createDto.quantidade),
         data_solicitacao: dataSolicitacao,
-        data_expiracao: new Date(createDto.data_expiracao),
+        data_expiracao: dataExpiracao,
         tipo_abastecimento: createDto.tipo_abastecimento,
         status: createDto.status ?? StatusSolicitacao.PENDENTE,
         nfe_chave_acesso: createDto.nfe_chave_acesso,
@@ -239,11 +249,11 @@ export class SolicitacaoAbastecimentoService {
         aprovado_por: createDto.aprovado_por,
         aprovado_por_email: createDto.aprovado_por_email,
         aprovado_por_empresa: createDto.aprovado_por_empresa,
-        data_aprovacao: createDto.data_aprovacao ? new Date(createDto.data_aprovacao) : undefined,
+        data_aprovacao: this.normalizeDateInput(createDto.data_aprovacao),
         rejeitado_por: createDto.rejeitado_por,
         rejeitado_por_email: createDto.rejeitado_por_email,
         rejeitado_por_empresa: createDto.rejeitado_por_empresa,
-        data_rejeicao: createDto.data_rejeicao ? new Date(createDto.data_rejeicao) : undefined,
+        data_rejeicao: this.normalizeDateInput(createDto.data_rejeicao),
         conta_faturamento_orgao_id: createDto.conta_faturamento_orgao_id,
         abastecido_por: createDto.abastecido_por ?? 'Sistema',
         valor_total: createDto.valor_total !== undefined ? this.toDecimal(createDto.valor_total) : undefined,
@@ -553,8 +563,8 @@ export class SolicitacaoAbastecimentoService {
       combustivelId: updateDto.combustivelId,
       empresaId: updateDto.empresaId,
       quantidade: updateDto.quantidade !== undefined ? this.toDecimal(updateDto.quantidade) : undefined,
-      data_solicitacao: updateDto.data_solicitacao ? new Date(updateDto.data_solicitacao) : undefined,
-      data_expiracao: updateDto.data_expiracao ? new Date(updateDto.data_expiracao) : undefined,
+      data_solicitacao: this.normalizeDateInput(updateDto.data_solicitacao),
+      data_expiracao: this.normalizeDateInput(updateDto.data_expiracao),
       tipo_abastecimento: updateDto.tipo_abastecimento as TipoAbastecimentoSolicitacao | undefined,
       status: updateDto.status as StatusSolicitacao | undefined,
       nfe_chave_acesso: updateDto.nfe_chave_acesso,
@@ -563,11 +573,11 @@ export class SolicitacaoAbastecimentoService {
       aprovado_por: updateDto.aprovado_por,
       aprovado_por_email: updateDto.aprovado_por_email,
       aprovado_por_empresa: updateDto.aprovado_por_empresa,
-      data_aprovacao: updateDto.data_aprovacao ? new Date(updateDto.data_aprovacao) : undefined,
+      data_aprovacao: this.normalizeDateInput(updateDto.data_aprovacao),
       rejeitado_por: updateDto.rejeitado_por,
       rejeitado_por_email: updateDto.rejeitado_por_email,
       rejeitado_por_empresa: updateDto.rejeitado_por_empresa,
-      data_rejeicao: updateDto.data_rejeicao ? new Date(updateDto.data_rejeicao) : undefined,
+      data_rejeicao: this.normalizeDateInput(updateDto.data_rejeicao),
       conta_faturamento_orgao_id: updateDto.conta_faturamento_orgao_id,
       abastecido_por: updateDto.abastecido_por,
       valor_total: updateDto.valor_total !== undefined ? this.toDecimal(updateDto.valor_total) : undefined,
@@ -2105,6 +2115,40 @@ export class SolicitacaoAbastecimentoService {
         quantidade: quantidadeNum,
       };
     }
+  }
+
+  private normalizeDateInput(value?: string | Date | null): Date | undefined {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+
+    if (value instanceof Date) {
+      return value;
+    }
+
+    const trimmed = value.toString().trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    const isoWithTimezone = this.timezoneSuffixRegex.test(trimmed)
+      ? trimmed
+      : `${trimmed}${this.defaultTimezoneOffset}`;
+
+    const parsed = new Date(isoWithTimezone);
+    if (isNaN(parsed.getTime())) {
+      return undefined;
+    }
+
+    return parsed;
+  }
+
+  private ensureDate(value: Date | undefined, fieldName: string): Date {
+    if (!value) {
+      throw new BadRequestException(`Campo ${fieldName} possui data inválida ou não foi informado`);
+    }
+
+    return value;
   }
 }
 
