@@ -2208,6 +2208,17 @@ export class SolicitacaoAbastecimentoService {
     return iso;
   }
 
+  /**
+   * Retorna a data exatamente como está no banco de dados, sem conversão de timezone
+   */
+  private formatDateAsStored(value?: Date | null): string | null {
+    if (!value) {
+      return null;
+    }
+    // Retorna a data exatamente como está armazenada no banco (em UTC)
+    return value.toISOString();
+  }
+
   private formatSolicitacaoResponse<
     T extends { data_solicitacao?: Date | null; data_expiracao?: Date | null; data_aprovacao?: Date | null; data_rejeicao?: Date | null },
   >(registro: T): T {
@@ -2216,10 +2227,11 @@ export class SolicitacaoAbastecimentoService {
     }
 
     const formatted: any = { ...registro };
-    formatted.data_solicitacao = this.formatDateWithTimezone(registro.data_solicitacao);
-    formatted.data_expiracao = this.formatDateWithTimezone(registro.data_expiracao);
-    formatted.data_aprovacao = this.formatDateWithTimezone(registro.data_aprovacao);
-    formatted.data_rejeicao = this.formatDateWithTimezone(registro.data_rejeicao);
+    // Retorna as datas exatamente como estão no banco, sem conversão de timezone
+    formatted.data_solicitacao = this.formatDateAsStored(registro.data_solicitacao);
+    formatted.data_expiracao = this.formatDateAsStored(registro.data_expiracao);
+    formatted.data_aprovacao = this.formatDateAsStored(registro.data_aprovacao);
+    formatted.data_rejeicao = this.formatDateAsStored(registro.data_rejeicao);
 
     return formatted;
   }
