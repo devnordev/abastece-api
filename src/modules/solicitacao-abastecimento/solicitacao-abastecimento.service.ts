@@ -93,6 +93,7 @@ export class SolicitacaoAbastecimentoService {
 
   private readonly defaultTimezoneOffset = '-03:00';
   private readonly timezoneSuffixRegex = /([zZ]|[+\-]\d{2}:\d{2})$/;
+  private readonly timezoneOffsetMinutes = -3 * 60; // America/Fortaleza (UTC-3)
 
   private adicionarInfoOrgaoSolicitacao<
     T extends {
@@ -290,7 +291,7 @@ export class SolicitacaoAbastecimentoService {
 
     return {
       message: 'Solicitação de abastecimento criada com sucesso',
-      solicitacao: solicitacaoComOrgao,
+      solicitacao: this.formatSolicitacaoResponse(solicitacaoComOrgao),
     };
   }
 
@@ -345,7 +346,9 @@ export class SolicitacaoAbastecimentoService {
       this.prisma.solicitacaoAbastecimento.count({ where }),
     ]);
 
-    const solicitacoesComOrgao = solicitacoes.map((item) => this.adicionarInfoOrgaoSolicitacao(item));
+    const solicitacoesComOrgao = solicitacoes.map((item) =>
+      this.formatSolicitacaoResponse(this.adicionarInfoOrgaoSolicitacao(item)),
+    );
 
     return {
       message: 'Solicitações de abastecimento encontradas com sucesso',
@@ -442,7 +445,9 @@ export class SolicitacaoAbastecimentoService {
       this.prisma.solicitacaoAbastecimento.count({ where }),
     ]);
 
-    const solicitacoesComOrgao = solicitacoes.map((item) => this.adicionarInfoOrgaoSolicitacao(item));
+    const solicitacoesComOrgao = solicitacoes.map((item) =>
+      this.formatSolicitacaoResponse(this.adicionarInfoOrgaoSolicitacao(item)),
+    );
 
     const response: any = {
       message: 'Solicitações de abastecimento encontradas com sucesso',
@@ -513,7 +518,7 @@ export class SolicitacaoAbastecimentoService {
 
     return {
       message: 'Solicitação de abastecimento encontrada com sucesso',
-      solicitacao: solicitacaoComOrgao,
+      solicitacao: this.formatSolicitacaoResponse(solicitacaoComOrgao),
     };
   }
 
@@ -618,7 +623,7 @@ export class SolicitacaoAbastecimentoService {
 
     return {
       message: 'Solicitação de abastecimento atualizada com sucesso',
-      solicitacao: solicitacaoComOrgao,
+      solicitacao: this.formatSolicitacaoResponse(solicitacaoComOrgao),
     };
   }
 
@@ -715,7 +720,7 @@ export class SolicitacaoAbastecimentoService {
 
     return {
       message: `Status da solicitação alterado para ${updateStatusDto.status}`,
-      solicitacao: solicitacaoComOrgao,
+      solicitacao: this.formatSolicitacaoResponse(solicitacaoComOrgao),
     };
   }
 
@@ -1833,12 +1838,14 @@ export class SolicitacaoAbastecimentoService {
         // Buscar a cota de período que estava ativa quando a solicitação foi criada
         // Usar a data_solicitacao para encontrar o período correto
         // Isso é importante porque o período pode ter mudado desde que a solicitação foi criada
+        const dataSolicitacaoReal = this.getDateAdjustedToTimezone(solicitacao.data_solicitacao);
+
         const cotaPeriodo = await tx.veiculoCotaPeriodo.findFirst({
           where: {
             veiculoId: veiculo.id,
             periodicidade: veiculo.periodicidade,
-            data_inicio_periodo: { lte: solicitacao.data_solicitacao },
-            data_fim_periodo: { gte: solicitacao.data_solicitacao },
+            data_inicio_periodo: { lte: dataSolicitacaoReal || solicitacao.data_solicitacao },
+            data_fim_periodo: { gte: dataSolicitacaoReal || solicitacao.data_solicitacao },
             ativo: true,
           },
           orderBy: {
@@ -2002,6 +2009,11 @@ export class SolicitacaoAbastecimentoService {
 
     // Processar cada solicitação expirada
     for (const solicitacao of solicitacoesExpiradas) {
+      const dataExpiracaoReal = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
+      if (dataExpiracaoReal && dataExpiracaoReal > dataAtual) {
+        continue;
+      }
+
       try {
         await this.prisma.$transaction(async (tx) => {
           // Atualizar status da solicitação para EXPIRADA
@@ -2070,6 +2082,11 @@ export class SolicitacaoAbastecimentoService {
 
     // Processar cada solicitação expirada
     for (const solicitacao of solicitacoesExpiradas) {
+      const dataExpiracaoReal = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
+      if (dataExpiracaoReal && dataExpiracaoReal > new Date()) {
+        continue;
+      }
+
       await this.prisma.$transaction(async (tx) => {
         // Atualizar status da solicitação para EXPIRADA
         await tx.solicitacaoAbastecimento.update({
@@ -2169,6 +2186,46 @@ export class SolicitacaoAbastecimentoService {
     }
 
     return value;
+  }
+
+  private getDateAdjustedToTimezone(value?: Date | null): Date | null {
+    if (!value) {
+      return value ?? null;
+    }
+
+    const offsetMs = -this.timezoneOffsetMinutes * 60 * 1000;
+    return new Date(value.getTime() + offsetMs);
+  }
+
+  private formatDateWithTimezone(value?: Date | null): string | null {
+    if (!value) {
+      return value ?? null;
+    }
+
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(value.getUTCDate()).padStart(2, '0');
+    const hours = String(value.getUTCHours()).padStart(2, '0');
+    const minutes = String(value.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(value.getUTCSeconds()).padStart(2, '0');
+
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${this.defaultTimezoneOffset}`;
+  }
+
+  private formatSolicitacaoResponse<
+    T extends { data_solicitacao?: Date | null; data_expiracao?: Date | null; data_aprovacao?: Date | null; data_rejeicao?: Date | null },
+  >(registro: T): T {
+    if (!registro) {
+      return registro;
+    }
+
+    const formatted: any = { ...registro };
+    formatted.data_solicitacao = this.formatDateWithTimezone(registro.data_solicitacao);
+    formatted.data_expiracao = this.formatDateWithTimezone(registro.data_expiracao);
+    formatted.data_aprovacao = this.formatDateWithTimezone(registro.data_aprovacao);
+    formatted.data_rejeicao = this.formatDateWithTimezone(registro.data_rejeicao);
+
+    return formatted;
   }
 }
 
