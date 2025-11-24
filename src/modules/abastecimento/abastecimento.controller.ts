@@ -88,6 +88,7 @@ export class AbastecimentoController {
   @ApiQuery({ name: 'motoristaId', required: false, description: 'Filtrar por motorista' })
   @ApiQuery({ name: 'combustivelId', required: false, description: 'Filtrar por combustível' })
   @ApiQuery({ name: 'empresaId', required: false, description: 'Filtrar por empresa' })
+  @ApiQuery({ name: 'prefeituraId', required: false, description: 'Filtrar por prefeitura (através do veículo)' })
   @ApiQuery({ name: 'tipo_abastecimento', required: false, description: 'Filtrar por tipo de abastecimento' })
   @ApiQuery({ name: 'status', required: false, description: 'Filtrar por status' })
   @ApiQuery({ name: 'ativo', required: false, description: 'Filtrar por status ativo' })

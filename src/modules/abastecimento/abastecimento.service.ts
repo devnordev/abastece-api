@@ -785,6 +785,7 @@ export class AbastecimentoService {
       motoristaId,
       combustivelId,
       empresaId,
+      prefeituraId,
       tipo_abastecimento,
       status,
       ativo,
@@ -813,6 +814,38 @@ export class AbastecimentoService {
 
     if (empresaId) {
       where.empresaId = empresaId;
+    }
+
+    // Filtrar por prefeitura através do relacionamento com veículo
+    if (prefeituraId) {
+      // Se veiculoId também foi fornecido, combina os filtros
+      if (veiculoId) {
+        // Verificar se o veículo pertence à prefeitura especificada
+        const veiculo = await this.prisma.veiculo.findUnique({
+          where: { id: veiculoId },
+          select: { prefeituraId: true },
+        });
+        
+        if (!veiculo || veiculo.prefeituraId !== prefeituraId) {
+          // Se o veículo não existe ou não pertence à prefeitura, retorna lista vazia
+          return {
+            message: 'Abastecimentos encontrados com sucesso',
+            abastecimentos: [],
+            pagination: {
+              page,
+              limit,
+              total: 0,
+              totalPages: 0,
+            },
+          };
+        }
+        // Se o veículo pertence à prefeitura, o filtro veiculoId já é suficiente
+      } else {
+        // Se apenas prefeituraId foi fornecido, filtra através do relacionamento
+        where.veiculo = {
+          prefeituraId: prefeituraId,
+        };
+      }
     }
 
     if (tipo_abastecimento) {

@@ -45,6 +45,16 @@ export class FindAbastecimentoDto {
   empresaId?: number;
 
   @ApiProperty({
+    description: 'ID da prefeitura para filtro (filtra através do veículo)',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'ID da prefeitura deve ser um número inteiro' })
+  prefeituraId?: number;
+
+  @ApiProperty({
     description: 'Tipo de abastecimento para filtro',
     enum: TipoAbastecimento,
     required: false,
