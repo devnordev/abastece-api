@@ -57,7 +57,7 @@ RUN npm install prisma@^6.18.0 --no-save
 # Variáveis de ambiente padrão (podem ser sobrescritas em runtime)
 ENV NODE_ENV=production \
     PORT=3000 \
-    TZ=America/Fortaleza       # <-- ADICIONADO TZ
+    TZ=America/Fortaleza       
 
 EXPOSE 3000
 
