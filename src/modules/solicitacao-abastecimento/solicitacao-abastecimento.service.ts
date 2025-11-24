@@ -2210,12 +2210,15 @@ export class SolicitacaoAbastecimentoService {
 
   /**
    * Retorna a data exatamente como está no banco de dados, sem conversão de timezone
+   * O Prisma retorna datas como objetos Date em UTC, que representam o valor exato do banco
+   * Usamos toISOString() que retorna o valor UTC sem nenhuma conversão adicional
    */
   private formatDateAsStored(value?: Date | null): string | null {
     if (!value) {
       return null;
     }
     // Retorna a data exatamente como está armazenada no banco (em UTC)
+    // toISOString() retorna o valor UTC do objeto Date sem conversão
     return value.toISOString();
   }
 
