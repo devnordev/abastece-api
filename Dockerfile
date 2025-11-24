@@ -46,15 +46,18 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 
-# Dependências de sistema necessárias para Prisma Runtime
-RUN apk add --no-cache openssl libc6-compat
+# Dependências de sistema necessárias para Prisma Runtime + Timezone
+RUN apk add --no-cache openssl libc6-compat tzdata \
+&& cp /usr/share/zoneinfo/America/Fortaleza /etc/localtime \
+&& echo "America/Fortaleza" > /etc/timezone
 
 # Instala Prisma CLI para poder executar migrations em produção (sem salvar no package.json)
 RUN npm install prisma@^6.18.0 --no-save
 
 # Variáveis de ambiente padrão (podem ser sobrescritas em runtime)
 ENV NODE_ENV=production \
-    PORT=3000
+    PORT=3000 \
+    TZ=America/Fortaleza       # <-- ADICIONADO TZ
 
 EXPOSE 3000
 
