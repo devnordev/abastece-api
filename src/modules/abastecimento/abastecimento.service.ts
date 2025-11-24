@@ -47,10 +47,14 @@ import {
   AbastecimentoCanceladoException,
   AbastecimentoInativoException,
 } from '../../common/exceptions';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class AbastecimentoService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private uploadService: UploadService,
+  ) {}
 
   /**
    * Busca CotaOrgao automaticamente baseado em veiculoId, prefeituraId e combustivelId
@@ -359,7 +363,11 @@ export class AbastecimentoService {
     await this.atualizarProcessoPorId(tx, processo.id, valorTotal);
   }
 
-  async create(createAbastecimentoDto: CreateAbastecimentoDto, user: any) {
+  async create(
+    createAbastecimentoDto: CreateAbastecimentoDto,
+    user: any,
+    nfeImgFile?: Express.Multer.File,
+  ) {
     const { veiculoId, combustivelId, empresaId, motoristaId, validadorId, abastecedorId, conta_faturamento_orgao_id, cota_id } = createAbastecimentoDto;
 
     // Verificar se o usuário pertence à empresa informada (obrigatório para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
@@ -549,8 +557,18 @@ export class AbastecimentoService {
       }
     }
 
+    // Upload da imagem da NFE, se enviada
+    let nfe_img_url = createAbastecimentoDto.nfe_img_url;
+    if (nfeImgFile) {
+      const uniqueFileName = `nfe-${veiculoId}-${Date.now()}`;
+      const uploadedUrl = await this.uploadService.uploadImage(nfeImgFile, 'abastecimentos/nfe', uniqueFileName);
+      nfe_img_url = uploadedUrl || undefined;
+      createAbastecimentoDto.nfe_img_url = nfe_img_url;
+    }
+
     // Validações de campos
-    const { quantidade, valor_total, data_abastecimento, nfe_chave_acesso, nfe_img_url, nfe_link, desconto, preco_empresa } = createAbastecimentoDto;
+    const { quantidade, valor_total, data_abastecimento, nfe_chave_acesso, nfe_link, desconto, preco_empresa } =
+      createAbastecimentoDto;
 
     // Validar quantidade
     if (!quantidade || quantidade <= 0) {

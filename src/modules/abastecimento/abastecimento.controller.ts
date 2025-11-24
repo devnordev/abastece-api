@@ -10,8 +10,11 @@ import {
   UseGuards,
   ParseIntPipe,
   Request,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes, ApiBody, ApiExtraModels } from '@nestjs/swagger';
 import { AbastecimentoService } from './abastecimento.service';
 import { CreateAbastecimentoDto } from './dto/create-abastecimento.dto';
 import { UpdateAbastecimentoDto } from './dto/update-abastecimento.dto';
@@ -20,8 +23,11 @@ import { CreateAbastecimentoFromSolicitacaoDto } from './dto/create-abasteciment
 import { CreateAbastecimentoFromQrCodeVeiculoDto } from './dto/create-abastecimento-from-qrcode-veiculo.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { EmpresaGuard } from '../auth/guards/empresa.guard';
-import { BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { getSchemaPath } from '@nestjs/swagger';
 
+@ApiExtraModels(CreateAbastecimentoDto)
 @ApiTags('Abastecimentos')
 @Controller('abastecimentos')
 @UseGuards(JwtAuthGuard)
@@ -31,16 +37,75 @@ export class AbastecimentoController {
 
   @Post()
   @UseGuards(EmpresaGuard)
+  @UseInterceptors(
+    FileInterceptor('nfe_img', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    }),
+  )
   @ApiOperation({ summary: 'Criar novo abastecimento' })
   @ApiResponse({ status: 201, description: 'Abastecimento criado com sucesso' })
   @ApiResponse({ status: 400, description: 'Dados inválidos' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 403, description: 'Apenas ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem criar abastecimentos' })
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(CreateAbastecimentoDto) },
+        {
+          type: 'object',
+          properties: {
+            nfe_img: {
+              type: 'string',
+              format: 'binary',
+              description: 'Imagem da nota fiscal (opcional)',
+            },
+          },
+        },
+      ],
+    },
+  })
   async create(
-    @Body() createAbastecimentoDto: CreateAbastecimentoDto,
+    @Body() createAbastecimentoDto: any,
     @Request() req,
+    @UploadedFile() nfeImgFile?: Express.Multer.File,
   ) {
-    return this.abastecimentoService.create(createAbastecimentoDto, req.user);
+    const processedDto: CreateAbastecimentoDto = {
+      ...createAbastecimentoDto,
+      veiculoId: this.parseRequiredIntField(createAbastecimentoDto.veiculoId, 'veiculoId'),
+      motoristaId: this.parseOptionalIntField(createAbastecimentoDto.motoristaId, 'motoristaId'),
+      combustivelId: this.parseRequiredIntField(createAbastecimentoDto.combustivelId, 'combustivelId'),
+      empresaId: this.parseRequiredIntField(createAbastecimentoDto.empresaId, 'empresaId'),
+      solicitanteId: this.parseOptionalIntField(createAbastecimentoDto.solicitanteId, 'solicitanteId'),
+      abastecedorId: this.parseOptionalIntField(createAbastecimentoDto.abastecedorId, 'abastecedorId'),
+      validadorId: this.parseOptionalIntField(createAbastecimentoDto.validadorId, 'validadorId'),
+      tipo_abastecimento: createAbastecimentoDto.tipo_abastecimento,
+      quantidade: this.parseRequiredFloatField(createAbastecimentoDto.quantidade, 'quantidade'),
+      preco_anp: this.parseOptionalFloatField(createAbastecimentoDto.preco_anp, 'preco_anp'),
+      preco_empresa: this.parseOptionalFloatField(createAbastecimentoDto.preco_empresa, 'preco_empresa'),
+      desconto: this.parseOptionalFloatField(createAbastecimentoDto.desconto, 'desconto'),
+      valor_total: this.parseRequiredFloatField(createAbastecimentoDto.valor_total, 'valor_total'),
+      data_abastecimento: this.parseOptionalDateField(createAbastecimentoDto.data_abastecimento, 'data_abastecimento'),
+      odometro: this.parseOptionalIntField(createAbastecimentoDto.odometro, 'odometro'),
+      orimetro: this.parseOptionalIntField(createAbastecimentoDto.orimetro, 'orimetro'),
+      status: createAbastecimentoDto.status,
+      motivo_rejeicao: createAbastecimentoDto.motivo_rejeicao,
+      abastecido_por: createAbastecimentoDto.abastecido_por,
+      nfe_chave_acesso: createAbastecimentoDto.nfe_chave_acesso,
+      nfe_img_url: createAbastecimentoDto.nfe_img_url,
+      nfe_link: createAbastecimentoDto.nfe_link,
+      conta_faturamento_orgao_id: this.parseOptionalIntField(
+        createAbastecimentoDto.conta_faturamento_orgao_id,
+        'conta_faturamento_orgao_id',
+      ),
+      cota_id: this.parseOptionalIntField(createAbastecimentoDto.cota_id, 'cota_id'),
+      ativo: this.parseOptionalBooleanField(createAbastecimentoDto.ativo, 'ativo'),
+    };
+
+    return this.abastecimentoService.create(processedDto, req.user, nfeImgFile);
   }
 
   @Post('from-solicitacao')
@@ -206,5 +271,108 @@ export class AbastecimentoController {
     @Request() req,
   ) {
     return this.abastecimentoService.reject(id, req.user.id, req.user.email, motivo, req.user);
+  }
+
+  private parseIntValue(value: any): number | undefined {
+    if (typeof value === 'number') {
+      return Number.isNaN(value) ? undefined : value;
+    }
+    if (typeof value === 'string' && value.trim() !== '') {
+      const parsed = parseInt(value, 10);
+      return Number.isNaN(parsed) ? undefined : parsed;
+    }
+    return undefined;
+  }
+
+  private parseRequiredIntField(value: any, fieldName: string): number {
+    const parsed = this.parseIntValue(value);
+    if (parsed === undefined) {
+      throw new BadRequestException(`Campo "${fieldName}" deve ser um número inteiro válido`);
+    }
+    return parsed;
+  }
+
+  private parseOptionalIntField(value: any, fieldName: string): number | undefined {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+    const parsed = this.parseIntValue(value);
+    if (parsed === undefined) {
+      throw new BadRequestException(`Campo "${fieldName}" deve ser um número inteiro válido`);
+    }
+    return parsed;
+  }
+
+  private parseFloatValue(value: any): number | undefined {
+    if (typeof value === 'number') {
+      return Number.isNaN(value) ? undefined : value;
+    }
+    if (typeof value === 'string' && value.trim() !== '') {
+      const normalized = value.replace(',', '.');
+      const parsed = parseFloat(normalized);
+      return Number.isNaN(parsed) ? undefined : parsed;
+    }
+    return undefined;
+  }
+
+  private parseRequiredFloatField(value: any, fieldName: string): number {
+    if (value === undefined || value === null || value === '') {
+      throw new BadRequestException(`Campo "${fieldName}" é obrigatório`);
+    }
+    const parsed = this.parseFloatValue(value);
+    if (parsed === undefined) {
+      throw new BadRequestException(`Campo "${fieldName}" deve ser um número decimal válido`);
+    }
+    return parsed;
+  }
+
+  private parseOptionalFloatField(value: any, fieldName: string): number | undefined {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+    const parsed = this.parseFloatValue(value);
+    if (parsed === undefined) {
+      throw new BadRequestException(`Campo "${fieldName}" deve ser um número decimal válido`);
+    }
+    return parsed;
+  }
+
+  private parseOptionalDateField(value: any, fieldName: string): string | undefined {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException(`Campo "${fieldName}" deve ser uma data válida`);
+    }
+
+    return parsed.toISOString();
+  }
+
+  private parseOptionalBooleanField(value: any, fieldName: string): boolean | undefined {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      if (value.toLowerCase() === 'true') {
+        return true;
+      }
+      if (value.toLowerCase() === 'false') {
+        return false;
+      }
+    }
+    throw new BadRequestException(`Campo "${fieldName}" deve ser um valor booleano válido`);
   }
 }
