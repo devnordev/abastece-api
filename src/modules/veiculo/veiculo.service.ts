@@ -1628,6 +1628,129 @@ export class VeiculoService {
     });
   }
 
+  /**
+   * Busca veículo por código QR code
+   * Aceita código QR code (string de 8 caracteres)
+   */
+  async findByQrCode(codigoQrCode: string) {
+    if (!codigoQrCode || codigoQrCode.trim() === '') {
+      throw new NotFoundException('Código QR code não informado');
+    }
+
+    const solicitacaoQrCode = await (this.prisma as any).solicitacoesQrCodeVeiculo.findFirst({
+      where: {
+        codigo_qrcode: codigoQrCode.trim(),
+      },
+      include: {
+        veiculo: {
+          include: {
+            prefeitura: {
+              select: {
+                id: true,
+                nome: true,
+                cnpj: true,
+              },
+            },
+            orgao: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+              },
+            },
+            contaFaturamento: {
+              select: {
+                id: true,
+                nome: true,
+                descricao: true,
+              },
+            },
+            combustiveis: {
+              include: {
+                combustivel: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    sigla: true,
+                    descricao: true,
+                  },
+                },
+              },
+            },
+            motoristas: {
+              where: {
+                ativo: true,
+              },
+              include: {
+                motorista: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    cpf: true,
+                    telefone: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        prefeitura: {
+          select: {
+            id: true,
+            nome: true,
+            cnpj: true,
+          },
+        },
+      },
+    });
+
+    if (!solicitacaoQrCode) {
+      throw new NotFoundException(`Veículo com código QR code ${codigoQrCode} não encontrado`);
+    }
+
+    if (!solicitacaoQrCode.veiculo.ativo) {
+      throw new NotFoundException('Veículo inativo');
+    }
+
+    const statusValidos = ['Aprovado', 'Em_Producao', 'Integracao', 'Concluida'];
+    if (!statusValidos.includes(solicitacaoQrCode.status)) {
+      throw new NotFoundException(`QR code não está ativo. Status atual: ${solicitacaoQrCode.status}`);
+    }
+
+    return {
+      message: 'Veículo encontrado com sucesso',
+      veiculo: {
+        id: solicitacaoQrCode.veiculo.id,
+        nome: solicitacaoQrCode.veiculo.nome,
+        placa: solicitacaoQrCode.veiculo.placa,
+        modelo: solicitacaoQrCode.veiculo.modelo,
+        tipo_abastecimento: solicitacaoQrCode.veiculo.tipo_abastecimento,
+        tipo_veiculo: solicitacaoQrCode.veiculo.tipo_veiculo,
+        situacao_veiculo: solicitacaoQrCode.veiculo.situacao_veiculo,
+        ativo: solicitacaoQrCode.veiculo.ativo,
+        capacidade_tanque: solicitacaoQrCode.veiculo.capacidade_tanque,
+        apelido: solicitacaoQrCode.veiculo.apelido,
+        prefeitura: solicitacaoQrCode.veiculo.prefeitura,
+        orgao: solicitacaoQrCode.veiculo.orgao,
+        contaFaturamento: solicitacaoQrCode.veiculo.contaFaturamento,
+        combustiveis: solicitacaoQrCode.veiculo.combustiveis.map((comb) => comb.combustivel),
+        motoristas: solicitacaoQrCode.veiculo.motoristas.map((vm) => ({
+          id: vm.motorista.id,
+          nome: vm.motorista.nome,
+          cpf: vm.motorista.cpf,
+          telefone: vm.motorista.telefone,
+        })),
+      },
+      qrCode: {
+        id: solicitacaoQrCode.id,
+        codigo_qrcode: solicitacaoQrCode.codigo_qrcode,
+        status: solicitacaoQrCode.status,
+        data_cadastro: solicitacaoQrCode.data_cadastro,
+        foto: solicitacaoQrCode.foto,
+      },
+    };
+  }
+
   async createSolicitacoesQrCode(createSolicitacaoQrCodeDto: CreateSolicitacaoQrCodeDto, currentUserId: number) {
     // Validar permissões do usuário
     const currentUser = await this.prisma.usuario.findUnique({

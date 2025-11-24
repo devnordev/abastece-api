@@ -19,7 +19,16 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiConsumes,
+  ApiBody,
+  ApiParam,
+} from '@nestjs/swagger';
 import { VeiculoService } from './veiculo.service';
 import { CreateVeiculoDto } from './dto/create-veiculo.dto';
 import { UpdateVeiculoDto } from './dto/update-veiculo.dto';
@@ -27,6 +36,7 @@ import { FindVeiculoDto } from './dto/find-veiculo.dto';
 import { CreateSolicitacaoQrCodeDto } from './dto/create-solicitacao-qrcode.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleBlockGuard } from '../auth/guards/role-block.guard';
+import { EmpresaGuard } from '../auth/guards/empresa.guard';
 
 @ApiTags('Veículos')
 @Controller('veiculos')
@@ -182,6 +192,18 @@ export class VeiculoController {
   @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens por página' })
   async findAll(@Query() findVeiculoDto: FindVeiculoDto, @Request() req) {
     return this.veiculoService.findAll(findVeiculoDto, req.user?.id);
+  }
+
+  @Get('qrcode/:codigo')
+  @UseGuards(JwtAuthGuard, EmpresaGuard)
+  @ApiOperation({ summary: 'Buscar veículo por código QR code' })
+  @ApiParam({ name: 'codigo', description: 'Código QR code do veículo (8 caracteres)', example: 'ABC12345' })
+  @ApiResponse({ status: 200, description: 'Veículo encontrado com sucesso' })
+  @ApiResponse({ status: 404, description: 'Veículo não encontrado ou QR code inválido' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Apenas ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar' })
+  async findByQrCode(@Param('codigo') codigo: string) {
+    return this.veiculoService.findByQrCode(codigo);
   }
 
   @Get(':id/motoristas')
