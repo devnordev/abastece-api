@@ -191,52 +191,122 @@ export class RelatoriosService {
     });
     whereAbastecimento.status = StatusAbastecimento.Aprovado;
 
-    // Buscar processo ativo
-    const processoAtivo = await this.prisma.processo.findFirst({
+    // Buscar processos ativos da prefeitura
+    const processosAtivos = await this.prisma.processo.findMany({
       where: {
         prefeituraId,
         status: StatusProcesso.ATIVO,
         ativo: true,
         tipo_contrato: TipoContrato.OBJETIVO,
       },
+      select: {
+        id: true,
+        numero_processo: true,
+      },
+    });
+
+    const processoIds = processosAtivos.map((p) => p.id);
+
+    // Buscar todas as cotas dos órgãos relacionadas aos processos ativos
+    const cotasOrgao = await this.prisma.cotaOrgao.findMany({
+      where: {
+        processoId: { in: processoIds },
+        ativa: true,
+      },
       include: {
-        combustiveis: {
-          include: {
-            combustivel: {
-              select: {
-                id: true,
-                nome: true,
-                sigla: true,
-              },
-            },
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+        processo: {
+          select: {
+            id: true,
+            numero_processo: true,
           },
         },
       },
     });
 
-    // Calcular KPIs do processo ativo
-    const processoAtivoKpis = processoAtivo
-      ? processoAtivo.combustiveis.map((pc) => {
-          const quantidadeTotal = this.toNumber(pc.quantidade_litros);
-          const saldoDisponivel = pc.saldo_disponivel_processo
-            ? this.toNumber(pc.saldo_disponivel_processo)
-            : 0;
-          const quantidadeUsada = quantidadeTotal - saldoDisponivel;
-          const percentualUtilizado =
-            quantidadeTotal > 0 ? (quantidadeUsada / quantidadeTotal) * 100 : 0;
+    // Buscar ProcessoCombustivel para cada processo e combustível
+    const processoCombustiveis = await this.prisma.processoCombustivel.findMany({
+      where: {
+        processoId: { in: processoIds },
+      },
+      include: {
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+      },
+    });
 
-          return {
-            combustivel: {
-              id: pc.combustivel.id,
-              nome: pc.combustivel.nome,
-              sigla: pc.combustivel.sigla,
-            },
-            usado: this.arredondar(quantidadeUsada, 1),
-            total: this.arredondar(quantidadeTotal, 1),
-            percentual_utilizado: this.arredondar(percentualUtilizado, 1),
-          };
-        })
-      : [];
+    // Agrupar por combustível para calcular totais reais
+    const combustiveisMap = new Map<
+      number,
+      {
+        combustivel: { id: number; nome: string; sigla: string };
+        quantidadeTotal: number;
+        quantidadeUtilizada: number;
+        valorUtilizado: number;
+      }
+    >();
+
+    // Processar ProcessoCombustivel para obter quantidades totais por combustível
+    processoCombustiveis.forEach((pc) => {
+      const combustivelId = pc.combustivel.id;
+      const quantidadeTotal = this.toNumber(pc.quantidade_litros);
+      
+      if (!combustiveisMap.has(combustivelId)) {
+        combustiveisMap.set(combustivelId, {
+          combustivel: pc.combustivel,
+          quantidadeTotal: 0,
+          quantidadeUtilizada: 0,
+          valorUtilizado: 0,
+        });
+      }
+      
+      const item = combustiveisMap.get(combustivelId)!;
+      item.quantidadeTotal += quantidadeTotal;
+    });
+
+    // Processar CotaOrgao para obter quantidades utilizadas reais por combustível
+    cotasOrgao.forEach((cota) => {
+      const combustivelId = cota.combustivel.id;
+      const quantidadeUtilizada = this.toNumber(cota.quantidade_utilizada);
+      const valorUtilizado = this.toNumber(cota.valor_utilizado);
+      
+      if (combustiveisMap.has(combustivelId)) {
+        const item = combustiveisMap.get(combustivelId)!;
+        item.quantidadeUtilizada += quantidadeUtilizada;
+        item.valorUtilizado += valorUtilizado;
+      }
+    });
+
+    // Calcular KPIs baseados em dados reais
+    const processoAtivoKpis = Array.from(combustiveisMap.values()).map((item) => {
+      const percentualUtilizado =
+        item.quantidadeTotal > 0
+          ? (item.quantidadeUtilizada / item.quantidadeTotal) * 100
+          : 0;
+
+      return {
+        combustivel: {
+          id: item.combustivel.id,
+          nome: item.combustivel.nome,
+          sigla: item.combustivel.sigla,
+        },
+        usado: this.arredondar(item.quantidadeUtilizada, 1),
+        total: this.arredondar(item.quantidadeTotal, 1),
+        valor_utilizado: this.arredondar(item.valorUtilizado, 2),
+        percentual_utilizado: this.arredondar(percentualUtilizado, 1),
+      };
+    });
 
     // Buscar todos os abastecimentos para análises
     const abastecimentos = await this.prisma.abastecimento.findMany({
@@ -615,11 +685,13 @@ export class RelatoriosService {
         dataInicio: dataInicio.toISOString(),
         dataFim: dataFim.toISOString(),
       },
-      processo_ativo: processoAtivo
+      processos_ativos: processosAtivos.length > 0
         ? {
-            id: processoAtivo.id,
-            numero_processo: processoAtivo.numero_processo,
-            tipo_contrato: processoAtivo.tipo_contrato,
+            total: processosAtivos.length,
+            processos: processosAtivos.map((p) => ({
+              id: p.id,
+              numero_processo: p.numero_processo,
+            })),
             kpis: processoAtivoKpis,
           }
         : null,
