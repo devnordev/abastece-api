@@ -2189,27 +2189,17 @@ export class SolicitacaoAbastecimentoService {
   }
 
   private getDateAdjustedToTimezone(value?: Date | null): Date | null {
-    if (!value) {
-      return value ?? null;
-    }
-
-    const offsetMs = -this.timezoneOffsetMinutes * 60 * 1000;
-    return new Date(value.getTime() + offsetMs);
+    return value ?? null;
   }
 
   private formatDateWithTimezone(value?: Date | null): string | null {
     if (!value) {
-      return value ?? null;
+      return null;
     }
 
-    const year = value.getUTCFullYear();
-    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(value.getUTCDate()).padStart(2, '0');
-    const hours = String(value.getUTCHours()).padStart(2, '0');
-    const minutes = String(value.getUTCMinutes()).padStart(2, '0');
-    const seconds = String(value.getUTCSeconds()).padStart(2, '0');
-
-    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${this.defaultTimezoneOffset}`;
+    const localTime = new Date(value.getTime() + this.timezoneOffsetMinutes * 60 * 1000);
+    const iso = localTime.toISOString().replace('Z', this.defaultTimezoneOffset);
+    return iso;
   }
 
   private formatSolicitacaoResponse<
