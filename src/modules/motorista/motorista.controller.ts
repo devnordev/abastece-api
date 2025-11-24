@@ -15,13 +15,14 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { MotoristaService } from './motorista.service';
 import { CreateMotoristaDto } from './dto/create-motorista.dto';
 import { UpdateMotoristaDto } from './dto/update-motorista.dto';
 import { FindMotoristaDto } from './dto/find-motorista.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleBlockGuard } from '../auth/guards/role-block.guard';
+import { EmpresaGuard } from '../auth/guards/empresa.guard';
 import { CreateSolicitacaoQrCodeMotoristaDto } from './dto/create-solicitacao-qrcode.dto';
 import { BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 
@@ -115,6 +116,18 @@ export class MotoristaController {
   @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens por página' })
   async findAll(@Query() findMotoristaDto: FindMotoristaDto, @Request() req) {
     return this.motoristaService.findAll(findMotoristaDto, req.user?.id);
+  }
+
+  @Get('qrcode/:codigo')
+  @UseGuards(JwtAuthGuard, EmpresaGuard)
+  @ApiOperation({ summary: 'Buscar motorista por código QR code' })
+  @ApiParam({ name: 'codigo', description: 'Código QR code do motorista (8 caracteres)', example: 'ABC12345' })
+  @ApiResponse({ status: 200, description: 'Motorista encontrado com sucesso' })
+  @ApiResponse({ status: 404, description: 'Motorista não encontrado ou QR code inválido' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Apenas ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar' })
+  async findByQrCode(@Param('codigo') codigo: string) {
+    return this.motoristaService.findByQrCode(codigo);
   }
 
   @Get(':id')

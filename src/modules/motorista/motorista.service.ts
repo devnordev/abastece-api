@@ -756,4 +756,108 @@ export class MotoristaService {
       solicitacoes,
     };
   }
+
+  /**
+   * Busca motorista por código QR code
+   * Aceita código QR code (string de 8 caracteres)
+   */
+  async findByQrCode(codigoQrCode: string) {
+    if (!codigoQrCode || codigoQrCode.trim() === '') {
+      throw new NotFoundException('Código QR code não informado');
+    }
+
+    // Buscar solicitação de QR code do motorista pelo código
+    const qrCodeMotorista = await (this.prisma as any).qrCodeMotorista.findFirst({
+      where: {
+        codigo_qrcode: codigoQrCode.trim(),
+      },
+      include: {
+        motorista: {
+          include: {
+            prefeitura: {
+              select: {
+                id: true,
+                nome: true,
+                cnpj: true,
+              },
+            },
+            veiculos: {
+              where: {
+                ativo: true,
+              },
+              include: {
+                veiculo: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    placa: true,
+                    modelo: true,
+                    tipo_veiculo: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        prefeitura: {
+          select: {
+            id: true,
+            nome: true,
+            cnpj: true,
+          },
+        },
+      },
+    });
+
+    if (!qrCodeMotorista) {
+      throw new NotFoundException(`Motorista com código QR code ${codigoQrCode} não encontrado`);
+    }
+
+    // Verificar se o motorista está ativo
+    if (!qrCodeMotorista.motorista.ativo) {
+      throw new NotFoundException('Motorista inativo');
+    }
+
+    // Verificar se o QR code está ativo (status válidos para uso)
+    // Status válidos: Aprovado, Em_Producao, Integracao, Concluida
+    const statusValidos = ['Aprovado', 'Em_Producao', 'Integracao', 'Concluida'];
+    if (!statusValidos.includes(qrCodeMotorista.status)) {
+      throw new NotFoundException(
+        `QR code não está ativo. Status atual: ${qrCodeMotorista.status}`
+      );
+    }
+
+    // Retornar dados do motorista
+    return {
+      message: 'Motorista encontrado com sucesso',
+      motorista: {
+        id: qrCodeMotorista.motorista.id,
+        nome: qrCodeMotorista.motorista.nome,
+        cpf: qrCodeMotorista.motorista.cpf,
+        email: qrCodeMotorista.motorista.email,
+        cnh: qrCodeMotorista.motorista.cnh,
+        categoria_cnh: qrCodeMotorista.motorista.categoria_cnh,
+        data_vencimento_cnh: qrCodeMotorista.motorista.data_vencimento_cnh,
+        telefone: qrCodeMotorista.motorista.telefone,
+        endereco: qrCodeMotorista.motorista.endereco,
+        ativo: qrCodeMotorista.motorista.ativo,
+        imagem_perfil: qrCodeMotorista.motorista.imagem_perfil,
+        prefeitura: qrCodeMotorista.motorista.prefeitura,
+        veiculos: qrCodeMotorista.motorista.veiculos.map((v: any) => ({
+          id: v.veiculo.id,
+          nome: v.veiculo.nome,
+          placa: v.veiculo.placa,
+          modelo: v.veiculo.modelo,
+          tipo_veiculo: v.veiculo.tipo_veiculo,
+        })),
+      },
+      qrCode: {
+        id: qrCodeMotorista.id,
+        codigo_qrcode: qrCodeMotorista.codigo_qrcode,
+        status: qrCodeMotorista.status,
+        data_cadastro: qrCodeMotorista.data_cadastro,
+        foto: qrCodeMotorista.foto,
+      },
+    };
+  }
 }
