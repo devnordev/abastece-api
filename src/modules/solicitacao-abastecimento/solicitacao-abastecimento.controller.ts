@@ -37,6 +37,11 @@ export class SolicitacaoAbastecimentoController {
   @ApiOperation({ summary: 'Criar solicitação de abastecimento' })
   @ApiResponse({ status: 201, description: 'Solicitação criada com sucesso' })
   async create(@Body() createDto: CreateSolicitacaoAbastecimentoDto) {
+    console.log('[SolicitacaoAbastecimento] Recebida requisição de criação:', {
+      data_solicitacao: createDto?.data_solicitacao,
+      data_expiracao: createDto?.data_expiracao,
+      payload: createDto,
+    });
     return this.solicitacaoService.create(createDto);
   }
 
