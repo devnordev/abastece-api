@@ -2096,11 +2096,10 @@ export class SolicitacaoAbastecimentoService {
     const dataAtual = new Date();
     const dataAtualReal = this.getDateAdjustedToTimezone(dataAtual);
 
-    // Buscar todas as solicitações ativas com data de expiração definida
-    // e status PENDENTE ou APROVADA (as demais não devem ser alteradas aqui)
-    const solicitacoesExpiradas = await this.prisma.solicitacaoAbastecimento.findMany({
+    // Buscar todas as solicitações ativas com status PENDENTE ou APROVADA
+    // Filtrar em código para considerar apenas as que têm data_expiracao e já expiraram
+    const solicitacoesCandidatas = await this.prisma.solicitacaoAbastecimento.findMany({
       where: {
-        data_expiracao: { not: null },
         status: {
           in: [StatusSolicitacao.PENDENTE, StatusSolicitacao.APROVADA],
         },
@@ -2117,19 +2116,28 @@ export class SolicitacaoAbastecimentoService {
       },
     });
 
+    if (solicitacoesCandidatas.length === 0) {
+      return { processadas: 0, liberadas: 0 };
+    }
+
+    // Filtrar apenas as que têm data_expiracao e já expiraram (considerando fuso horário)
+    const solicitacoesExpiradas = solicitacoesCandidatas.filter((solicitacao) => {
+      if (!solicitacao.data_expiracao) {
+        return false;
+      }
+      const dataExpiracaoReal = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
+      return dataExpiracaoReal && dataAtualReal && dataExpiracaoReal <= dataAtualReal;
+    });
+
     if (solicitacoesExpiradas.length === 0) {
       return { processadas: 0, liberadas: 0 };
     }
 
+    let processadas = 0;
     let liberadas = 0;
 
-    // Processar cada solicitação e verificar se já expirou considerando o fuso horário
+    // Processar cada solicitação expirada
     for (const solicitacao of solicitacoesExpiradas) {
-      const dataExpiracaoReal = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
-      if (!dataExpiracaoReal || !dataAtualReal || dataExpiracaoReal > dataAtualReal) {
-        continue;
-      }
-
       try {
         await this.prisma.$transaction(async (tx) => {
           // Atualizar status da solicitação para EXPIRADA
@@ -2141,6 +2149,8 @@ export class SolicitacaoAbastecimentoService {
             },
           });
         });
+
+        processadas++;
 
         // Liberar litros da solicitação (se for tipo COTA)
         const veiculo = solicitacao.veiculo;
@@ -2166,7 +2176,7 @@ export class SolicitacaoAbastecimentoService {
     }
 
     return {
-      processadas: solicitacoesExpiradas.length,
+      processadas,
       liberadas,
     };
   }
