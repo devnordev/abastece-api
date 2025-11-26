@@ -67,6 +67,7 @@ export class SolicitacaoAbastecimentoService {
         id: true,
         nome: true,
         cnpj: true,
+        imagem_perfil: true,
       },
     },
     veiculo: {
