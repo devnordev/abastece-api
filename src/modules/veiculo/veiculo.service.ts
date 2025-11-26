@@ -681,6 +681,7 @@ export class VeiculoService {
             id: true,
             nome: true,
             cnpj: true,
+            imagem_perfil: true,
           },
         },
         orgao: {
