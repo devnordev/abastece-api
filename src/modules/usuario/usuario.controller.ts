@@ -306,7 +306,7 @@ export class UsuarioController {
   @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   async findOne(@Param('id', ParseIntPipe) id: number, @Request() req) {
-    return this.usuarioService.findOne(id, req.user);
+    return this.usuarioService.findOne(id, req.user?.id);
   }
 
   @Patch(':id')

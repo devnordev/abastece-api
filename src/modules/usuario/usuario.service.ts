@@ -529,8 +529,19 @@ export class UsuarioService {
     }
   }
 
-  async findOne(id: number, currentUser?: any) {
-    const prefeituraFiltro = currentUser?.prefeituraId || null;
+  async findOne(id: number, currentUserId?: number) {
+    // Buscar prefeitura do usuário logado para filtrar órgãos
+    let prefeituraIdFiltro: number | undefined = undefined;
+    if (currentUserId) {
+      const currentUser = await this.prisma.usuario.findUnique({
+        where: { id: currentUserId },
+        select: { prefeituraId: true },
+      });
+      if (currentUser?.prefeituraId) {
+        prefeituraIdFiltro = currentUser.prefeituraId;
+      }
+    }
+
     const usuario = await this.prisma.usuario.findUnique({
       where: { id },
       include: {
@@ -551,13 +562,11 @@ export class UsuarioService {
         orgaos: {
           where: {
             ativo: true,
-            ...(prefeituraFiltro
-              ? {
-                  orgao: {
-                    prefeituraId: prefeituraFiltro,
-                  },
-                }
-              : {}),
+            ...(prefeituraIdFiltro && {
+              orgao: {
+                prefeituraId: prefeituraIdFiltro,
+              },
+            }),
           },
           include: {
             orgao: {
@@ -566,6 +575,7 @@ export class UsuarioService {
                 nome: true,
                 sigla: true,
                 ativo: true,
+                prefeituraId: true,
               },
             },
           },
