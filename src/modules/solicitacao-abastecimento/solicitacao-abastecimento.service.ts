@@ -2041,10 +2041,12 @@ export class SolicitacaoAbastecimentoService {
     }
 
     const dataAtual = new Date();
+    const dataAtualReal = this.getDateAdjustedToTimezone(dataAtual);
     const dataExpiracaoReal = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
     const precisaExpirar =
       dataExpiracaoReal &&
-      dataExpiracaoReal <= dataAtual &&
+      dataAtualReal &&
+      dataExpiracaoReal <= dataAtualReal &&
       (solicitacao.status === StatusSolicitacao.PENDENTE ||
         solicitacao.status === StatusSolicitacao.APROVADA);
 
@@ -2092,12 +2094,13 @@ export class SolicitacaoAbastecimentoService {
    */
   async processarSolicitacoesExpiradas(): Promise<{ processadas: number; liberadas: number }> {
     const dataAtual = new Date();
+    const dataAtualReal = this.getDateAdjustedToTimezone(dataAtual);
 
-    // Buscar todas as solicitações expiradas que ainda não foram processadas
-    // Status deve ser PENDENTE ou APROVADA (não EFETIVADA, REJEITADA, CANCELADA ou EXPIRADA)
+    // Buscar todas as solicitações ativas com data de expiração definida
+    // e status PENDENTE ou APROVADA (as demais não devem ser alteradas aqui)
     const solicitacoesExpiradas = await this.prisma.solicitacaoAbastecimento.findMany({
       where: {
-        data_expiracao: { lt: dataAtual },
+        data_expiracao: { not: null },
         status: {
           in: [StatusSolicitacao.PENDENTE, StatusSolicitacao.APROVADA],
         },
@@ -2120,10 +2123,10 @@ export class SolicitacaoAbastecimentoService {
 
     let liberadas = 0;
 
-    // Processar cada solicitação expirada
+    // Processar cada solicitação e verificar se já expirou considerando o fuso horário
     for (const solicitacao of solicitacoesExpiradas) {
       const dataExpiracaoReal = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
-      if (dataExpiracaoReal && dataExpiracaoReal > dataAtual) {
+      if (!dataExpiracaoReal || !dataAtualReal || dataExpiracaoReal > dataAtualReal) {
         continue;
       }
 
@@ -2317,8 +2320,20 @@ export class SolicitacaoAbastecimentoService {
     return value;
   }
 
+  /**
+   * Ajusta uma data para o fuso horário configurado (America/Fortaleza -03:00)
+   * Considerando que o banco armazena em UTC, mas a regra de negócio é no horário local
+   */
   private getDateAdjustedToTimezone(value?: Date | null): Date | null {
-    return value ?? null;
+    if (!value) {
+      return null;
+    }
+
+    const d = new Date(value);
+    // Diferencial entre o fuso da máquina e o fuso desejado (em minutos)
+    const offsetDiffMinutes = d.getTimezoneOffset() - this.timezoneOffsetMinutes;
+    d.setMinutes(d.getMinutes() + offsetDiffMinutes);
+    return d;
   }
 
   private formatDateWithTimezone(value?: Date | null): string | null {
