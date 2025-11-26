@@ -339,7 +339,6 @@ export class UsuarioService {
       where: { id },
       data: {
         senha: hashedPassword,
-        modified_date: new Date(),
       },
     });
 

@@ -1068,6 +1068,75 @@ export class AbastecimentoService {
     };
   }
 
+  async findOneWithCotaPeriodo(id: number) {
+    const abastecimento = await this.prisma.abastecimento.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        veiculoId: true,
+        data_abastecimento: true,
+      },
+    });
+
+    if (!abastecimento) {
+      throw new AbastecimentoNotFoundException(id, {
+        resourceId: id,
+      });
+    }
+
+    // Buscar a cota do período do veículo
+    // Se houver data_abastecimento, buscar o período que contém essa data
+    // Caso contrário, buscar o período ativo mais recente
+    let cotaPeriodo = null;
+    
+    if (abastecimento.data_abastecimento) {
+      cotaPeriodo = await this.prisma.veiculoCotaPeriodo.findFirst({
+        where: {
+          veiculoId: abastecimento.veiculoId,
+          ativo: true,
+          data_inicio_periodo: { lte: abastecimento.data_abastecimento },
+          data_fim_periodo: { gte: abastecimento.data_abastecimento },
+        },
+        orderBy: {
+          data_inicio_periodo: 'desc',
+        },
+      });
+    }
+
+    // Se não encontrou período com a data, buscar o período ativo mais recente
+    if (!cotaPeriodo) {
+      cotaPeriodo = await this.prisma.veiculoCotaPeriodo.findFirst({
+        where: {
+          veiculoId: abastecimento.veiculoId,
+          ativo: true,
+        },
+        orderBy: {
+          data_inicio_periodo: 'desc',
+        },
+      });
+    }
+
+    return {
+      message: 'Abastecimento encontrado com sucesso',
+      abastecimento: {
+        id: abastecimento.id,
+        veiculoId: abastecimento.veiculoId,
+        data_abastecimento: abastecimento.data_abastecimento,
+        cota_periodo: cotaPeriodo
+          ? {
+              id: cotaPeriodo.id,
+              quantidade_total: Number(cotaPeriodo.quantidade_permitida),
+              quantidade_utilizada: Number(cotaPeriodo.quantidade_utilizada),
+              quantidade_disponivel: Number(cotaPeriodo.quantidade_disponivel),
+              data_inicio_periodo: cotaPeriodo.data_inicio_periodo,
+              data_fim_periodo: cotaPeriodo.data_fim_periodo,
+              periodicidade: cotaPeriodo.periodicidade,
+            }
+          : null,
+      },
+    };
+  }
+
   async update(id: number, updateAbastecimentoDto: UpdateAbastecimentoDto, user?: any) {
     // Verificar se abastecimento existe
     const existingAbastecimento = await this.prisma.abastecimento.findUnique({

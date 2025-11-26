@@ -217,6 +217,37 @@ export class AbastecimentoController {
     return this.abastecimentoService.verificarTipoAbastecimentoVeiculo(veiculoId, qntLitros);
   }
 
+  @Get('app/abastecimento/:id')
+  @ApiOperation({ summary: 'Buscar abastecimento por ID com informações de cota do período' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Abastecimento encontrado com sucesso incluindo informações da cota do período',
+    schema: {
+      example: {
+        message: 'Abastecimento encontrado com sucesso',
+        abastecimento: {
+          id: 1,
+          veiculoId: 1,
+          data_abastecimento: '2025-01-20T10:00:00.000Z',
+          cota_periodo: {
+            id: 1,
+            quantidade_total: 500.0,
+            quantidade_utilizada: 150.0,
+            quantidade_disponivel: 350.0,
+            data_inicio_periodo: '2025-01-01T00:00:00.000Z',
+            data_fim_periodo: '2025-01-31T23:59:59.999Z',
+            periodicidade: 'Mensal'
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Abastecimento não encontrado' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  async findOneWithCotaPeriodo(@Param('id', ParseIntPipe) id: number) {
+    return this.abastecimentoService.findOneWithCotaPeriodo(id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar abastecimento por ID' })
   @ApiResponse({ status: 200, description: 'Abastecimento encontrado com sucesso' })
