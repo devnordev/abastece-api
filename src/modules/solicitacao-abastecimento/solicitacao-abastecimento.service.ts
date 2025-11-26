@@ -2054,6 +2054,46 @@ export class SolicitacaoAbastecimentoService {
     return { resetados };
   }
 
+  /**
+   * Verifica se uma data de expiração já passou, comparando no horário local de Fortaleza
+   * Trata os componentes UTC de data_expiracao como horário local (sem conversão)
+   */
+  private verificarSeExpirado(dataExpiracao: Date, dataAtual: Date = new Date()): boolean {
+    // Obter horário local de Fortaleza para dataAtual
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Fortaleza',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    
+    const partsAtual = formatter.formatToParts(dataAtual);
+    const anoAtual = parseInt(partsAtual.find(p => p.type === 'year')!.value);
+    const mesAtual = parseInt(partsAtual.find(p => p.type === 'month')!.value) - 1;
+    const diaAtual = parseInt(partsAtual.find(p => p.type === 'day')!.value);
+    const horaAtual = parseInt(partsAtual.find(p => p.type === 'hour')!.value);
+    const minutoAtual = parseInt(partsAtual.find(p => p.type === 'minute')!.value);
+    const segundoAtual = parseInt(partsAtual.find(p => p.type === 'second')!.value);
+    
+    // Obter componentes UTC de data_expiracao (tratando como horário local, sem conversão)
+    const anoExp = dataExpiracao.getUTCFullYear();
+    const mesExp = dataExpiracao.getUTCMonth();
+    const diaExp = dataExpiracao.getUTCDate();
+    const horaExp = dataExpiracao.getUTCHours();
+    const minutoExp = dataExpiracao.getUTCMinutes();
+    const segundoExp = dataExpiracao.getUTCSeconds();
+    
+    // Comparar diretamente os componentes (ano, mês, dia, hora, minuto, segundo)
+    const timestampAtual = new Date(anoAtual, mesAtual, diaAtual, horaAtual, minutoAtual, segundoAtual).getTime();
+    const timestampExp = new Date(anoExp, mesExp, diaExp, horaExp, minutoExp, segundoExp).getTime();
+    
+    return timestampExp <= timestampAtual;
+  }
+
   private async expirarSolicitacaoSeNecessario(
     solicitacao: SolicitacaoBasicaComVeiculo,
   ): Promise<boolean> {
@@ -2061,21 +2101,49 @@ export class SolicitacaoAbastecimentoService {
       return false;
     }
 
-    // Obter horário atual em UTC (new Date() já retorna em UTC)
     const dataAtual = new Date();
+    const expirado = this.verificarSeExpirado(solicitacao.data_expiracao, dataAtual);
     
-    // Comparar diretamente em UTC (sem conversão de timezone)
-    // data_expiracao do banco já está em UTC, dataAtual também está em UTC
     const precisaExpirar =
-      solicitacao.data_expiracao <= dataAtual &&
+      expirado &&
       (solicitacao.status === StatusSolicitacao.PENDENTE ||
         solicitacao.status === StatusSolicitacao.APROVADA);
     
     // Debug temporário
-    console.log('[expirarSolicitacaoSeNecessario] Comparação de datas (UTC):', {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Fortaleza',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    const partsAtual = formatter.formatToParts(dataAtual);
+    const anoAtual = parseInt(partsAtual.find(p => p.type === 'year')!.value);
+    const mesAtual = parseInt(partsAtual.find(p => p.type === 'month')!.value) - 1;
+    const diaAtual = parseInt(partsAtual.find(p => p.type === 'day')!.value);
+    const horaAtual = parseInt(partsAtual.find(p => p.type === 'hour')!.value);
+    const minutoAtual = parseInt(partsAtual.find(p => p.type === 'minute')!.value);
+    const segundoAtual = parseInt(partsAtual.find(p => p.type === 'second')!.value);
+    
+    const anoExp = solicitacao.data_expiracao.getUTCFullYear();
+    const mesExp = solicitacao.data_expiracao.getUTCMonth();
+    const diaExp = solicitacao.data_expiracao.getUTCDate();
+    const horaExp = solicitacao.data_expiracao.getUTCHours();
+    const minutoExp = solicitacao.data_expiracao.getUTCMinutes();
+    const segundoExp = solicitacao.data_expiracao.getUTCSeconds();
+    
+    const dataAtualServidorFormatada = dataAtual.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' });
+    const dataExpiracaoFormatada = `${String(diaExp).padStart(2, '0')}/${String(mesExp + 1).padStart(2, '0')}/${anoExp}, ${String(horaExp).padStart(2, '0')}:${String(minutoExp).padStart(2, '0')}:${String(segundoExp).padStart(2, '0')}`;
+    
+    console.log('[expirarSolicitacaoSeNecessario] Comparação de datas (horário local Fortaleza):', {
       solicitacaoId: solicitacao.id,
       dataAtualUTC: dataAtual.toISOString(),
       dataExpiracaoUTC: solicitacao.data_expiracao.toISOString(),
+      dataAtualServidorFormatada,
+      dataExpiracaoFormatada,
       precisaExpirar,
       status: solicitacao.status,
     });
@@ -2149,13 +2217,13 @@ export class SolicitacaoAbastecimentoService {
       return { processadas: 0, liberadas: 0 };
     }
 
-    // Filtrar apenas as que têm data_expiracao e já expiraram (comparação direta em UTC)
+    // Filtrar apenas as que têm data_expiracao e já expiraram (comparação no horário local de Fortaleza)
     const solicitacoesExpiradas = solicitacoesCandidatas.filter((solicitacao) => {
       if (!solicitacao.data_expiracao) {
         return false;
       }
-      // Comparar diretamente em UTC: data_expiracao (UTC) <= dataAtual (UTC)
-      return solicitacao.data_expiracao <= dataAtual;
+      // Comparar no horário local de Fortaleza
+      return this.verificarSeExpirado(solicitacao.data_expiracao, dataAtual);
     });
 
     if (solicitacoesExpiradas.length === 0) {
@@ -2242,13 +2310,13 @@ export class SolicitacaoAbastecimentoService {
       return;
     }
 
-    // Filtrar apenas as que têm data_expiracao e já expiraram (comparação direta em UTC)
+    // Filtrar apenas as que têm data_expiracao e já expiraram (comparação no horário local de Fortaleza)
     const solicitacoesExpiradas = solicitacoesCandidatas.filter((solicitacao) => {
       if (!solicitacao.data_expiracao) {
         return false;
       }
-      // Comparar diretamente em UTC: data_expiracao (UTC) <= dataAtual (UTC)
-      return solicitacao.data_expiracao <= dataAtual;
+      // Comparar no horário local de Fortaleza
+      return this.verificarSeExpirado(solicitacao.data_expiracao, dataAtual);
     });
 
     if (solicitacoesExpiradas.length === 0) {
