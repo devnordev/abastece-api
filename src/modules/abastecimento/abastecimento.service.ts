@@ -988,6 +988,14 @@ export class AbastecimentoService {
             placa: true,
             modelo: true,
             tipo_veiculo: true,
+            prefeituraId: true,
+            prefeitura: {
+              select: {
+                id: true,
+                nome: true,
+                imagem_perfil: true,
+              },
+            },
           },
         },
         motorista: {
