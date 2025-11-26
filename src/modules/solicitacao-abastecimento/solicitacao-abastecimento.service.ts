@@ -311,6 +311,18 @@ export class SolicitacaoAbastecimentoService {
       return novaSolicitacao;
     });
 
+    // Log das datas quando uma nova solicitação é gerada
+    const dataAtualServidor = new Date();
+    console.log('[SolicitacaoAbastecimento] Nova solicitação criada:', {
+      solicitacaoId: solicitacao.id,
+      dataAtualServidor: dataAtualServidor.toISOString(),
+      dataAtualServidorFormatada: dataAtualServidor.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }),
+      data_solicitacao: solicitacao.data_solicitacao?.toISOString(),
+      data_solicitacaoFormatada: solicitacao.data_solicitacao?.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }),
+      data_expiracao: solicitacao.data_expiracao?.toISOString() || null,
+      data_expiracaoFormatada: solicitacao.data_expiracao?.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }) || null,
+    });
+
     const solicitacaoComOrgao = this.adicionarInfoOrgaoSolicitacao(solicitacao);
 
     return {
