@@ -529,7 +529,8 @@ export class UsuarioService {
     }
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, currentUser?: any) {
+    const prefeituraFiltro = currentUser?.prefeituraId || null;
     const usuario = await this.prisma.usuario.findUnique({
       where: { id },
       include: {
@@ -550,6 +551,13 @@ export class UsuarioService {
         orgaos: {
           where: {
             ativo: true,
+            ...(prefeituraFiltro
+              ? {
+                  orgao: {
+                    prefeituraId: prefeituraFiltro,
+                  },
+                }
+              : {}),
           },
           include: {
             orgao: {
