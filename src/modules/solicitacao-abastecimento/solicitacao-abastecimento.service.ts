@@ -2047,17 +2047,19 @@ export class SolicitacaoAbastecimentoService {
     const dataAtualFortaleza = this.getDateAdjustedToTimezone(dataAtual);
     const dataExpiracaoFortaleza = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
     
-    // Debug temporário
+    // Debug temporário - mostra a comparação usando horários locais de Fortaleza
     if (dataAtualFortaleza && dataExpiracaoFortaleza) {
-      console.log('[expirarSolicitacaoSeNecessario] Comparação de datas:', {
+      const dataAtualFortalezaFormatada = this.formatarDataMantendoHorario(dataAtualFortaleza);
+      const dataExpiracaoFortalezaFormatada = this.formatarDataMantendoHorario(dataExpiracaoFortaleza);
+      
+      console.log('[expirarSolicitacaoSeNecessario] Comparação de datas (horário Fortaleza):', {
         solicitacaoId: solicitacao.id,
         dataAtualUTC: dataAtual.toISOString(),
         dataExpiracaoUTC: solicitacao.data_expiracao.toISOString(),
-        dataAtualFortaleza: dataAtualFortaleza.toISOString(),
-        dataExpiracaoFortaleza: dataExpiracaoFortaleza.toISOString(),
-        dataAtualFortalezaFormatada: dataAtualFortaleza.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }),
-        dataExpiracaoFortalezaFormatada: dataExpiracaoFortaleza.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }),
+        dataAtualFortalezaFormatada,
+        dataExpiracaoFortalezaFormatada,
         precisaExpirar: dataExpiracaoFortaleza <= dataAtualFortaleza,
+        status: solicitacao.status,
       });
     }
     
@@ -2358,23 +2360,63 @@ export class SolicitacaoAbastecimentoService {
   }
 
   /**
-   * Retorna a data como está, sem ajuste de timezone
+   * Converte uma data UTC para o horário local de Fortaleza (UTC-3) para comparação
    * 
-   * IMPORTANTE: As datas do banco (Prisma) já estão em UTC.
-   * Quando você salva "10:59" em Fortaleza, o banco salva "13:59 UTC".
-   * Quando você lê, o Prisma retorna um Date que representa "13:59 UTC".
+   * Quando uma data vem do banco (Prisma), ela está em UTC.
+   * Exemplo: se você salvou "10:59" em Fortaleza, o banco tem "13:59 UTC".
    * 
-   * Para comparar corretamente, comparamos diretamente os timestamps UTC,
-   * pois ambos (data_expiracao do banco e dataAtual de new Date()) estão em UTC.
+   * Esta função extrai os componentes UTC, converte para o horário de Fortaleza (subtraindo 3 horas),
+   * e cria uma nova Date que representa esse horário local para comparação correta.
    */
   private getDateAdjustedToTimezone(value?: Date | null): Date | null {
     if (!value) {
       return null;
     }
+
+    // Extrair componentes UTC da data
+    const utcYear = value.getUTCFullYear();
+    const utcMonth = value.getUTCMonth();
+    const utcDay = value.getUTCDate();
+    const utcHours = value.getUTCHours();
+    const utcMinutes = value.getUTCMinutes();
+    const utcSeconds = value.getUTCSeconds();
+    const utcMilliseconds = value.getUTCMilliseconds();
+
+    // Converter UTC para horário de Fortaleza (UTC-3): subtrair 3 horas
+    let fortalezaHours = utcHours - 3;
+    let fortalezaDay = utcDay;
+    let fortalezaMonth = utcMonth;
+    let fortalezaYear = utcYear;
+
+    // Ajustar se passar da meia-noite (horas negativas)
+    if (fortalezaHours < 0) {
+      fortalezaHours += 24;
+      fortalezaDay--;
+      if (fortalezaDay < 1) {
+        fortalezaMonth--;
+        if (fortalezaMonth < 0) {
+          fortalezaMonth = 11;
+          fortalezaYear--;
+        }
+        // Obter último dia do mês anterior
+        fortalezaDay = new Date(Date.UTC(fortalezaYear, fortalezaMonth + 1, 0)).getUTCDate();
+      }
+    }
+
+    // Criar uma nova Date usando os componentes ajustados para Fortaleza
+    // Usamos o construtor local (não Date.UTC) para criar uma data que representa
+    // o horário local de Fortaleza, permitindo comparação correta
+    const fortalezaDate = new Date(
+      fortalezaYear,
+      fortalezaMonth,
+      fortalezaDay,
+      fortalezaHours,
+      utcMinutes,
+      utcSeconds,
+      utcMilliseconds
+    );
     
-    // Retornar a data como está (já está em UTC)
-    // A comparação será feita diretamente entre timestamps UTC
-    return value;
+    return fortalezaDate;
   }
 
   private formatDateWithTimezone(value?: Date | null): string | null {
