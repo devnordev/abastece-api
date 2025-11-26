@@ -122,17 +122,38 @@ export class SolicitacaoAbastecimentoService {
   /**
    * Formata uma data mantendo o horário original (sem conversão de timezone)
    * Útil para exibir datas que já estão no horário local desejado
+   * 
+   * IMPORTANTE: Esta função usa os componentes UTC da data.
+   * Use para datas que vêm do banco (Prisma) que estão em UTC.
    */
   private formatarDataMantendoHorario(date: Date | null | undefined): string | null {
     if (!date) return null;
     
-    // Extrai os componentes da data UTC e formata mantendo o horário
+    // Extrai os componentes UTC da data e formata mantendo o horário
     const ano = date.getUTCFullYear();
     const mes = String(date.getUTCMonth() + 1).padStart(2, '0');
     const dia = String(date.getUTCDate()).padStart(2, '0');
     const horas = String(date.getUTCHours()).padStart(2, '0');
     const minutos = String(date.getUTCMinutes()).padStart(2, '0');
     const segundos = String(date.getUTCSeconds()).padStart(2, '0');
+    
+    return `${dia}/${mes}/${ano}, ${horas}:${minutos}:${segundos}`;
+  }
+
+  /**
+   * Formata uma data que já foi convertida para o horário local de Fortaleza
+   * Usa os componentes LOCAIS da data, não UTC
+   */
+  private formatarDataLocal(date: Date | null | undefined): string | null {
+    if (!date) return null;
+    
+    // Extrai os componentes LOCAIS da data
+    const ano = date.getFullYear();
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const dia = String(date.getDate()).padStart(2, '0');
+    const horas = String(date.getHours()).padStart(2, '0');
+    const minutos = String(date.getMinutes()).padStart(2, '0');
+    const segundos = String(date.getSeconds()).padStart(2, '0');
     
     return `${dia}/${mes}/${ano}, ${horas}:${minutos}:${segundos}`;
   }
@@ -2040,35 +2061,24 @@ export class SolicitacaoAbastecimentoService {
       return false;
     }
 
-    // Obter horário atual
+    // Obter horário atual em UTC (new Date() já retorna em UTC)
     const dataAtual = new Date();
     
-    // Converter ambas as datas para horário de Fortaleza (UTC-3) para comparação
-    const dataAtualFortaleza = this.getDateAdjustedToTimezone(dataAtual);
-    const dataExpiracaoFortaleza = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
-    
-    // Debug temporário - mostra a comparação usando horários locais de Fortaleza
-    if (dataAtualFortaleza && dataExpiracaoFortaleza) {
-      const dataAtualFortalezaFormatada = this.formatarDataMantendoHorario(dataAtualFortaleza);
-      const dataExpiracaoFortalezaFormatada = this.formatarDataMantendoHorario(dataExpiracaoFortaleza);
-      
-      console.log('[expirarSolicitacaoSeNecessario] Comparação de datas (horário Fortaleza):', {
-        solicitacaoId: solicitacao.id,
-        dataAtualUTC: dataAtual.toISOString(),
-        dataExpiracaoUTC: solicitacao.data_expiracao.toISOString(),
-        dataAtualFortalezaFormatada,
-        dataExpiracaoFortalezaFormatada,
-        precisaExpirar: dataExpiracaoFortaleza <= dataAtualFortaleza,
-        status: solicitacao.status,
-      });
-    }
-    
+    // Comparar diretamente em UTC (sem conversão de timezone)
+    // data_expiracao do banco já está em UTC, dataAtual também está em UTC
     const precisaExpirar =
-      dataExpiracaoFortaleza &&
-      dataAtualFortaleza &&
-      dataExpiracaoFortaleza <= dataAtualFortaleza &&
+      solicitacao.data_expiracao <= dataAtual &&
       (solicitacao.status === StatusSolicitacao.PENDENTE ||
         solicitacao.status === StatusSolicitacao.APROVADA);
+    
+    // Debug temporário
+    console.log('[expirarSolicitacaoSeNecessario] Comparação de datas (UTC):', {
+      solicitacaoId: solicitacao.id,
+      dataAtualUTC: dataAtual.toISOString(),
+      dataExpiracaoUTC: solicitacao.data_expiracao.toISOString(),
+      precisaExpirar,
+      status: solicitacao.status,
+    });
 
     if (!precisaExpirar) {
       return false;
@@ -2114,7 +2124,6 @@ export class SolicitacaoAbastecimentoService {
    */
   async processarSolicitacoesExpiradas(): Promise<{ processadas: number; liberadas: number }> {
     const dataAtual = new Date();
-    const dataAtualReal = this.getDateAdjustedToTimezone(dataAtual);
 
     // Buscar todas as solicitações ativas com status PENDENTE ou APROVADA
     // Filtrar em código para considerar apenas as que têm data_expiracao e já expiraram
@@ -2140,13 +2149,13 @@ export class SolicitacaoAbastecimentoService {
       return { processadas: 0, liberadas: 0 };
     }
 
-    // Filtrar apenas as que têm data_expiracao e já expiraram (considerando fuso horário)
+    // Filtrar apenas as que têm data_expiracao e já expiraram (comparação direta em UTC)
     const solicitacoesExpiradas = solicitacoesCandidatas.filter((solicitacao) => {
       if (!solicitacao.data_expiracao) {
         return false;
       }
-      const dataExpiracaoReal = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
-      return dataExpiracaoReal && dataAtualReal && dataExpiracaoReal <= dataAtualReal;
+      // Comparar diretamente em UTC: data_expiracao (UTC) <= dataAtual (UTC)
+      return solicitacao.data_expiracao <= dataAtual;
     });
 
     if (solicitacoesExpiradas.length === 0) {
@@ -2207,7 +2216,6 @@ export class SolicitacaoAbastecimentoService {
    */
   private async liberarLitrosSolicitacoesExpiradas(veiculoId: number): Promise<void> {
     const dataAtual = new Date();
-    const dataAtualReal = this.getDateAdjustedToTimezone(dataAtual);
 
     // Buscar solicitações candidatas (com status PENDENTE ou APROVADA e ativas)
     // Filtrar em código para considerar apenas as que têm data_expiracao e já expiraram
@@ -2234,13 +2242,13 @@ export class SolicitacaoAbastecimentoService {
       return;
     }
 
-    // Filtrar apenas as que têm data_expiracao e já expiraram (considerando fuso horário)
+    // Filtrar apenas as que têm data_expiracao e já expiraram (comparação direta em UTC)
     const solicitacoesExpiradas = solicitacoesCandidatas.filter((solicitacao) => {
       if (!solicitacao.data_expiracao) {
         return false;
       }
-      const dataExpiracaoReal = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
-      return dataExpiracaoReal && dataAtualReal && dataExpiracaoReal <= dataAtualReal;
+      // Comparar diretamente em UTC: data_expiracao (UTC) <= dataAtual (UTC)
+      return solicitacao.data_expiracao <= dataAtual;
     });
 
     if (solicitacoesExpiradas.length === 0) {
