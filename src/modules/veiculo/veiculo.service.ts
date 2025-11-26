@@ -736,6 +736,20 @@ export class VeiculoService {
             },
           },
         },
+        cotasPeriodo: {
+          where: { ativo: true },
+          orderBy: { data_inicio_periodo: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            data_inicio_periodo: true,
+            data_fim_periodo: true,
+            quantidade_permitida: true,
+            quantidade_utilizada: true,
+            quantidade_disponivel: true,
+            periodicidade: true,
+          },
+        },
         _count: {
           select: {
             abastecimentos: true,
@@ -753,6 +767,19 @@ export class VeiculoService {
     const combustiveisPermitidos = veiculo.combustiveis.map(vc => vc.combustivel);
     const combustivelIds = veiculo.combustiveis.map(vc => vc.combustivel.id);
 
+    // Buscar a cota do período ativo mais recente
+    const cotaPeriodoAtiva =
+      veiculo.cotasPeriodo && veiculo.cotasPeriodo.length > 0 ? veiculo.cotasPeriodo[0] : null;
+    const cotaQuantidadeTotal = cotaPeriodoAtiva
+      ? Number(cotaPeriodoAtiva.quantidade_permitida?.toString?.() ?? cotaPeriodoAtiva.quantidade_permitida)
+      : null;
+    const cotaQuantidadeUtilizada = cotaPeriodoAtiva
+      ? Number(cotaPeriodoAtiva.quantidade_utilizada?.toString?.() ?? cotaPeriodoAtiva.quantidade_utilizada)
+      : null;
+    const cotaQuantidadeDisponivel = cotaPeriodoAtiva
+      ? Number(cotaPeriodoAtiva.quantidade_disponivel?.toString?.() ?? cotaPeriodoAtiva.quantidade_disponivel)
+      : null;
+
     // Adicionar nomes e dados formatados diretamente no objeto para facilitar o acesso
     const veiculoFormatado = {
       ...veiculo,
@@ -760,6 +787,9 @@ export class VeiculoService {
       nomeContaFaturamento: veiculo.contaFaturamento?.nome || null,
       combustiveisPermitidos, // Array de combustíveis formatado
       combustivelIds, // IDs para formulário de edição
+      cota_quantidade_total: cotaQuantidadeTotal,
+      cota_quantidade_utilizada: cotaQuantidadeUtilizada,
+      cota_quantidade_disponivel: cotaQuantidadeDisponivel,
     };
 
     return {
