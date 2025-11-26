@@ -49,6 +49,14 @@ type SolicitacaoBasicaComVeiculo = {
   } | null;
 };
 
+type SolicitacaoComVeiculoCota = SolicitacaoBasicaComVeiculo & {
+  veiculo: {
+    id: number;
+    tipo_abastecimento: TipoAbastecimentoVeiculo;
+    periodicidade: Periodicidade;
+  };
+};
+
 @Injectable()
 export class SolicitacaoAbastecimentoService {
   constructor(private readonly prisma: PrismaService) {}
@@ -2027,7 +2035,15 @@ export class SolicitacaoAbastecimentoService {
       solicitacao.veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA &&
       solicitacao.veiculo.periodicidade
     ) {
-      await this.liberarLitrosSolicitacaoExpirada(solicitacao);
+      const solicitacaoComVeiculoCota: SolicitacaoComVeiculoCota = {
+        ...solicitacao,
+        veiculo: {
+          id: solicitacao.veiculo.id,
+          tipo_abastecimento: solicitacao.veiculo.tipo_abastecimento,
+          periodicidade: solicitacao.veiculo.periodicidade,
+        },
+      };
+      await this.liberarLitrosSolicitacaoExpirada(solicitacaoComVeiculoCota);
     }
 
     solicitacao.status = StatusSolicitacao.EXPIRADA;
@@ -2099,7 +2115,15 @@ export class SolicitacaoAbastecimentoService {
           veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA &&
           veiculo.periodicidade
         ) {
-          await this.liberarLitrosSolicitacaoExpirada(solicitacao);
+          const solicitacaoComVeiculoCota: SolicitacaoComVeiculoCota = {
+            ...solicitacao,
+            veiculo: {
+              id: veiculo.id,
+              tipo_abastecimento: veiculo.tipo_abastecimento,
+              periodicidade: veiculo.periodicidade,
+            },
+          };
+          await this.liberarLitrosSolicitacaoExpirada(solicitacaoComVeiculoCota);
           liberadas++;
         }
       } catch (error) {
@@ -2166,7 +2190,15 @@ export class SolicitacaoAbastecimentoService {
       });
 
       // Liberar litros da solicitação
-      await this.liberarLitrosSolicitacaoExpirada(solicitacao);
+      const solicitacaoComVeiculoCota: SolicitacaoComVeiculoCota = {
+        ...solicitacao,
+        veiculo: {
+          id: solicitacao.veiculo.id,
+          tipo_abastecimento: solicitacao.veiculo.tipo_abastecimento,
+          periodicidade: solicitacao.veiculo.periodicidade,
+        },
+      };
+      await this.liberarLitrosSolicitacaoExpirada(solicitacaoComVeiculoCota);
     }
   }
 
