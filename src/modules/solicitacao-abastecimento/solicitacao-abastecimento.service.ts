@@ -2040,13 +2040,31 @@ export class SolicitacaoAbastecimentoService {
       return false;
     }
 
+    // Obter horário atual
     const dataAtual = new Date();
-    const dataAtualReal = this.getDateAdjustedToTimezone(dataAtual);
-    const dataExpiracaoReal = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
+    
+    // Converter ambas as datas para horário de Fortaleza (UTC-3) para comparação
+    const dataAtualFortaleza = this.getDateAdjustedToTimezone(dataAtual);
+    const dataExpiracaoFortaleza = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
+    
+    // Debug temporário
+    if (dataAtualFortaleza && dataExpiracaoFortaleza) {
+      console.log('[expirarSolicitacaoSeNecessario] Comparação de datas:', {
+        solicitacaoId: solicitacao.id,
+        dataAtualUTC: dataAtual.toISOString(),
+        dataExpiracaoUTC: solicitacao.data_expiracao.toISOString(),
+        dataAtualFortaleza: dataAtualFortaleza.toISOString(),
+        dataExpiracaoFortaleza: dataExpiracaoFortaleza.toISOString(),
+        dataAtualFortalezaFormatada: dataAtualFortaleza.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }),
+        dataExpiracaoFortalezaFormatada: dataExpiracaoFortaleza.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }),
+        precisaExpirar: dataExpiracaoFortaleza <= dataAtualFortaleza,
+      });
+    }
+    
     const precisaExpirar =
-      dataExpiracaoReal &&
-      dataAtualReal &&
-      dataExpiracaoReal <= dataAtualReal &&
+      dataExpiracaoFortaleza &&
+      dataAtualFortaleza &&
+      dataExpiracaoFortaleza <= dataAtualFortaleza &&
       (solicitacao.status === StatusSolicitacao.PENDENTE ||
         solicitacao.status === StatusSolicitacao.APROVADA);
 
@@ -2340,19 +2358,23 @@ export class SolicitacaoAbastecimentoService {
   }
 
   /**
-   * Ajusta uma data para o fuso horário configurado (America/Fortaleza -03:00)
-   * Considerando que o banco armazena em UTC, mas a regra de negócio é no horário local
+   * Retorna a data como está, sem ajuste de timezone
+   * 
+   * IMPORTANTE: As datas do banco (Prisma) já estão em UTC.
+   * Quando você salva "10:59" em Fortaleza, o banco salva "13:59 UTC".
+   * Quando você lê, o Prisma retorna um Date que representa "13:59 UTC".
+   * 
+   * Para comparar corretamente, comparamos diretamente os timestamps UTC,
+   * pois ambos (data_expiracao do banco e dataAtual de new Date()) estão em UTC.
    */
   private getDateAdjustedToTimezone(value?: Date | null): Date | null {
     if (!value) {
       return null;
     }
-
-    const d = new Date(value);
-    // Diferencial entre o fuso da máquina e o fuso desejado (em minutos)
-    const offsetDiffMinutes = d.getTimezoneOffset() - this.timezoneOffsetMinutes;
-    d.setMinutes(d.getMinutes() + offsetDiffMinutes);
-    return d;
+    
+    // Retornar a data como está (já está em UTC)
+    // A comparação será feita diretamente entre timestamps UTC
+    return value;
   }
 
   private formatDateWithTimezone(value?: Date | null): string | null {
