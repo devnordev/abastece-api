@@ -23,6 +23,7 @@ import { FindUsuarioDto } from './dto/find-usuario.dto';
 import { CreateColaboradorEmpresaDto } from './dto/create-colaborador-empresa.dto';
 import { FindColaboradorEmpresaDto } from './dto/find-colaborador-empresa.dto';
 import { UpdateColaboradorEmpresaDto } from './dto/update-colaborador-empresa.dto';
+import { ResetSenhaColaboradorEmpresaDto } from './dto/reset-senha-colaborador-empresa.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TipoUsuario, StatusAcesso } from '@prisma/client';
 import { AdminEmpresaGuard } from '../auth/guards/admin-empresa.guard';
@@ -264,6 +265,21 @@ export class UsuarioController {
   @ApiResponse({ status: 403, description: 'Sem permissão para excluir colaboradores' })
   async removeColaboradorEmpresa(@Param('id', ParseIntPipe) id: number, @Request() req) {
     return this.usuarioService.removeColaboradorEmpresa(id, req.user);
+  }
+
+  @Patch('empresa/colaboradores/:id/reset-senha')
+  @UseGuards(JwtAuthGuard, AdminEmpresaGuard)
+  @ApiOperation({ summary: 'ADMIN_EMPRESA - Redefinir senha de colaborador' })
+  @ApiResponse({ status: 200, description: 'Senha redefinida com sucesso' })
+  @ApiResponse({ status: 404, description: 'Colaborador não encontrado' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Sem permissão para redefinir senhas' })
+  async resetSenhaColaboradorEmpresa(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() resetDto: ResetSenhaColaboradorEmpresaDto,
+    @Request() req,
+  ) {
+    return this.usuarioService.resetSenhaColaboradorEmpresa(id, resetDto, req.user);
   }
 
   @Get()

@@ -6,6 +6,7 @@ import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { FindUsuarioDto } from './dto/find-usuario.dto';
 import { FindColaboradorEmpresaDto } from './dto/find-colaborador-empresa.dto';
 import { UpdateColaboradorEmpresaDto } from './dto/update-colaborador-empresa.dto';
+import { ResetSenhaColaboradorEmpresaDto } from './dto/reset-senha-colaborador-empresa.dto';
 import { UploadService } from '../upload/upload.service';
 import * as bcrypt from 'bcryptjs';
 import { TipoUsuario, StatusAcesso } from '@prisma/client';
@@ -318,6 +319,33 @@ export class UsuarioService {
 
     await this.ensureColaboradorEmpresa(id, empresaId);
     return this.remove(id);
+  }
+
+  async resetSenhaColaboradorEmpresa(
+    id: number,
+    resetDto: ResetSenhaColaboradorEmpresaDto,
+    currentUser: any,
+  ) {
+    const empresaId = currentUser?.empresa?.id ?? currentUser?.empresaId;
+    if (!empresaId) {
+      throw new ForbiddenException('ADMIN_EMPRESA sem empresa vinculada');
+    }
+
+    await this.ensureColaboradorEmpresa(id, empresaId);
+
+    const hashedPassword = await bcrypt.hash(resetDto.novaSenha, 12);
+
+    await this.prisma.usuario.update({
+      where: { id },
+      data: {
+        senha: hashedPassword,
+        modified_date: new Date(),
+      },
+    });
+
+    return {
+      message: 'Senha redefinida com sucesso',
+    };
   }
 
   async findAll(findUsuarioDto: FindUsuarioDto, currentUserId?: number) {
