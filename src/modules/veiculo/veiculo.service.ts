@@ -780,6 +780,17 @@ export class VeiculoService {
       ? Number(cotaPeriodoAtiva.quantidade_disponivel?.toString?.() ?? cotaPeriodoAtiva.quantidade_disponivel)
       : null;
 
+    // Mapear cotasPeriodo para renomear os campos
+    const cotasPeriodoFormatadas = veiculo.cotasPeriodo.map((cota) => ({
+      id: cota.id,
+      data_inicio_periodo: cota.data_inicio_periodo,
+      data_fim_periodo: cota.data_fim_periodo,
+      cota_quantidade_total: Number(cota.quantidade_permitida?.toString?.() ?? cota.quantidade_permitida),
+      cota_quantidade_utilizada: Number(cota.quantidade_utilizada?.toString?.() ?? cota.quantidade_utilizada),
+      cota_quantidade_disponivel: Number(cota.quantidade_disponivel?.toString?.() ?? cota.quantidade_disponivel),
+      periodicidade: cota.periodicidade,
+    }));
+
     // Adicionar nomes e dados formatados diretamente no objeto para facilitar o acesso
     const veiculoFormatado = {
       ...veiculo,
@@ -787,6 +798,7 @@ export class VeiculoService {
       nomeContaFaturamento: veiculo.contaFaturamento?.nome || null,
       combustiveisPermitidos, // Array de combustíveis formatado
       combustivelIds, // IDs para formulário de edição
+      cotasPeriodo: cotasPeriodoFormatadas,
       cota_quantidade_total: cotaQuantidadeTotal,
       cota_quantidade_utilizada: cotaQuantidadeUtilizada,
       cota_quantidade_disponivel: cotaQuantidadeDisponivel,
