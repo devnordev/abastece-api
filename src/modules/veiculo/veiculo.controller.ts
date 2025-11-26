@@ -194,6 +194,26 @@ export class VeiculoController {
     return this.veiculoService.findAll(findVeiculoDto, req.user?.id);
   }
 
+  @Get('buscar/placa')
+  @UseGuards(JwtAuthGuard, EmpresaGuard)
+  @ApiOperation({ summary: 'Buscar veículos por placa (perfis de empresa)' })
+  @ApiQuery({ name: 'placa', required: true, description: 'Placa completa ou parcial', example: 'ABC' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Quantidade máxima de resultados (1-100)',
+    example: 20,
+  })
+  @ApiResponse({ status: 200, description: 'Lista de veículos retornada com sucesso' })
+  @ApiResponse({ status: 400, description: 'Parâmetros inválidos' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Apenas ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar' })
+  async findByPlacaForEmpresa(@Query('placa') placa: string, @Query('limit') limit?: string) {
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+    const limitValue = parsedLimit && !Number.isNaN(parsedLimit) ? parsedLimit : undefined;
+    return this.veiculoService.findByPlacaForEmpresa(placa, limitValue);
+  }
+
   @Get('qrcode/:codigo')
   @UseGuards(JwtAuthGuard, EmpresaGuard)
   @ApiOperation({ summary: 'Buscar veículo por código QR code' })
