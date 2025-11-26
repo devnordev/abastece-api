@@ -99,7 +99,11 @@ export class AuthService {
 
     // Verificar se usuário está ativo
     if (!usuario.ativo) {
-      throw new UnauthorizedException('Usuário inativo');
+      throw new UnauthorizedException({
+        message: 'Usuário desativado',
+        error: 'Este usuário está desativado e não pode fazer login. Por favor, entre em contato com o administrador do sistema para reativar sua conta.',
+        statusCode: 401,
+      });
     }
 
     // Atualizar último login
@@ -152,7 +156,11 @@ export class AuthService {
 
     // Verificar se usuário ainda está ativo
     if (!tokenRecord.usuario.ativo) {
-      throw new UnauthorizedException('Usuário inativo');
+      throw new UnauthorizedException({
+        message: 'Usuário desativado',
+        error: 'Este usuário está desativado e não pode renovar o token de acesso. Por favor, entre em contato com o administrador do sistema para reativar sua conta.',
+        statusCode: 401,
+      });
     }
 
     // Revogar refresh token atual
@@ -240,8 +248,12 @@ export class AuthService {
       },
     });
 
-    if (!usuario || !usuario.ativo) {
+    if (!usuario) {
       return null;
+    }
+
+    if (!usuario.ativo) {
+      return 'INACTIVE';
     }
 
     return {

@@ -14,10 +14,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    const user = await this.authService.validateUser(payload.sub);
-    if (!user) {
-      throw new UnauthorizedException('Usuário não encontrado ou inativo');
+    const result = await this.authService.validateUser(payload.sub);
+    if (!result) {
+      throw new UnauthorizedException({
+        message: 'Usuário não encontrado ou desativado',
+        error: 'Este usuário não foi encontrado ou está desativado. Por favor, entre em contato com o administrador do sistema para reativar sua conta.',
+        statusCode: 401,
+      });
     }
-    return user;
+    if (result === 'INACTIVE') {
+      throw new UnauthorizedException({
+        message: 'Usuário desativado',
+        error: 'Este usuário está desativado e não pode acessar o sistema. Por favor, entre em contato com o administrador do sistema para reativar sua conta.',
+        statusCode: 401,
+      });
+    }
+    return result;
   }
 }
