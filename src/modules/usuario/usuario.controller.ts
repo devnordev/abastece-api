@@ -20,8 +20,12 @@ import { UsuarioService } from './usuario.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { FindUsuarioDto } from './dto/find-usuario.dto';
+import { CreateColaboradorEmpresaDto } from './dto/create-colaborador-empresa.dto';
+import { FindColaboradorEmpresaDto } from './dto/find-colaborador-empresa.dto';
+import { UpdateColaboradorEmpresaDto } from './dto/update-colaborador-empresa.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TipoUsuario, StatusAcesso } from '@prisma/client';
+import { AdminEmpresaGuard } from '../auth/guards/admin-empresa.guard';
 
 @ApiTags('Usuários')
 @Controller('usuarios')
@@ -131,6 +135,135 @@ export class UsuarioController {
     };
 
     return this.usuarioService.create(processedDto, req.user?.id, file);
+  }
+
+  @Get('empresa/colaboradores')
+  @UseGuards(JwtAuthGuard, AdminEmpresaGuard)
+  @ApiOperation({ summary: 'ADMIN_EMPRESA - Listar colaboradores da empresa' })
+  @ApiResponse({ status: 200, description: 'Lista de colaboradores retornada com sucesso' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Sem permissão para visualizar colaboradores' })
+  @ApiQuery({ name: 'search', required: false, description: 'Filtrar por nome, email ou CPF' })
+  @ApiQuery({ name: 'statusAcess', required: false, description: 'Filtrar por status de acesso' })
+  @ApiQuery({ name: 'ativo', required: false, description: 'Filtrar por status ativo' })
+  @ApiQuery({ name: 'page', required: false, description: 'Página para paginação' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens por página' })
+  async findColaboradoresEmpresa(@Query() query: any, @Request() req) {
+    const processedQuery: FindColaboradorEmpresaDto = {
+      ...query,
+      page: query.page ? parseInt(query.page, 10) : undefined,
+      limit: query.limit ? parseInt(query.limit, 10) : undefined,
+      ativo:
+        query.ativo !== undefined
+          ? query.ativo === 'true' || query.ativo === true
+          : undefined,
+    };
+    return this.usuarioService.findColaboradoresEmpresa(processedQuery, req.user);
+  }
+
+  @Post('empresa/colaboradores')
+  @UseGuards(JwtAuthGuard, AdminEmpresaGuard)
+  @ApiOperation({ summary: 'ADMIN_EMPRESA - Criar colaborador da própria empresa' })
+  @ApiResponse({ status: 201, description: 'Colaborador criado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Dados inválidos' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Sem permissão para cadastrar colaboradores' })
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string' },
+        senha: { type: 'string' },
+        nome: { type: 'string' },
+        cpf: { type: 'string' },
+        phone: { type: 'string' },
+        ativo: { type: 'boolean' },
+        imagem_perfil: {
+          type: 'string',
+          format: 'binary',
+          description: 'Arquivo de imagem (JPEG, PNG, WEBP)',
+        },
+      },
+      required: ['email', 'senha', 'nome', 'cpf'],
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('imagem_perfil', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    }),
+  )
+  async createColaboradorEmpresa(
+    @Body() createColaboradorEmpresaDto: CreateColaboradorEmpresaDto,
+    @Request() req,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.usuarioService.createColaboradorEmpresa(createColaboradorEmpresaDto, req.user, file);
+  }
+
+  @Patch('empresa/colaboradores/:id')
+  @UseGuards(JwtAuthGuard, AdminEmpresaGuard)
+  @ApiOperation({ summary: 'ADMIN_EMPRESA - Atualizar colaborador da própria empresa' })
+  @ApiResponse({ status: 200, description: 'Colaborador atualizado com sucesso' })
+  @ApiResponse({ status: 404, description: 'Colaborador não encontrado' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Sem permissão para atualizar colaboradores' })
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string' },
+        senha: { type: 'string' },
+        nome: { type: 'string' },
+        cpf: { type: 'string' },
+        phone: { type: 'string' },
+        statusAcess: { type: 'string', enum: Object.values(StatusAcesso) },
+        ativo: { type: 'boolean' },
+        imagem_perfil: {
+          type: 'string',
+          format: 'binary',
+          description: 'Arquivo de imagem (JPEG, PNG, WEBP)',
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('imagem_perfil', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    }),
+  )
+  async updateColaboradorEmpresa(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateColaboradorDto: any,
+    @Request() req,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const processedDto: UpdateColaboradorEmpresaDto = {
+      ...updateColaboradorDto,
+      ativo:
+        updateColaboradorDto.ativo !== undefined
+          ? updateColaboradorDto.ativo === 'true' || updateColaboradorDto.ativo === true
+          : undefined,
+    };
+    return this.usuarioService.updateColaboradorEmpresa(id, processedDto, req.user, file);
+  }
+
+  @Delete('empresa/colaboradores/:id')
+  @UseGuards(JwtAuthGuard, AdminEmpresaGuard)
+  @ApiOperation({ summary: 'ADMIN_EMPRESA - Excluir colaborador da própria empresa' })
+  @ApiResponse({ status: 200, description: 'Colaborador excluído com sucesso' })
+  @ApiResponse({ status: 404, description: 'Colaborador não encontrado' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Sem permissão para excluir colaboradores' })
+  async removeColaboradorEmpresa(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.usuarioService.removeColaboradorEmpresa(id, req.user);
   }
 
   @Get()

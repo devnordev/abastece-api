@@ -1,8 +1,11 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
+import { CreateColaboradorEmpresaDto } from './dto/create-colaborador-empresa.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { FindUsuarioDto } from './dto/find-usuario.dto';
+import { FindColaboradorEmpresaDto } from './dto/find-colaborador-empresa.dto';
+import { UpdateColaboradorEmpresaDto } from './dto/update-colaborador-empresa.dto';
 import { UploadService } from '../upload/upload.service';
 import * as bcrypt from 'bcryptjs';
 import { TipoUsuario, StatusAcesso } from '@prisma/client';
@@ -180,6 +183,141 @@ export class UsuarioService {
       message: 'Usuário criado com sucesso',
       usuario: usuarioSemSenha,
     };
+  }
+
+  async createColaboradorEmpresa(
+    createColaboradorDto: CreateColaboradorEmpresaDto,
+    currentUser: any,
+    file?: Express.Multer.File,
+  ) {
+    if (!currentUser) {
+      throw new ForbiddenException('Usuário atual não encontrado');
+    }
+
+    const empresaId = currentUser.empresa?.id ?? currentUser.empresaId;
+    if (!empresaId) {
+      throw new ForbiddenException('ADMIN_EMPRESA sem empresa vinculada');
+    }
+
+    const payload: CreateUsuarioDto = {
+      ...createColaboradorDto,
+      tipo_usuario: TipoUsuario.COLABORADOR_EMPRESA,
+      empresaId,
+      ativo: createColaboradorDto.ativo ?? true,
+      statusAcess: StatusAcesso.Ativado,
+    };
+
+    return this.create(payload, currentUser.id, file);
+  }
+
+  async findColaboradoresEmpresa(
+    query: FindColaboradorEmpresaDto,
+    currentUser: any,
+  ) {
+    if (!currentUser) {
+      throw new ForbiddenException('Usuário atual não encontrado');
+    }
+
+    const empresaId = currentUser.empresa?.id ?? currentUser.empresaId;
+    if (!empresaId) {
+      throw new ForbiddenException('ADMIN_EMPRESA sem empresa vinculada');
+    }
+
+    const { search, statusAcess, ativo, page = 1, limit = 10 } = query;
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      empresaId,
+      tipo_usuario: TipoUsuario.COLABORADOR_EMPRESA,
+    };
+
+    if (statusAcess) {
+      where.statusAcess = statusAcess;
+    }
+
+    if (ativo !== undefined) {
+      where.ativo = ativo;
+    }
+
+    if (search && search.trim() !== '') {
+      const term = search.trim();
+      const termDigits = term.replace(/\D/g, '');
+      where.OR = [
+        { nome: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } },
+      ];
+      if (termDigits.length > 0) {
+        where.OR.push({ cpf: { contains: termDigits } });
+      }
+    }
+
+    const [colaboradores, total] = await Promise.all([
+      this.prisma.usuario.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          empresa: {
+            select: {
+              id: true,
+              nome: true,
+              cnpj: true,
+            },
+          },
+        },
+        orderBy: {
+          data_cadastro: 'desc',
+        },
+      }),
+      this.prisma.usuario.count({ where }),
+    ]);
+
+    const colaboradoresSemSenha = colaboradores.map(({ senha, ...rest }) => rest);
+
+    return {
+      message: 'Colaboradores encontrados com sucesso',
+      colaboradores: colaboradoresSemSenha,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async updateColaboradorEmpresa(
+    id: number,
+    updateColaboradorDto: UpdateColaboradorEmpresaDto,
+    currentUser: any,
+    file?: Express.Multer.File,
+  ) {
+    const empresaId = currentUser?.empresa?.id ?? currentUser?.empresaId;
+    if (!empresaId) {
+      throw new ForbiddenException('ADMIN_EMPRESA sem empresa vinculada');
+    }
+
+    const colaborador = await this.ensureColaboradorEmpresa(id, empresaId);
+
+    const updateDto: UpdateUsuarioDto = {
+      ...updateColaboradorDto,
+      empresaId,
+      prefeituraId: undefined,
+      tipo_usuario: TipoUsuario.COLABORADOR_EMPRESA,
+      statusAcess: updateColaboradorDto.statusAcess ?? colaborador.statusAcess,
+    };
+
+    return this.update(id, updateDto, file);
+  }
+
+  async removeColaboradorEmpresa(id: number, currentUser: any) {
+    const empresaId = currentUser?.empresa?.id ?? currentUser?.empresaId;
+    if (!empresaId) {
+      throw new ForbiddenException('ADMIN_EMPRESA sem empresa vinculada');
+    }
+
+    await this.ensureColaboradorEmpresa(id, empresaId);
+    return this.remove(id);
   }
 
   async findAll(findUsuarioDto: FindUsuarioDto, currentUserId?: number) {
@@ -732,6 +870,32 @@ export class UsuarioService {
     });
   }
 
+  private async ensureColaboradorEmpresa(id: number, empresaId: number) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        empresaId: true,
+        tipo_usuario: true,
+        statusAcess: true,
+      },
+    });
+
+    if (!usuario) {
+      throw new NotFoundException('Colaborador não encontrado');
+    }
+
+    if (usuario.tipo_usuario !== TipoUsuario.COLABORADOR_EMPRESA) {
+      throw new ForbiddenException('Usuário informado não é um COLABORADOR_EMPRESA');
+    }
+
+    if (usuario.empresaId !== empresaId) {
+      throw new ForbiddenException('Colaborador não pertence à sua empresa');
+    }
+
+    return usuario;
+  }
+
   /**
    * Valida que os órgãos existem e pertencem à mesma prefeitura
    */
@@ -794,7 +958,7 @@ export class UsuarioService {
       return;
     }
 
-    const { tipo_usuario: newUserType, prefeituraId: newUserPrefeituraId } = createUsuarioDto;
+    const { tipo_usuario: newUserType, prefeituraId: newUserPrefeituraId, empresaId: newUserEmpresaId } = createUsuarioDto;
 
     // ADMIN_PREFEITURA não pode cadastrar outro ADMIN_PREFEITURA
     if (currentUser.tipo_usuario === TipoUsuario.ADMIN_PREFEITURA) {
@@ -834,10 +998,20 @@ export class UsuarioService {
 
     // ADMIN_EMPRESA e COLABORADOR_EMPRESA têm suas próprias regras (se necessário)
     if (currentUser.tipo_usuario === TipoUsuario.ADMIN_EMPRESA) {
-      if (newUserType === TipoUsuario.ADMIN_EMPRESA) {
-        throw new ForbiddenException('ADMIN_EMPRESA não pode cadastrar outro ADMIN_EMPRESA');
+      if (!currentUser.empresaId) {
+        throw new ForbiddenException('ADMIN_EMPRESA sem empresa vinculada');
       }
-      // Implementar outras regras para ADMIN_EMPRESA se necessário
+
+      if (newUserType !== TipoUsuario.COLABORADOR_EMPRESA) {
+        throw new ForbiddenException('ADMIN_EMPRESA só pode cadastrar colaboradores da própria empresa');
+      }
+
+      if (newUserEmpresaId && newUserEmpresaId !== currentUser.empresaId) {
+        throw new ForbiddenException('Você só pode cadastrar colaboradores da sua própria empresa');
+      }
+
+      createUsuarioDto.empresaId = currentUser.empresaId;
+      createUsuarioDto.prefeituraId = undefined;
     }
 
     if (currentUser.tipo_usuario === TipoUsuario.COLABORADOR_EMPRESA) {
