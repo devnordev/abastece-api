@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateEmpresaPrecoCombustivelDto } from './dto/create-empresa-preco-combustivel.dto';
 import { UpdateEmpresaPrecoCombustivelDto } from './dto/update-empresa-preco-combustivel.dto';
@@ -772,6 +772,42 @@ export class EmpresaPrecoCombustivelService {
         preco,
       };
     }
+  }
+
+  async findPrecoAtualByEmpresaAndCombustivel(empresaId: number, combustivelId: number) {
+    const preco = await this.prisma.empresaPrecoCombustivel.findFirst({
+      where: {
+        empresa_id: empresaId,
+        combustivel_id: combustivelId,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+        preco_atual: true,
+        empresa_id: true,
+        combustivel_id: true,
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+      },
+      orderBy: {
+        updated_at: 'desc',
+      },
+    });
+
+    if (!preco || !preco.preco_atual) {
+      throw new NotFoundException('Não temos esse combustível disponível na empresa selecionada');
+    }
+
+    return {
+      message: 'Preço atual encontrado com sucesso',
+      preco_atual: Number(preco.preco_atual),
+      combustivel: preco.combustivel,
+    };
   }
 }
 

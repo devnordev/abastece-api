@@ -30,6 +30,7 @@ import { SolicitacoesQrCodeVeiculoModule } from './modules/solicitacoes-qrcode-v
 import { QrCodeMotoristaModule } from './modules/qrcode-motorista/qrcode-motorista.module';
 import { DashboardsModule } from './modules/dashboards/dashboards.module';
 import { RelatoriosModule } from './modules/relatorios/relatorios.module';
+import { AppModule as AppRoutesModule } from './modules/app/app.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { RelatoriosModule } from './modules/relatorios/relatorios.module';
     QrCodeMotoristaModule,
     DashboardsModule,
     RelatoriosModule,
+    AppRoutesModule,
   ],
 })
 export class AppModule {}
