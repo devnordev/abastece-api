@@ -119,6 +119,24 @@ export class SolicitacaoAbastecimentoService {
   private readonly timezoneSuffixRegex = /([zZ]|[+\-]\d{2}:\d{2})$/;
   private readonly timezoneOffsetMinutes = -3 * 60; // America/Fortaleza (UTC-3)
 
+  /**
+   * Formata uma data mantendo o horário original (sem conversão de timezone)
+   * Útil para exibir datas que já estão no horário local desejado
+   */
+  private formatarDataMantendoHorario(date: Date | null | undefined): string | null {
+    if (!date) return null;
+    
+    // Extrai os componentes da data UTC e formata mantendo o horário
+    const ano = date.getUTCFullYear();
+    const mes = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const dia = String(date.getUTCDate()).padStart(2, '0');
+    const horas = String(date.getUTCHours()).padStart(2, '0');
+    const minutos = String(date.getUTCMinutes()).padStart(2, '0');
+    const segundos = String(date.getUTCSeconds()).padStart(2, '0');
+    
+    return `${dia}/${mes}/${ano}, ${horas}:${minutos}:${segundos}`;
+  }
+
   private adicionarInfoOrgaoSolicitacao<
     T extends {
       veiculo?: {
@@ -318,9 +336,9 @@ export class SolicitacaoAbastecimentoService {
       dataAtualServidor: dataAtualServidor.toISOString(),
       dataAtualServidorFormatada: dataAtualServidor.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }),
       data_solicitacao: solicitacao.data_solicitacao?.toISOString(),
-      data_solicitacaoFormatada: solicitacao.data_solicitacao?.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }),
+      data_solicitacaoFormatada: this.formatarDataMantendoHorario(solicitacao.data_solicitacao),
       data_expiracao: solicitacao.data_expiracao?.toISOString() || null,
-      data_expiracaoFormatada: solicitacao.data_expiracao?.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' }) || null,
+      data_expiracaoFormatada: this.formatarDataMantendoHorario(solicitacao.data_expiracao),
     });
 
     const solicitacaoComOrgao = this.adicionarInfoOrgaoSolicitacao(solicitacao);
