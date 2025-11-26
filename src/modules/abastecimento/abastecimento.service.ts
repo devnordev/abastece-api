@@ -902,10 +902,18 @@ export class AbastecimentoService {
               placa: true,
               modelo: true,
               orgaoId: true,
+              prefeituraId: true,
               orgao: {
                 select: {
                   id: true,
                   nome: true,
+                },
+              },
+              prefeitura: {
+                select: {
+                  id: true,
+                  nome: true,
+                  imagem_perfil: true,
                 },
               },
             },
