@@ -452,6 +452,7 @@ model Veiculo {
   contaFaturamentoOrgaoId   Int?
   nome                      String
   placa                     String    @unique
+  marca                     String?
   modelo                    String?
   ano                       Int?
   tipo_abastecimento        TipoAbastecimentoVeiculo @default(COTA)
