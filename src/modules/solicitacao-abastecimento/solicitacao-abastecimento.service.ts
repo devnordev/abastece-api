@@ -35,6 +35,20 @@ import {
   SolicitacaoAbastecimentoVeiculoNaoPertencePrefeituraException,
 } from '../../common/exceptions';
 
+type SolicitacaoBasicaComVeiculo = {
+  id: number;
+  veiculoId: number;
+  quantidade: Decimal;
+  data_solicitacao: Date;
+  data_expiracao: Date | null;
+  status: StatusSolicitacao;
+  veiculo?: {
+    id: number;
+    tipo_abastecimento?: TipoAbastecimentoVeiculo | null;
+    periodicidade?: Periodicidade | null;
+  } | null;
+};
+
 @Injectable()
 export class SolicitacaoAbastecimentoService {
   constructor(private readonly prisma: PrismaService) {}
@@ -53,6 +67,8 @@ export class SolicitacaoAbastecimentoService {
         placa: true,
         nome: true,
         orgaoId: true,
+        tipo_abastecimento: true,
+        periodicidade: true,
         orgao: {
           select: {
             id: true,
@@ -346,6 +362,8 @@ export class SolicitacaoAbastecimentoService {
       this.prisma.solicitacaoAbastecimento.count({ where }),
     ]);
 
+    await this.expirarSolicitacoesDaLista(solicitacoes as SolicitacaoBasicaComVeiculo[]);
+
     const solicitacoesComOrgao = solicitacoes.map((item) =>
       this.formatSolicitacaoResponse(this.adicionarInfoOrgaoSolicitacao(item)),
     );
@@ -445,6 +463,8 @@ export class SolicitacaoAbastecimentoService {
       this.prisma.solicitacaoAbastecimento.count({ where }),
     ]);
 
+    await this.expirarSolicitacoesDaLista(solicitacoes as SolicitacaoBasicaComVeiculo[]);
+
     const solicitacoesComOrgao = solicitacoes.map((item) =>
       this.formatSolicitacaoResponse(this.adicionarInfoOrgaoSolicitacao(item)),
     );
@@ -513,6 +533,8 @@ export class SolicitacaoAbastecimentoService {
     if (!solicitacao) {
       throw new NotFoundException(`Solicitação de abastecimento com ID ${id} não encontrada`);
     }
+
+    await this.expirarSolicitacaoSeNecessario(solicitacao as SolicitacaoBasicaComVeiculo);
 
     const solicitacaoComOrgao = this.adicionarInfoOrgaoSolicitacao(solicitacao);
 
@@ -1971,6 +1993,51 @@ export class SolicitacaoAbastecimentoService {
     }
 
     return { resetados };
+  }
+
+  private async expirarSolicitacaoSeNecessario(
+    solicitacao: SolicitacaoBasicaComVeiculo,
+  ): Promise<boolean> {
+    if (!solicitacao?.data_expiracao) {
+      return false;
+    }
+
+    const dataAtual = new Date();
+    const dataExpiracaoReal = this.getDateAdjustedToTimezone(solicitacao.data_expiracao);
+    const precisaExpirar =
+      dataExpiracaoReal &&
+      dataExpiracaoReal <= dataAtual &&
+      (solicitacao.status === StatusSolicitacao.PENDENTE ||
+        solicitacao.status === StatusSolicitacao.APROVADA);
+
+    if (!precisaExpirar) {
+      return false;
+    }
+
+    await this.prisma.solicitacaoAbastecimento.update({
+      where: { id: solicitacao.id },
+      data: {
+        status: StatusSolicitacao.EXPIRADA,
+        updated_at: dataAtual,
+      },
+    });
+
+    if (
+      solicitacao.veiculo &&
+      solicitacao.veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA &&
+      solicitacao.veiculo.periodicidade
+    ) {
+      await this.liberarLitrosSolicitacaoExpirada(solicitacao);
+    }
+
+    solicitacao.status = StatusSolicitacao.EXPIRADA;
+    return true;
+  }
+
+  private async expirarSolicitacoesDaLista(
+    solicitacoes: SolicitacaoBasicaComVeiculo[],
+  ): Promise<void> {
+    await Promise.all(solicitacoes.map((solicitacao) => this.expirarSolicitacaoSeNecessario(solicitacao)));
   }
 
   /**
