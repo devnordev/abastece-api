@@ -175,6 +175,15 @@ export class SolicitacaoAbastecimentoController {
     return this.solicitacaoService.listarCombustiveisCredenciados(empresaId, req.user);
   }
 
+  @Get('app/:id')
+  @UseGuards(AdminPrefeituraEmpresaColaboradorGuard)
+  @ApiOperation({ summary: 'Buscar solicitação de abastecimento por ID (formato app)' })
+  @ApiResponse({ status: 200, description: 'Solicitação encontrada com sucesso' })
+  @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
+  async findOneForApp(@Param('id', ParseIntPipe) id: number) {
+    return this.solicitacaoService.findOneForApp(id);
+  }
+
   @Get(':id')
   @UseGuards(AdminPrefeituraEmpresaColaboradorGuard)
   @ApiOperation({ summary: 'Buscar solicitação de abastecimento por ID' })

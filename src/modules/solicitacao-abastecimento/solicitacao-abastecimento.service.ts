@@ -604,6 +604,135 @@ export class SolicitacaoAbastecimentoService {
     };
   }
 
+  async findOneForApp(id: number) {
+    const solicitacao = await this.prisma.solicitacaoAbastecimento.findUnique({
+      where: { id },
+      include: {
+        prefeitura: {
+          select: {
+            id: true,
+            nome: true,
+            cnpj: true,
+            imagem_perfil: true,
+            email_administrativo: true,
+            data_cadastro: true,
+            ativo: true,
+            requer_cupom_fiscal: true,
+            created_date: true,
+            modified_date: true,
+          },
+        },
+        veiculo: {
+          select: {
+            id: true,
+            placa: true,
+            nome: true,
+            orgaoId: true,
+            tipo_abastecimento: true,
+            orgao: {
+              select: {
+                id: true,
+                nome: true,
+              },
+            },
+          },
+        },
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+        empresa: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+      },
+    });
+
+    if (!solicitacao) {
+      throw new NotFoundException(`Solicitação de abastecimento com ID ${id} não encontrada`);
+    }
+
+    // Buscar EmpresaPrecoCombustivel para o combustível da solicitação
+    const empresaPrecoCombustivel = await this.prisma.empresaPrecoCombustivel.findFirst({
+      where: {
+        empresa_id: solicitacao.empresaId,
+        combustivel_id: solicitacao.combustivelId,
+        status: 'ACTIVE',
+      },
+      orderBy: {
+        updated_at: 'desc',
+      },
+      select: {
+        id: true,
+        empresa_id: true,
+        combustivel_id: true,
+        preco_atual: true,
+        teto_vigente: true,
+        anp_base: true,
+        anp_base_valor: true,
+        margem_app_pct: true,
+        uf_referencia: true,
+        status: true,
+        updated_at: true,
+        updated_by: true,
+        created_date: true,
+        modified_date: true,
+      },
+    });
+
+    return {
+      message: 'Solicitação de abastecimento encontrada com sucesso',
+      prefeituraId: solicitacao.prefeituraId,
+      veiculoId: solicitacao.veiculoId,
+      idSolicitacao: solicitacao.id,
+      combustivelId: solicitacao.combustivelId,
+      empresaId: solicitacao.empresaId,
+      quantidade: Number(solicitacao.quantidade),
+      status: solicitacao.status,
+      ativo: true,
+      observacoes: solicitacao.observacoes,
+      veiculo: {
+        orgaoId: solicitacao.veiculo.orgaoId,
+        placa: solicitacao.veiculo.placa,
+        nome: solicitacao.veiculo.nome,
+        tipo_abastecimento: solicitacao.veiculo.tipo_abastecimento,
+        orgao: {
+          id: solicitacao.veiculo.orgao?.id || null,
+          nome: solicitacao.veiculo.orgao?.nome || null,
+        },
+      },
+      prefeitura: solicitacao.prefeitura,
+      combustivel: solicitacao.combustivel,
+      empresa: {
+        id: solicitacao.empresa.id,
+        nome: solicitacao.empresa.nome,
+        precoCombustivel: empresaPrecoCombustivel
+          ? {
+              id: empresaPrecoCombustivel.id,
+              empresa_id: empresaPrecoCombustivel.empresa_id,
+              combustivel_id: empresaPrecoCombustivel.combustivel_id,
+              preco_atual: Number(empresaPrecoCombustivel.preco_atual),
+              teto_vigente: Number(empresaPrecoCombustivel.teto_vigente),
+              anp_base: empresaPrecoCombustivel.anp_base,
+              anp_base_valor: Number(empresaPrecoCombustivel.anp_base_valor),
+              margem_app_pct: Number(empresaPrecoCombustivel.margem_app_pct),
+              uf_referencia: empresaPrecoCombustivel.uf_referencia,
+              status: empresaPrecoCombustivel.status,
+              updated_at: empresaPrecoCombustivel.updated_at,
+              updated_by: empresaPrecoCombustivel.updated_by,
+              created_date: empresaPrecoCombustivel.created_date,
+              modified_date: empresaPrecoCombustivel.modified_date,
+            }
+          : null,
+      },
+    };
+  }
+
   async update(id: number, updateDto: UpdateSolicitacaoAbastecimentoDto) {
     const solicitacaoExistente = await this.prisma.solicitacaoAbastecimento.findUnique({
       where: { id },
