@@ -1197,41 +1197,51 @@ export class AbastecimentoService {
 
     // Validar e processar nfe_link (se fornecido)
     if (updateAbastecimentoDto.nfe_link !== undefined) {
-      // Validar formato da URL
-      if (updateAbastecimentoDto.nfe_link && !updateAbastecimentoDto.nfe_link.match(/^https?:\/\/.+/)) {
-        throw new AbastecimentoNFEUrlInvalidaException('nfe_link', updateAbastecimentoDto.nfe_link, {
-          user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : undefined,
-          payload: updateAbastecimentoDto,
-        });
-      }
+      const nfeLinkAtual = existingAbastecimento.nfe_link;
+      const nfeLinkNovo = updateAbastecimentoDto.nfe_link || null;
 
-      // Validar nfe_link único por empresa (apenas para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
-      if (updateAbastecimentoDto.nfe_link && user?.tipo_usuario && 
-          (user.tipo_usuario === 'ADMIN_EMPRESA' || user.tipo_usuario === 'COLABORADOR_EMPRESA')) {
-        if (!user?.empresa?.id) {
-          throw new AbastecimentoUsuarioSemEmpresaException({
-            user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+      // Se o nfe_link for igual ao existente, ignora (não atualiza e não valida)
+      if (nfeLinkNovo === nfeLinkAtual) {
+        // Não adiciona ao updateData, mantém o valor existente
+      } else {
+        // Se for diferente, valida e atualiza
+        // Validar formato da URL (se não for null)
+        if (nfeLinkNovo && !nfeLinkNovo.match(/^https?:\/\/.+/)) {
+          throw new AbastecimentoNFEUrlInvalidaException('nfe_link', nfeLinkNovo, {
+            user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : undefined,
             payload: updateAbastecimentoDto,
           });
         }
 
-        // Verificar se existe outro abastecimento da mesma empresa com o mesmo nfe_link
-        const abastecimentoComMesmoNfeLink = await this.prisma.abastecimento.findFirst({
-          where: {
-            empresaId: user.empresa.id,
-            nfe_link: updateAbastecimentoDto.nfe_link,
-            id: { not: id }, // Excluir o próprio abastecimento
-          },
-        });
+        // Validar nfe_link único por empresa (apenas para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
+        if (nfeLinkNovo && user?.tipo_usuario && 
+            (user.tipo_usuario === 'ADMIN_EMPRESA' || user.tipo_usuario === 'COLABORADOR_EMPRESA')) {
+          if (!user?.empresa?.id) {
+            throw new AbastecimentoUsuarioSemEmpresaException({
+              user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+              payload: updateAbastecimentoDto,
+            });
+          }
 
-        if (abastecimentoComMesmoNfeLink) {
-          throw new BadRequestException(
-            `Já existe um abastecimento da empresa com o nfe_link "${updateAbastecimentoDto.nfe_link}". O nfe_link deve ser único por empresa.`
-          );
+          // Verificar se existe outro abastecimento da mesma empresa com o mesmo nfe_link
+          const abastecimentoComMesmoNfeLink = await this.prisma.abastecimento.findFirst({
+            where: {
+              empresaId: user.empresa.id,
+              nfe_link: nfeLinkNovo,
+              id: { not: id }, // Excluir o próprio abastecimento
+            },
+          });
+
+          if (abastecimentoComMesmoNfeLink) {
+            throw new BadRequestException(
+              `Já existe um abastecimento da empresa com o nfe_link "${nfeLinkNovo}". O nfe_link deve ser único por empresa.`
+            );
+          }
         }
-      }
 
-      updateData.nfe_link = updateAbastecimentoDto.nfe_link || null;
+        // Adiciona ao updateData apenas se for diferente
+        updateData.nfe_link = nfeLinkNovo;
+      }
     }
 
     // Validar e processar nfe_img_url (se fornecido)
