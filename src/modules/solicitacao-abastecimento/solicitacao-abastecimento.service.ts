@@ -628,11 +628,23 @@ export class SolicitacaoAbastecimentoService {
             placa: true,
             nome: true,
             orgaoId: true,
+            contaFaturamentoOrgaoId: true,
             tipo_abastecimento: true,
             orgao: {
               select: {
                 id: true,
                 nome: true,
+              },
+            },
+            contaFaturamento: {
+              select: {
+                id: true,
+                prefeituraId: true,
+                orgaoId: true,
+                nome: true,
+                descricao: true,
+                created_date: true,
+                modified_date: true,
               },
             },
           },
@@ -698,6 +710,7 @@ export class SolicitacaoAbastecimentoService {
       observacoes: solicitacao.observacoes,
       veiculo: {
         orgaoId: solicitacao.veiculo.orgaoId,
+        contaFaturamentoOrgaoId: solicitacao.veiculo.contaFaturamentoOrgaoId,
         placa: solicitacao.veiculo.placa,
         nome: solicitacao.veiculo.nome,
         tipo_abastecimento: solicitacao.veiculo.tipo_abastecimento,
@@ -705,6 +718,17 @@ export class SolicitacaoAbastecimentoService {
           id: solicitacao.veiculo.orgao?.id || null,
           nome: solicitacao.veiculo.orgao?.nome || null,
         },
+        contaFaturamento: solicitacao.veiculo.contaFaturamento
+          ? {
+              id: solicitacao.veiculo.contaFaturamento.id,
+              prefeituraId: solicitacao.veiculo.contaFaturamento.prefeituraId,
+              orgaoId: solicitacao.veiculo.contaFaturamento.orgaoId,
+              nome: solicitacao.veiculo.contaFaturamento.nome,
+              descricao: solicitacao.veiculo.contaFaturamento.descricao,
+              created_date: solicitacao.veiculo.contaFaturamento.created_date,
+              modified_date: solicitacao.veiculo.contaFaturamento.modified_date,
+            }
+          : null,
       },
       prefeitura: solicitacao.prefeitura,
       combustivel: solicitacao.combustivel,
