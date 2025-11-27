@@ -1,16 +1,22 @@
-import { IsOptional, IsString, IsDecimal, IsInt } from 'class-validator';
+import { IsOptional, IsString, IsNumber } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 
 export class UpdateAbastecimentoDto {
   @ApiProperty({
-    description: 'Quantidade em litros (opcional)',
+    description: 'Quantidade em litros (opcional) - aceita números inteiros (ex: 10) ou decimais (ex: 10.5)',
     example: 50.5,
     required: false,
   })
   @IsOptional()
-  @Transform(({ value }) => parseFloat(value))
-  @IsDecimal({}, { message: 'Quantidade deve ser um número decimal' })
+  @Transform(({ value }) => {
+    if (value === null || value === undefined) return value;
+    // Converte vírgula para ponto se necessário
+    const stringValue = String(value).replace(',', '.');
+    const parsed = parseFloat(stringValue);
+    return isNaN(parsed) ? value : parsed;
+  })
+  @IsNumber({}, { message: 'Quantidade deve ser um número (ex: 10 ou 10.5)' })
   quantidade?: number;
 
   @ApiProperty({
