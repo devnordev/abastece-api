@@ -88,7 +88,6 @@ export class AbastecimentoController {
       preco_empresa: this.parseOptionalFloatField(createAbastecimentoDto.preco_empresa, 'preco_empresa'),
       desconto: this.parseOptionalFloatField(createAbastecimentoDto.desconto, 'desconto'),
       valor_total: this.parseRequiredFloatField(createAbastecimentoDto.valor_total, 'valor_total'),
-      data_abastecimento: this.parseOptionalDateField(createAbastecimentoDto.data_abastecimento, 'data_abastecimento'),
       odometro: this.parseOptionalIntField(createAbastecimentoDto.odometro, 'odometro'),
       orimetro: this.parseOptionalIntField(createAbastecimentoDto.orimetro, 'orimetro'),
       status: createAbastecimentoDto.status,

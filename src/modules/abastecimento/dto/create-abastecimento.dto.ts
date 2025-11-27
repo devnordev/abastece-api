@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsEnum, IsDecimal, IsInt, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsEnum, IsDecimal, IsInt } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { TipoAbastecimento, StatusAbastecimento } from '@prisma/client';
 import { Transform } from 'class-transformer';
@@ -115,14 +115,6 @@ export class CreateAbastecimentoDto {
   @IsDecimal({}, { message: 'Valor total deve ser um número decimal' })
   valor_total: number;
 
-  @ApiProperty({
-    description: 'Data do abastecimento (opcional)',
-    example: '2024-01-15T10:30:00Z',
-    required: false,
-  })
-  @IsOptional()
-  @IsDateString({}, { message: 'Data do abastecimento deve ser uma data válida' })
-  data_abastecimento?: string;
 
   @ApiProperty({
     description: 'Odômetro (opcional)',

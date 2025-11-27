@@ -567,7 +567,7 @@ export class AbastecimentoService {
     }
 
     // Validações de campos
-    const { quantidade, valor_total, data_abastecimento, nfe_chave_acesso, nfe_link, desconto, preco_empresa } =
+    const { quantidade, valor_total, nfe_chave_acesso, nfe_link, desconto, preco_empresa } =
       createAbastecimentoDto;
 
     // Validar quantidade
@@ -584,18 +584,6 @@ export class AbastecimentoService {
         user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
         payload: createAbastecimentoDto,
       });
-    }
-
-    // Validar data de abastecimento (não pode ser futura)
-    if (data_abastecimento) {
-      const dataAbastecimento = new Date(data_abastecimento);
-      const dataAtual = new Date();
-      if (dataAbastecimento > dataAtual) {
-        throw new AbastecimentoDataAbastecimentoFuturaException(dataAbastecimento, {
-          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
-          payload: createAbastecimentoDto,
-        });
-      }
     }
 
     // Validar quantidade vs capacidade do tanque
@@ -677,9 +665,7 @@ export class AbastecimentoService {
         data: {
           ...createAbastecimentoDto,
           cota_id: cotaIdParaUsar || undefined,
-          data_abastecimento: createAbastecimentoDto.data_abastecimento 
-            ? new Date(createAbastecimentoDto.data_abastecimento) 
-            : new Date(),
+          data_abastecimento: new Date(), // Sempre usa a data/hora atual do servidor
         },
         include: {
           veiculo: {
@@ -1174,9 +1160,6 @@ export class AbastecimentoService {
       where: { id },
       data: {
         ...updateAbastecimentoDto,
-        data_abastecimento: updateAbastecimentoDto.data_abastecimento 
-          ? new Date(updateAbastecimentoDto.data_abastecimento) 
-          : undefined,
       },
       include: {
         veiculo: {
