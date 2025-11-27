@@ -622,6 +622,31 @@ export class AbastecimentoService {
       });
     }
 
+    // Validar nfe_link único por empresa (apenas para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
+    if (nfe_link && user?.tipo_usuario && 
+        (user.tipo_usuario === 'ADMIN_EMPRESA' || user.tipo_usuario === 'COLABORADOR_EMPRESA')) {
+      if (!user?.empresa?.id) {
+        throw new AbastecimentoUsuarioSemEmpresaException({
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createAbastecimentoDto,
+        });
+      }
+
+      // Verificar se já existe um abastecimento da mesma empresa com o mesmo nfe_link
+      const abastecimentoComMesmoNfeLink = await this.prisma.abastecimento.findFirst({
+        where: {
+          empresaId: user.empresa.id,
+          nfe_link: nfe_link,
+        },
+      });
+
+      if (abastecimentoComMesmoNfeLink) {
+        throw new BadRequestException(
+          `Já existe um abastecimento da empresa com o nfe_link "${nfe_link}". O nfe_link deve ser único por empresa.`
+        );
+      }
+    }
+
     // Validar desconto (não pode ser maior que valor total)
     const descontoValor = desconto || 0;
     if (descontoValor > valor_total) {
