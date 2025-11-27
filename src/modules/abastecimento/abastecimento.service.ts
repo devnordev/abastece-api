@@ -975,11 +975,23 @@ export class AbastecimentoService {
             modelo: true,
             tipo_veiculo: true,
             prefeituraId: true,
+            orgaoId: true,
             prefeitura: {
               select: {
                 id: true,
                 nome: true,
                 imagem_perfil: true,
+              },
+            },
+            orgao: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+                ativo: true,
+                prefeituraId: true,
+                created_date: true,
+                modified_date: true,
               },
             },
           },
@@ -1029,14 +1041,6 @@ export class AbastecimentoService {
             id: true,
             nome: true,
             descricao: true,
-          },
-        },
-        cota: {
-          select: {
-            id: true,
-            quantidade: true,
-            quantidade_utilizada: true,
-            restante: true,
           },
         },
       },

@@ -96,6 +96,7 @@ export class AbastecimentoController {
       nfe_chave_acesso: createAbastecimentoDto.nfe_chave_acesso,
       nfe_img_url: createAbastecimentoDto.nfe_img_url,
       nfe_link: createAbastecimentoDto.nfe_link,
+      observacao: createAbastecimentoDto.observacao,
       conta_faturamento_orgao_id: this.parseOptionalIntField(
         createAbastecimentoDto.conta_faturamento_orgao_id,
         'conta_faturamento_orgao_id',

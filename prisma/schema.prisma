@@ -516,6 +516,7 @@ model Abastecimento {
   nfe_chave_acesso            String?
   nfe_img_url                 String?
   nfe_link                    String?
+  observacao                  String?   @db.Text
   conta_faturamento_orgao_id  Int?
   cota_id                     Int?
   ativo                       Boolean   @default(true)

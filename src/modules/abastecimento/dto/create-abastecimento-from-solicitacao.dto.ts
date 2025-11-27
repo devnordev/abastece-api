@@ -103,6 +103,15 @@ export class CreateAbastecimentoFromSolicitacaoDto {
   nfe_link?: string;
 
   @ApiPropertyOptional({
+    description: 'Observação sobre o abastecimento (opcional)',
+    example: 'Abastecimento realizado com sucesso. Veículo em bom estado.',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'Observação deve ser uma string' })
+  observacao?: string;
+
+  @ApiPropertyOptional({
     description: 'Se o abastecimento está ativo',
     example: true,
     required: false,

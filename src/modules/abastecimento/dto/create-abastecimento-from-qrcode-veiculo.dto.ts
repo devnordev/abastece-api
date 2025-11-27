@@ -137,6 +137,15 @@ export class CreateAbastecimentoFromQrCodeVeiculoDto {
   nfe_link?: string;
 
   @ApiProperty({
+    description: 'Observação sobre o abastecimento (opcional)',
+    example: 'Abastecimento realizado com sucesso. Veículo em bom estado.',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'Observação deve ser uma string' })
+  observacao?: string;
+
+  @ApiProperty({
     description: 'ID da conta de faturamento do órgão (opcional)',
     example: 1,
     required: false,
