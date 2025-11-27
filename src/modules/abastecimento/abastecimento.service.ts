@@ -1159,12 +1159,98 @@ export class AbastecimentoService {
       });
     }
 
+    // Preparar dados para atualização (apenas campos permitidos)
+    const updateData: any = {};
+
+    // Validar e processar quantidade (se fornecida)
+    if (updateAbastecimentoDto.quantidade !== undefined) {
+      if (!updateAbastecimentoDto.quantidade || updateAbastecimentoDto.quantidade <= 0) {
+        throw new AbastecimentoQuantidadeInvalidaException(updateAbastecimentoDto.quantidade || 0, {
+          user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : undefined,
+          payload: updateAbastecimentoDto,
+        });
+      }
+
+      // Recalcular valor_total baseado nos preços existentes
+      const quantidadeNova = updateAbastecimentoDto.quantidade;
+      const precoEmpresa = existingAbastecimento.preco_empresa 
+        ? Number(existingAbastecimento.preco_empresa.toString()) 
+        : null;
+      const desconto = existingAbastecimento.desconto 
+        ? Number(existingAbastecimento.desconto.toString()) 
+        : 0;
+
+      if (precoEmpresa) {
+        const novoValorTotal = quantidadeNova * precoEmpresa - desconto;
+        updateData.quantidade = new Decimal(quantidadeNova);
+        updateData.valor_total = new Decimal(Math.max(0, novoValorTotal));
+      } else {
+        // Se não houver preco_empresa, apenas atualiza a quantidade
+        updateData.quantidade = new Decimal(quantidadeNova);
+      }
+    }
+
+    // Validar e processar observacao (se fornecida)
+    if (updateAbastecimentoDto.observacao !== undefined) {
+      updateData.observacao = updateAbastecimentoDto.observacao;
+    }
+
+    // Validar e processar nfe_link (se fornecido)
+    if (updateAbastecimentoDto.nfe_link !== undefined) {
+      // Validar formato da URL
+      if (updateAbastecimentoDto.nfe_link && !updateAbastecimentoDto.nfe_link.match(/^https?:\/\/.+/)) {
+        throw new AbastecimentoNFEUrlInvalidaException('nfe_link', updateAbastecimentoDto.nfe_link, {
+          user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : undefined,
+          payload: updateAbastecimentoDto,
+        });
+      }
+
+      // Validar nfe_link único por empresa (apenas para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
+      if (updateAbastecimentoDto.nfe_link && user?.tipo_usuario && 
+          (user.tipo_usuario === 'ADMIN_EMPRESA' || user.tipo_usuario === 'COLABORADOR_EMPRESA')) {
+        if (!user?.empresa?.id) {
+          throw new AbastecimentoUsuarioSemEmpresaException({
+            user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+            payload: updateAbastecimentoDto,
+          });
+        }
+
+        // Verificar se existe outro abastecimento da mesma empresa com o mesmo nfe_link
+        const abastecimentoComMesmoNfeLink = await this.prisma.abastecimento.findFirst({
+          where: {
+            empresaId: user.empresa.id,
+            nfe_link: updateAbastecimentoDto.nfe_link,
+            id: { not: id }, // Excluir o próprio abastecimento
+          },
+        });
+
+        if (abastecimentoComMesmoNfeLink) {
+          throw new BadRequestException(
+            `Já existe um abastecimento da empresa com o nfe_link "${updateAbastecimentoDto.nfe_link}". O nfe_link deve ser único por empresa.`
+          );
+        }
+      }
+
+      updateData.nfe_link = updateAbastecimentoDto.nfe_link || null;
+    }
+
+    // Validar e processar nfe_img_url (se fornecido)
+    if (updateAbastecimentoDto.nfe_img_url !== undefined) {
+      // Validar formato da URL
+      if (updateAbastecimentoDto.nfe_img_url && !updateAbastecimentoDto.nfe_img_url.match(/^https?:\/\/.+/)) {
+        throw new AbastecimentoNFEUrlInvalidaException('nfe_img_url', updateAbastecimentoDto.nfe_img_url, {
+          user: user ? { id: user.id, tipo: user.tipo_usuario, email: user.email } : undefined,
+          payload: updateAbastecimentoDto,
+        });
+      }
+
+      updateData.nfe_img_url = updateAbastecimentoDto.nfe_img_url || null;
+    }
+
     // Atualizar abastecimento
     const abastecimento = await this.prisma.abastecimento.update({
       where: { id },
-      data: {
-        ...updateAbastecimentoDto,
-      },
+      data: updateData,
       include: {
         veiculo: {
           select: {
