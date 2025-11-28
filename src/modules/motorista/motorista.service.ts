@@ -759,11 +759,15 @@ export class MotoristaService {
 
   /**
    * Busca motorista por código QR code
-   * Aceita código QR code (string de 8 caracteres)
+   * Aceita código QR code (string de 8 caracteres) e prefeituraId para validação
    */
-  async findByQrCode(codigoQrCode: string) {
+  async findByQrCode(codigoQrCode: string, prefeituraId: number) {
     if (!codigoQrCode || codigoQrCode.trim() === '') {
       throw new NotFoundException('Código QR code não informado');
+    }
+
+    if (!prefeituraId || prefeituraId <= 0) {
+      throw new BadRequestException('prefeituraId deve ser informado e ser um número válido');
     }
 
     // Buscar solicitação de QR code do motorista pelo código
@@ -816,6 +820,23 @@ export class MotoristaService {
     // Verificar se o motorista está ativo
     if (!qrCodeMotorista.motorista.ativo) {
       throw new NotFoundException('Motorista inativo');
+    }
+
+    // Validar se o motorista pertence à prefeitura informada
+    const motoristaPrefeituraId = qrCodeMotorista.motorista.prefeituraId;
+    if (motoristaPrefeituraId !== prefeituraId) {
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Motorista não pertence a essa prefeitura',
+        error: 'O motorista encontrado pertence à prefeitura de ID diferente da informada.',
+        motorista: {
+          id: qrCodeMotorista.motorista.id,
+          nome: qrCodeMotorista.motorista.nome,
+          prefeituraId: motoristaPrefeituraId,
+          prefeitura: qrCodeMotorista.motorista.prefeitura,
+        },
+        prefeituraIdInformado: prefeituraId,
+      });
     }
 
     // Verificar se o QR code está ativo (status válidos para uso)

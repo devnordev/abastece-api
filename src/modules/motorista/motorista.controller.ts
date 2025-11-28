@@ -122,12 +122,17 @@ export class MotoristaController {
   @UseGuards(JwtAuthGuard, EmpresaGuard)
   @ApiOperation({ summary: 'Buscar motorista por código QR code' })
   @ApiParam({ name: 'codigo', description: 'Código QR code do motorista (8 caracteres)', example: 'ABC12345' })
+  @ApiQuery({ name: 'prefeituraId', required: true, description: 'ID da prefeitura', example: 5, type: Number })
   @ApiResponse({ status: 200, description: 'Motorista encontrado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Motorista não pertence a essa prefeitura' })
   @ApiResponse({ status: 404, description: 'Motorista não encontrado ou QR code inválido' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 403, description: 'Apenas ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem acessar' })
-  async findByQrCode(@Param('codigo') codigo: string) {
-    return this.motoristaService.findByQrCode(codigo);
+  async findByQrCode(
+    @Param('codigo') codigo: string,
+    @Query('prefeituraId', ParseIntPipe) prefeituraId: number,
+  ) {
+    return this.motoristaService.findByQrCode(codigo, prefeituraId);
   }
 
   @Get(':id')
