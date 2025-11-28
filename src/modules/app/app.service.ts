@@ -246,6 +246,20 @@ export class AppService {
             sigla: true,
           },
         },
+        processo: {
+          select: {
+            id: true,
+            numero_processo: true,
+            status: true,
+          },
+        },
+        orgao: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
       },
     });
 
@@ -257,14 +271,23 @@ export class AppService {
       combustiveisIdsCotaOrgao.has(vc.combustivelId),
     );
 
-    // Todos os combustíveis da cota do órgão
+    // Todos os combustíveis da cota do órgão com todos os dados
     const combustiveisCotaOrgao = cotasOrgao.map((cota) => ({
+      id: cota.id,
+      processoId: cota.processoId,
+      orgaoId: cota.orgaoId,
       combustivelId: cota.combustivelId,
-      combustivel: cota.combustivel,
       quantidade: Number(cota.quantidade),
       quantidade_utilizada: Number(cota.quantidade_utilizada),
+      valor_utilizado: Number(cota.valor_utilizado),
       restante: cota.restante ? Number(cota.restante) : null,
       saldo_disponivel_cota: cota.saldo_disponivel_cota ? Number(cota.saldo_disponivel_cota) : null,
+      ativa: cota.ativa,
+      created_date: cota.created_date,
+      modified_date: cota.modified_date,
+      combustivel: cota.combustivel,
+      processo: cota.processo,
+      orgao: cota.orgao,
     }));
 
     // Verificar preços dos combustíveis na empresa do usuário (se houver empresa vinculada)
