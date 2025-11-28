@@ -163,6 +163,81 @@ export class AppService {
       saldo_disponivel_cota: cota.saldo_disponivel_cota ? Number(cota.saldo_disponivel_cota) : null,
     }));
 
+    // Verificar preços dos combustíveis na empresa do usuário (se houver empresa vinculada)
+    const empresaId = user?.empresa?.id;
+    const todosCombustiveisIds = [
+      ...combustiveisPermitidos.map((vc) => vc.combustivelId),
+      ...combustiveisCotaOrgao.map((cota) => cota.combustivelId),
+    ];
+    const combustiveisIdsUnicos = [...new Set(todosCombustiveisIds)];
+
+    let precosCombustiveis = new Map<number, any>();
+
+    if (empresaId && combustiveisIdsUnicos.length > 0) {
+      // Buscar todos os preços ativos dos combustíveis na empresa
+      const precos = await this.prisma.empresaPrecoCombustivel.findMany({
+        where: {
+          empresa_id: empresaId,
+          combustivel_id: { in: combustiveisIdsUnicos },
+          status: StatusPreco.ACTIVE,
+        },
+        select: {
+          combustivel_id: true,
+          preco_atual: true,
+          teto_vigente: true,
+          anp_base: true,
+          anp_base_valor: true,
+          margem_app_pct: true,
+          uf_referencia: true,
+          status: true,
+          updated_at: true,
+          updated_by: true,
+        },
+        orderBy: {
+          updated_at: 'desc',
+        },
+      });
+
+      // Agrupar por combustivel_id (pegando o mais recente)
+      for (const preco of precos) {
+        if (!precosCombustiveis.has(preco.combustivel_id)) {
+          precosCombustiveis.set(preco.combustivel_id, {
+            possuiPreco: true,
+            preco_atual: Number(preco.preco_atual),
+            teto_vigente: Number(preco.teto_vigente),
+            anp_base: preco.anp_base,
+            anp_base_valor: Number(preco.anp_base_valor),
+            margem_app_pct: Number(preco.margem_app_pct),
+            uf_referencia: preco.uf_referencia,
+            status: preco.status,
+            updated_at: preco.updated_at,
+            updated_by: preco.updated_by,
+          });
+        }
+      }
+    }
+
+    // Adicionar informação de preço aos combustíveis permitidos
+    const combustiveisPermitidosComPreco = combustiveisPermitidos.map((vc) => {
+      const precoInfo = precosCombustiveis.get(vc.combustivelId);
+      return {
+        combustivelId: vc.combustivelId,
+        combustivel: vc.combustivel,
+        possuiPreco: precoInfo ? precoInfo.possuiPreco : false,
+        preco: precoInfo || null,
+      };
+    });
+
+    // Adicionar informação de preço aos combustíveis da cota do órgão
+    const combustiveisCotaOrgaoComPreco = combustiveisCotaOrgao.map((cota) => {
+      const precoInfo = precosCombustiveis.get(cota.combustivelId);
+      return {
+        ...cota,
+        possuiPreco: precoInfo ? precoInfo.possuiPreco : false,
+        preco: precoInfo || null,
+      };
+    });
+
     return {
       message: 'Combustíveis permitidos recuperados com sucesso',
       veiculo: {
@@ -180,13 +255,11 @@ export class AppService {
         numero_processo: processo.numero_processo,
         status: processo.status,
       },
-      combustiveisPermitidos: combustiveisPermitidos.map((vc) => ({
-        combustivelId: vc.combustivelId,
-        combustivel: vc.combustivel,
-      })),
-      combustiveisCotaOrgao,
-      totalPermitidos: combustiveisPermitidos.length,
-      totalCotaOrgao: combustiveisCotaOrgao.length,
+      combustiveisPermitidos: combustiveisPermitidosComPreco,
+      combustiveisCotaOrgao: combustiveisCotaOrgaoComPreco,
+      totalPermitidos: combustiveisPermitidosComPreco.length,
+      totalCotaOrgao: combustiveisCotaOrgaoComPreco.length,
+      empresaId: empresaId || null,
     };
   }
 
