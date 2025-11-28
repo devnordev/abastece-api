@@ -818,3 +818,34 @@ export class SolicitacaoAbastecimentoPeriodoLimiteExcedidoException extends Crud
   }
 }
 
+export class SolicitacaoAbastecimentoCombustivelNaoContratadoNoProcessoException extends CrudException {
+  constructor(
+    combustivelId: number,
+    veiculoId: number,
+    processoId: number,
+    orgaoId: number,
+    prefeituraId: number,
+    overrides: ContextMeta = {},
+  ) {
+    super({
+      message: `O combustível ${combustivelId} não está contratado no processo ${processoId} do órgão ${orgaoId} da prefeitura ${prefeituraId}. Apenas combustíveis contratados no processo ativo do órgão podem ser utilizados para solicitações de abastecimento.`,
+      statusCode: HttpStatus.BAD_REQUEST,
+      errorCode: 'SOLICITACAO_ABASTECIMENTO_COMBUSTIVEL_NAO_CONTRATADO_NO_PROCESSO',
+      context: buildContext('validate', {
+        resourceId: combustivelId,
+        expected: 'Utilizar apenas combustíveis que estão contratados no processo ativo do órgão ao qual o veículo está vinculado.',
+        performed: `Validação se o combustível ${combustivelId} está contratado no processo ${processoId} do órgão ${orgaoId}.`,
+        additionalInfo: {
+          combustivelId,
+          veiculoId,
+          processoId,
+          orgaoId,
+          prefeituraId,
+          suggestion: 'Verifique se o combustível está cadastrado no processo ativo da prefeitura e se existe uma cota para este combustível no órgão do veículo.',
+        },
+        ...overrides,
+      }),
+    });
+  }
+}
+

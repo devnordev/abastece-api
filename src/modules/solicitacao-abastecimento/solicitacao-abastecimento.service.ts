@@ -33,6 +33,7 @@ import {
   SolicitacaoAbastecimentoPeriodoLimiteNaoConfiguradoException,
   SolicitacaoAbastecimentoPeriodoLimiteExcedidoException,
   SolicitacaoAbastecimentoVeiculoNaoPertencePrefeituraException,
+  SolicitacaoAbastecimentoCombustivelNaoContratadoNoProcessoException,
 } from '../../common/exceptions';
 
 type SolicitacaoBasicaComVeiculo = {
@@ -255,6 +256,26 @@ export class SolicitacaoAbastecimentoService {
         createDto.veiculoId,
       );
     }
+
+    // Validar se o combustível está contratado no processo ativo do órgão da prefeitura
+    if (!veiculo.orgaoId) {
+      throw new SolicitacaoAbastecimentoVeiculoSemOrgaoException(
+        createDto.veiculoId,
+        'VALIDACAO_PROCESSO',
+        {
+          additionalInfo: {
+            motivo: 'Veículo não possui órgão vinculado',
+          },
+        },
+      );
+    }
+
+    await this.validarCombustivelNoProcessoOrgao(
+      createDto.combustivelId,
+      createDto.veiculoId,
+      veiculo.orgaoId,
+      createDto.prefeituraId,
+    );
 
     // Validar se a quantidade solicitada excede a capacidade do tanque do veículo
     if (veiculo.capacidade_tanque) {
@@ -1359,6 +1380,95 @@ export class SolicitacaoAbastecimentoService {
           additionalInfo: {
             motivo: 'Preço inválido (zero ou negativo)',
             preco_atual: precoAtual,
+          },
+        },
+      );
+    }
+  }
+
+  /**
+   * Valida se o combustível está contratado no processo ativo do órgão da prefeitura
+   * Verifica se:
+   * 1. Existe um processo ativo para a prefeitura
+   * 2. O combustível está cadastrado no ProcessoCombustivel desse processo
+   * 3. Existe uma CotaOrgao para o órgão com esse combustível no processo
+   */
+  private async validarCombustivelNoProcessoOrgao(
+    combustivelId: number,
+    veiculoId: number,
+    orgaoId: number,
+    prefeituraId: number,
+  ): Promise<void> {
+    // Buscar processo ativo da prefeitura
+    const processo = await this.prisma.processo.findFirst({
+      where: {
+        prefeituraId,
+        tipo_contrato: TipoContrato.OBJETIVO,
+        status: StatusProcesso.ATIVO,
+        ativo: true,
+      },
+      select: {
+        id: true,
+        numero_processo: true,
+      },
+    });
+
+    if (!processo) {
+      throw new SolicitacaoAbastecimentoProcessoAtivoNaoEncontradoException(prefeituraId);
+    }
+
+    // Verificar se o combustível está no ProcessoCombustivel do processo
+    const processoCombustivel = await this.prisma.processoCombustivel.findFirst({
+      where: {
+        processoId: processo.id,
+        combustivelId,
+      },
+      select: {
+        id: true,
+        combustivelId: true,
+      },
+    });
+
+    if (!processoCombustivel) {
+      throw new SolicitacaoAbastecimentoCombustivelNaoContratadoNoProcessoException(
+        combustivelId,
+        veiculoId,
+        processo.id,
+        orgaoId,
+        prefeituraId,
+        {
+          additionalInfo: {
+            numero_processo: processo.numero_processo,
+            motivo: 'Combustível não está cadastrado no processo ativo da prefeitura',
+          },
+        },
+      );
+    }
+
+    // Verificar se existe uma CotaOrgao para o órgão com esse combustível no processo
+    const cotaOrgao = await this.prisma.cotaOrgao.findFirst({
+      where: {
+        processoId: processo.id,
+        orgaoId,
+        combustivelId,
+        ativa: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!cotaOrgao) {
+      throw new SolicitacaoAbastecimentoCombustivelNaoContratadoNoProcessoException(
+        combustivelId,
+        veiculoId,
+        processo.id,
+        orgaoId,
+        prefeituraId,
+        {
+          additionalInfo: {
+            numero_processo: processo.numero_processo,
+            motivo: 'Combustível está no processo, mas não existe cota ativa para este órgão',
           },
         },
       );
