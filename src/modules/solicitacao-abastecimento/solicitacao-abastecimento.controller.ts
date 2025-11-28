@@ -175,6 +175,18 @@ export class SolicitacaoAbastecimentoController {
     return this.solicitacaoService.listarCombustiveisCredenciados(empresaId, req.user);
   }
 
+  @Get('app/veiculo/:veiculoId')
+  @UseGuards(AdminPrefeituraEmpresaColaboradorGuard)
+  @ApiOperation({ 
+    summary: 'Listar combustíveis permitidos para solicitação de abastecimento de um veículo',
+    description: 'Retorna os combustíveis que o veículo pode solicitar (que estão cadastrados no veículo e na cota do órgão) e todos os combustíveis da cota do órgão'
+  })
+  @ApiResponse({ status: 200, description: 'Combustíveis permitidos retornados com sucesso' })
+  @ApiResponse({ status: 404, description: 'Veículo não encontrado' })
+  async listarCombustiveisPermitidosParaVeiculo(@Param('veiculoId', ParseIntPipe) veiculoId: number) {
+    return this.solicitacaoService.listarCombustiveisPermitidosParaVeiculo(veiculoId);
+  }
+
   @Get('app/:id')
   @UseGuards(AdminPrefeituraEmpresaColaboradorGuard)
   @ApiOperation({ summary: 'Buscar solicitação de abastecimento por ID (formato app)' })
