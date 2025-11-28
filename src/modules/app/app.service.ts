@@ -4,6 +4,8 @@ import {
   StatusProcesso,
   TipoContrato,
   StatusPreco,
+  TipoAbastecimentoVeiculo,
+  Periodicidade,
 } from '@prisma/client';
 
 @Injectable()
@@ -25,7 +27,7 @@ export class AppService {
       empresa?: { id: number; nome: string; cnpj: string; uf?: string | null };
     },
   ) {
-    // Buscar veículo com órgão e combustíveis
+    // Buscar veículo com órgão, combustíveis e informações de cota
     const veiculo = await this.prisma.veiculo.findUnique({
       where: { id: veiculoId },
       include: {
@@ -74,19 +76,70 @@ export class AppService {
     }
 
     if (!veiculo.orgaoId || !veiculo.orgao) {
-      return {
+      const respostaSemOrgao: any = {
         message: 'Combustíveis permitidos recuperados com sucesso',
         veiculo: {
           id: veiculo.id,
           nome: veiculo.nome,
           placa: veiculo.placa,
+          tipo_abastecimento: veiculo.tipo_abastecimento,
+          periodicidade: veiculo.periodicidade,
+          quantidade: veiculo.quantidade ? Number(veiculo.quantidade) : null,
         },
         orgao: null,
         processo: null,
         combustiveisPermitidos: [],
         combustiveisCotaOrgao: [],
         observacao: 'Veículo não possui órgão vinculado',
+        cotaVeiculo: null,
       };
+
+      // Se for COTA, buscar cota mesmo sem órgão
+      if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA && veiculo.periodicidade) {
+        const dataAtual = new Date();
+        const cotaPeriodo = await this.prisma.veiculoCotaPeriodo.findFirst({
+          where: {
+            veiculoId: veiculo.id,
+            periodicidade: veiculo.periodicidade,
+            data_inicio_periodo: { lte: dataAtual },
+            data_fim_periodo: { gte: dataAtual },
+            ativo: true,
+          },
+          orderBy: {
+            data_inicio_periodo: 'desc',
+          },
+        });
+
+        const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, veiculo.periodicidade);
+
+        if (cotaPeriodo) {
+          respostaSemOrgao.cotaVeiculo = {
+            id: cotaPeriodo.id,
+            periodicidade: cotaPeriodo.periodicidade,
+            data_inicio_periodo: cotaPeriodo.data_inicio_periodo,
+            data_fim_periodo: cotaPeriodo.data_fim_periodo,
+            quantidade_permitida: Number(cotaPeriodo.quantidade_permitida),
+            quantidade_utilizada: Number(cotaPeriodo.quantidade_utilizada),
+            quantidade_disponivel: Number(cotaPeriodo.quantidade_disponivel),
+            ativo: cotaPeriodo.ativo,
+          };
+        } else {
+          const quantidadePermitida = veiculo.quantidade ? Number(veiculo.quantidade) : null;
+          respostaSemOrgao.cotaVeiculo = {
+            id: null,
+            periodicidade: veiculo.periodicidade,
+            data_inicio_periodo: inicio,
+            data_fim_periodo: fim,
+            quantidade_permitida: quantidadePermitida,
+            quantidade_utilizada: null,
+            quantidade_disponivel: quantidadePermitida,
+            ativo: false,
+            observacao: 'Cota período não encontrada. Os valores são baseados na configuração do veículo.',
+          };
+        }
+      }
+
+      return respostaSemOrgao;
     }
 
     const orgaoId = veiculo.orgaoId;
@@ -108,12 +161,15 @@ export class AppService {
     });
 
     if (!processo) {
-      return {
+      const respostaSemProcesso: any = {
         message: 'Combustíveis permitidos recuperados com sucesso',
         veiculo: {
           id: veiculo.id,
           nome: veiculo.nome,
           placa: veiculo.placa,
+          tipo_abastecimento: veiculo.tipo_abastecimento,
+          periodicidade: veiculo.periodicidade,
+          quantidade: veiculo.quantidade ? Number(veiculo.quantidade) : null,
         },
         orgao: {
           id: veiculo.orgao.id,
@@ -124,7 +180,55 @@ export class AppService {
         combustiveisPermitidos: [],
         combustiveisCotaOrgao: [],
         observacao: 'Não há processo ativo para a prefeitura do órgão',
+        cotaVeiculo: null,
       };
+
+      // Se for COTA, buscar cota mesmo sem processo
+      if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA && veiculo.periodicidade) {
+        const dataAtual = new Date();
+        const cotaPeriodo = await this.prisma.veiculoCotaPeriodo.findFirst({
+          where: {
+            veiculoId: veiculo.id,
+            periodicidade: veiculo.periodicidade,
+            data_inicio_periodo: { lte: dataAtual },
+            data_fim_periodo: { gte: dataAtual },
+            ativo: true,
+          },
+          orderBy: {
+            data_inicio_periodo: 'desc',
+          },
+        });
+
+        const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, veiculo.periodicidade);
+
+        if (cotaPeriodo) {
+          respostaSemProcesso.cotaVeiculo = {
+            id: cotaPeriodo.id,
+            periodicidade: cotaPeriodo.periodicidade,
+            data_inicio_periodo: cotaPeriodo.data_inicio_periodo,
+            data_fim_periodo: cotaPeriodo.data_fim_periodo,
+            quantidade_permitida: Number(cotaPeriodo.quantidade_permitida),
+            quantidade_utilizada: Number(cotaPeriodo.quantidade_utilizada),
+            quantidade_disponivel: Number(cotaPeriodo.quantidade_disponivel),
+            ativo: cotaPeriodo.ativo,
+          };
+        } else {
+          const quantidadePermitida = veiculo.quantidade ? Number(veiculo.quantidade) : null;
+          respostaSemProcesso.cotaVeiculo = {
+            id: null,
+            periodicidade: veiculo.periodicidade,
+            data_inicio_periodo: inicio,
+            data_fim_periodo: fim,
+            quantidade_permitida: quantidadePermitida,
+            quantidade_utilizada: null,
+            quantidade_disponivel: quantidadePermitida,
+            ativo: false,
+            observacao: 'Cota período não encontrada. Os valores são baseados na configuração do veículo.',
+          };
+        }
+      }
+
+      return respostaSemProcesso;
     }
 
     // Buscar todas as cotas ativas do órgão no processo
@@ -238,12 +342,16 @@ export class AppService {
       };
     });
 
-    return {
+    // Preparar resposta base
+    const resposta: any = {
       message: 'Combustíveis permitidos recuperados com sucesso',
       veiculo: {
         id: veiculo.id,
         nome: veiculo.nome,
         placa: veiculo.placa,
+        tipo_abastecimento: veiculo.tipo_abastecimento,
+        periodicidade: veiculo.periodicidade,
+        quantidade: veiculo.quantidade ? Number(veiculo.quantidade) : null,
       },
       orgao: {
         id: veiculo.orgao.id,
@@ -260,7 +368,92 @@ export class AppService {
       totalPermitidos: combustiveisPermitidosComPreco.length,
       totalCotaOrgao: combustiveisCotaOrgaoComPreco.length,
       empresaId: empresaId || null,
+      cotaVeiculo: null,
     };
+
+    // Se o veículo for do tipo COTA, buscar dados da cota período
+    if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA && veiculo.periodicidade) {
+      const dataAtual = new Date();
+      const cotaPeriodo = await this.prisma.veiculoCotaPeriodo.findFirst({
+        where: {
+          veiculoId: veiculo.id,
+          periodicidade: veiculo.periodicidade,
+          data_inicio_periodo: { lte: dataAtual },
+          data_fim_periodo: { gte: dataAtual },
+          ativo: true,
+        },
+        orderBy: {
+          data_inicio_periodo: 'desc',
+        },
+      });
+
+      // Calcular intervalo do período atual
+      const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, veiculo.periodicidade);
+
+      if (cotaPeriodo) {
+        resposta.cotaVeiculo = {
+          id: cotaPeriodo.id,
+          periodicidade: cotaPeriodo.periodicidade,
+          data_inicio_periodo: cotaPeriodo.data_inicio_periodo,
+          data_fim_periodo: cotaPeriodo.data_fim_periodo,
+          quantidade_permitida: Number(cotaPeriodo.quantidade_permitida),
+          quantidade_utilizada: Number(cotaPeriodo.quantidade_utilizada),
+          quantidade_disponivel: Number(cotaPeriodo.quantidade_disponivel),
+          ativo: cotaPeriodo.ativo,
+        };
+      } else {
+        // Se não encontrou cota período, retornar informações baseadas na configuração do veículo
+        const quantidadePermitida = veiculo.quantidade ? Number(veiculo.quantidade) : null;
+        resposta.cotaVeiculo = {
+          id: null,
+          periodicidade: veiculo.periodicidade,
+          data_inicio_periodo: inicio,
+          data_fim_periodo: fim,
+          quantidade_permitida: quantidadePermitida,
+          quantidade_utilizada: null,
+          quantidade_disponivel: quantidadePermitida,
+          ativo: false,
+          observacao: 'Cota período não encontrada. Os valores são baseados na configuração do veículo.',
+        };
+      }
+    }
+
+    return resposta;
+  }
+
+  /**
+   * Calcula o intervalo de período baseado na periodicidade
+   */
+  private obterIntervaloPeriodo(data: Date, periodicidade: Periodicidade) {
+    const inicio = new Date(data);
+    inicio.setHours(0, 0, 0, 0);
+
+    const fim = new Date(data);
+    fim.setHours(23, 59, 59, 999);
+
+    if (periodicidade === Periodicidade.Diario) {
+      return { inicio, fim };
+    }
+
+    if (periodicidade === Periodicidade.Semanal) {
+      const diaSemana = inicio.getDay();
+      const diffParaSegunda = (diaSemana + 6) % 7;
+      inicio.setDate(inicio.getDate() - diffParaSegunda);
+
+      fim.setTime(inicio.getTime());
+      fim.setDate(inicio.getDate() + 6);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+
+    if (periodicidade === Periodicidade.Mensal) {
+      inicio.setDate(1);
+      fim.setMonth(inicio.getMonth() + 1, 0);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+
+    return { inicio, fim };
   }
 
   /**
