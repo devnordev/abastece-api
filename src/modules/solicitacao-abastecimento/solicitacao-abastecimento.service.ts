@@ -1727,9 +1727,8 @@ export class SolicitacaoAbastecimentoService {
   }
 
   /**
-   * Lista os combustíveis permitidos para solicitação de abastecimento de um veículo
-   * Retorna os combustíveis que estão tanto cadastrados no veículo quanto na cota do órgão
-   * Também retorna todos os combustíveis da cota do órgão
+   * @deprecated Este método foi movido para AppService.listarCombustiveisPermitidosParaVeiculo
+   * Use a rota GET /app/veiculo/:veiculoId no módulo App
    */
   async listarCombustiveisPermitidosParaVeiculo(veiculoId: number) {
     // Buscar veículo com órgão e combustíveis

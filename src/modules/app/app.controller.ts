@@ -1,19 +1,23 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Query, UseGuards, Param, ParseIntPipe, Req } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam } from '@nestjs/swagger';
+import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminPrefeituraEmpresaColaboradorGuard } from '../auth/guards/admin-prefeitura-empresa-colaborador.guard';
 import { EmpresaPrecoCombustivelService } from '../empresa-preco-combustivel/empresa-preco-combustivel.service';
 import { GetPrecoEmpresaCombustivelDto } from '../empresa-preco-combustivel/dto/get-preco-empresa-combustivel.dto';
+import { AppService } from './app.service';
 
 @ApiTags('App - Solicitações')
-@Controller('app/solicitacao')
+@Controller('app')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AppController {
   constructor(
     private readonly empresaPrecoCombustivelService: EmpresaPrecoCombustivelService,
+    private readonly appService: AppService,
   ) {}
 
-  @Get('preco-empresa/combustivel')
+  @Get('solicitacao/preco-empresa/combustivel')
   @ApiOperation({ 
     summary: 'Buscar preço atual do combustível por empresa',
     description: 'Retorna o preço atual do combustível para a empresa selecionada. Retorna erro se o combustível não estiver disponível na empresa.'
@@ -56,6 +60,23 @@ export class AppController {
       query.empresaId,
       query.combustivelId,
     );
+  }
+
+  @Get('veiculo/:veiculoId')
+  @UseGuards(AdminPrefeituraEmpresaColaboradorGuard)
+  @ApiOperation({ 
+    summary: 'Listar combustíveis permitidos para solicitação de abastecimento de um veículo',
+    description: 'Retorna os combustíveis que o veículo pode solicitar (que estão cadastrados no veículo e na cota do órgão) e todos os combustíveis da cota do órgão. Apenas permite acesso a veículos da prefeitura do usuário logado.'
+  })
+  @ApiParam({ name: 'veiculoId', type: Number, description: 'ID do veículo' })
+  @ApiResponse({ status: 200, description: 'Combustíveis permitidos retornados com sucesso' })
+  @ApiResponse({ status: 404, description: 'Veículo não encontrado' })
+  @ApiResponse({ status: 403, description: 'Você não tem permissão para acessar veículos de outras prefeituras' })
+  async listarCombustiveisPermitidosParaVeiculo(
+    @Param('veiculoId', ParseIntPipe) veiculoId: number,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.appService.listarCombustiveisPermitidosParaVeiculo(veiculoId, req.user);
   }
 }
 
