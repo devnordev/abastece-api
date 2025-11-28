@@ -1486,6 +1486,19 @@ export class SolicitacaoAbastecimentoService {
       throw new UnauthorizedException('Usuário não está vinculado a uma prefeitura ativa.');
     }
 
+    // Buscar processo ativo da prefeitura
+    const processo = await this.prisma.processo.findFirst({
+      where: {
+        prefeituraId,
+        tipo_contrato: TipoContrato.OBJETIVO,
+        status: StatusProcesso.ATIVO,
+        ativo: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
     const veiculos = await this.prisma.veiculo.findMany({
       where: {
         prefeituraId,
@@ -1502,7 +1515,11 @@ export class SolicitacaoAbastecimentoService {
           },
         },
         combustiveis: {
+          where: {
+            ativo: true,
+          },
           select: {
+            combustivelId: true,
             combustivel: {
               select: {
                 id: true,
@@ -1525,9 +1542,46 @@ export class SolicitacaoAbastecimentoService {
       ],
     });
 
+    // Filtrar combustíveis que estão na cota do órgão do processo ativo
+    const veiculosComCombustiveisFiltrados = await Promise.all(
+      veiculos.map(async (veiculo) => {
+        // Se não há processo ativo ou veículo não tem órgão, não retornar combustíveis
+        if (!processo || !veiculo.orgaoId) {
+          return {
+            ...veiculo,
+            combustiveis: [],
+          };
+        }
+
+        // Buscar combustíveis que estão na cota do órgão no processo ativo
+        const cotasOrgao = await this.prisma.cotaOrgao.findMany({
+          where: {
+            processoId: processo.id,
+            orgaoId: veiculo.orgaoId,
+            ativa: true,
+          },
+          select: {
+            combustivelId: true,
+          },
+        });
+
+        const combustiveisIdsNaCota = new Set(cotasOrgao.map((cota) => cota.combustivelId));
+
+        // Filtrar apenas combustíveis que estão na cota do órgão
+        const combustiveisFiltrados = veiculo.combustiveis.filter((vc) =>
+          combustiveisIdsNaCota.has(vc.combustivelId),
+        );
+
+        return {
+          ...veiculo,
+          combustiveis: combustiveisFiltrados,
+        };
+      }),
+    );
+
     return {
       message: 'Veículos vinculados aos órgãos da prefeitura recuperados com sucesso',
-      veiculos,
+      veiculos: veiculosComCombustiveisFiltrados,
     };
   }
 
