@@ -21,6 +21,7 @@ import {
   SolicitacaoAbastecimentoQuantidadeInvalidaException,
   SolicitacaoAbastecimentoQuantidadeExcedeCapacidadeTanqueException,
   SolicitacaoAbastecimentoMotoristaNaoVinculadoVeiculoException,
+  SolicitacaoAbastecimentoMotoristaNaoPertencePrefeituraException,
   SolicitacaoAbastecimentoVeiculoSemOrgaoException,
   SolicitacaoAbastecimentoProcessoAtivoNaoEncontradoException,
   SolicitacaoAbastecimentoCotaOrgaoNaoEncontradaException,
@@ -224,8 +225,38 @@ export class SolicitacaoAbastecimentoService {
       );
     }
 
-    // Validar se o motorista está vinculado ao veículo (se informado)
+    // Validar se o motorista está vinculado ao veículo e pertence à prefeitura do usuário (se informado)
     if (createDto.motoristaId) {
+      // Buscar o motorista para validar prefeitura
+      const motorista = await this.prisma.motorista.findUnique({
+        where: { id: createDto.motoristaId },
+        select: {
+          id: true,
+          prefeituraId: true,
+          ativo: true,
+        },
+      });
+
+      if (!motorista) {
+        throw new NotFoundException(`Motorista com ID ${createDto.motoristaId} não encontrado`);
+      }
+
+      if (!motorista.ativo) {
+        throw new NotFoundException(`Motorista com ID ${createDto.motoristaId} está inativo`);
+      }
+
+      // Validar se o motorista pertence à prefeitura do usuário logado
+      if (motorista.prefeituraId !== createDto.prefeituraId) {
+        throw new SolicitacaoAbastecimentoMotoristaNaoPertencePrefeituraException(
+          createDto.motoristaId,
+          createDto.prefeituraId,
+          {
+            payload: createDto,
+          },
+        );
+      }
+
+      // Validar se o motorista está vinculado ao veículo
       const veiculoMotorista = await this.prisma.veiculoMotorista.findFirst({
         where: {
           veiculoId: createDto.veiculoId,
