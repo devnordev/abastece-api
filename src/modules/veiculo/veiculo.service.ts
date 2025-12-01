@@ -6,6 +6,7 @@ import { FindVeiculoDto } from './dto/find-veiculo.dto';
 import { CreateSolicitacaoQrCodeDto } from './dto/create-solicitacao-qrcode.dto';
 import { UploadService } from '../upload/upload.service';
 import { Periodicidade, TipoAbastecimentoVeiculo } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class VeiculoService {
@@ -2117,5 +2118,181 @@ export class VeiculoService {
     if (currentUser.tipo_usuario === 'ADMIN_PREFEITURA' && currentUser.prefeituraId !== prefeituraId) {
       throw new ForbiddenException('Você só pode cadastrar veículos da sua própria prefeitura');
     }
+  }
+
+  /**
+   * Delega um veículo, restaurando as quantidades de combustíveis das cotas
+   * e removendo todos os registros relacionados
+   */
+  async delegarVeiculo(veiculoId: number) {
+    // Verificar se veículo existe
+    const veiculo = await this.prisma.veiculo.findUnique({
+      where: { id: veiculoId },
+      include: {
+        orgao: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+      },
+    });
+
+    if (!veiculo) {
+      throw new NotFoundException('Veículo não encontrado');
+    }
+
+    // Usar transação para garantir atomicidade
+    return await this.prisma.$transaction(async (tx) => {
+      // Buscar todos os abastecimentos do veículo que têm cota_id
+      const abastecimentos = await tx.abastecimento.findMany({
+        where: {
+          veiculoId: veiculoId,
+          cota_id: { not: null },
+        },
+        select: {
+          id: true,
+          cota_id: true,
+          quantidade: true,
+          valor_total: true,
+        },
+      });
+
+      // Agrupar abastecimentos por cota_id para somar as quantidades e valores
+      const cotasParaReverter = new Map<number, { quantidade: number; valor: number }>();
+
+      for (const abastecimento of abastecimentos) {
+        if (abastecimento.cota_id) {
+          const cotaId = abastecimento.cota_id;
+          const quantidade = Number(abastecimento.quantidade);
+          const valor = Number(abastecimento.valor_total);
+
+          if (cotasParaReverter.has(cotaId)) {
+            const atual = cotasParaReverter.get(cotaId)!;
+            cotasParaReverter.set(cotaId, {
+              quantidade: atual.quantidade + quantidade,
+              valor: atual.valor + valor,
+            });
+          } else {
+            cotasParaReverter.set(cotaId, { quantidade, valor });
+          }
+        }
+      }
+
+      // Reverter as cotas (subtrair as quantidades e valores utilizados)
+      for (const [cotaId, valores] of cotasParaReverter.entries()) {
+        const cota = await tx.cotaOrgao.findUnique({
+          where: { id: cotaId },
+          select: {
+            id: true,
+            quantidade: true,
+            quantidade_utilizada: true,
+            valor_utilizado: true,
+          },
+        });
+
+        if (cota) {
+          const quantidadeUtilizadaAtual = Number(cota.quantidade_utilizada);
+          const valorUtilizadoAtual = Number(cota.valor_utilizado);
+          const quantidadeTotal = Number(cota.quantidade);
+
+          // Subtrair as quantidades e valores
+          // Arredondar quantidade_utilizada para 1 casa decimal
+          const novaQuantidadeUtilizada = Math.max(
+            0,
+            Math.round((quantidadeUtilizadaAtual - valores.quantidade) * 10) / 10
+          );
+          // Arredondar valor_utilizado para 2 casas decimais
+          const novoValorUtilizado = Math.max(
+            0,
+            Math.round((valorUtilizadoAtual - valores.valor) * 100) / 100
+          );
+          // Arredondar restante para 1 casa decimal
+          const restante = Math.max(
+            0,
+            Math.round((quantidadeTotal - novaQuantidadeUtilizada) * 10) / 10
+          );
+
+          // Atualizar a cota
+          await tx.cotaOrgao.update({
+            where: { id: cotaId },
+            data: {
+              quantidade_utilizada: new Decimal(novaQuantidadeUtilizada.toFixed(1)),
+              valor_utilizado: new Decimal(novoValorUtilizado.toFixed(2)),
+              restante: new Decimal(restante.toFixed(1)),
+              saldo_disponivel_cota: new Decimal(restante.toFixed(1)),
+            },
+          });
+        }
+      }
+
+      // Deletar solicitações de abastecimento do veículo
+      await tx.solicitacaoAbastecimento.deleteMany({
+        where: { veiculoId: veiculoId },
+      });
+
+      // Deletar abastecimentos do veículo
+      await tx.abastecimento.deleteMany({
+        where: { veiculoId: veiculoId },
+      });
+
+      // Deletar veiculoCotaPeriodo
+      await tx.veiculoCotaPeriodo.deleteMany({
+        where: { veiculoId: veiculoId },
+      });
+
+      // Deletar veiculoMotorista
+      await tx.veiculoMotorista.deleteMany({
+        where: { veiculoId: veiculoId },
+      });
+
+      // Deletar veiculoCategoria
+      await tx.veiculoCategoria.deleteMany({
+        where: { veiculoId: veiculoId },
+      });
+
+      // Deletar veiculoCombustivel
+      await tx.veiculoCombustivel.deleteMany({
+        where: { veiculoId: veiculoId },
+      });
+
+      // Deletar solicitações de QR Code do veículo (se existir a tabela)
+      try {
+        await (tx as any).solicitacoesQrCodeVeiculo.deleteMany({
+          where: { idVeiculo: veiculoId },
+        });
+      } catch (error) {
+        // Ignorar erro se a tabela não existir
+        console.warn('Tabela solicitacoes_qrcode_veiculo não encontrada ou erro ao deletar:', error);
+      }
+
+      // Deletar o veículo
+      await tx.veiculo.delete({
+        where: { id: veiculoId },
+      });
+
+      return {
+        message: 'Veículo delegado com sucesso',
+        veiculo: {
+          id: veiculo.id,
+          nome: veiculo.nome,
+          placa: veiculo.placa,
+          orgao: veiculo.orgao,
+        },
+        cotasRevertidas: Array.from(cotasParaReverter.entries()).map(([cotaId, valores]) => ({
+          cotaId,
+          quantidadeRestaurada: valores.quantidade,
+          valorRestaurado: valores.valor,
+        })),
+        registrosRemovidos: {
+          abastecimentos: abastecimentos.length,
+          solicitacoesAbastecimento: true,
+          veiculoCotaPeriodo: true,
+          veiculoMotorista: true,
+          veiculoCategoria: true,
+          veiculoCombustivel: true,
+        },
+      };
+    });
   }
 }

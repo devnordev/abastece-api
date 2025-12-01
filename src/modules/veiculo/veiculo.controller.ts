@@ -363,6 +363,16 @@ export class VeiculoController {
     return this.veiculoService.remove(id);
   }
 
+  @Post(':id/delegar')
+  @ApiOperation({ summary: 'Delegar veículo e restaurar quantidades de combustíveis' })
+  @ApiParam({ name: 'id', description: 'ID do veículo a ser delegado' })
+  @ApiResponse({ status: 200, description: 'Veículo delegado com sucesso' })
+  @ApiResponse({ status: 404, description: 'Veículo não encontrado' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  async delegarVeiculo(@Param('id', ParseIntPipe) id: number) {
+    return this.veiculoService.delegarVeiculo(id);
+  }
+
   @Post('solicitacoes/qrcode')
   @UseGuards(JwtAuthGuard, new RoleBlockGuard(['ADMIN_EMPRESA', 'COLABORADOR_EMPRESA']))
   @ApiOperation({ summary: 'Criar solicitações de QR Code para veículos' })
