@@ -137,5 +137,80 @@ export class AppController {
   ) {
     return this.appService.verificarPrecoCombustivelEmpresa(combustivelId, req.user);
   }
+
+  @Get('veiculo/:veiculoId/:empresaId')
+  @UseGuards(AdminPrefeituraEmpresaColaboradorGuard)
+  @ApiOperation({ 
+    summary: 'Listar combustíveis permitidos para um veículo em uma empresa específica',
+    description: 'Retorna os combustíveis permitidos para o veículo que têm saldo disponível na cota do órgão e preço cadastrado na empresa. Se o veículo for do tipo COTA, também retorna a quantidade disponível da cota do veículo. Apenas permite acesso a veículos da prefeitura do usuário logado.'
+  })
+  @ApiParam({ name: 'veiculoId', type: Number, description: 'ID do veículo' })
+  @ApiParam({ name: 'empresaId', type: Number, description: 'ID da empresa' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Combustíveis permitidos retornados com sucesso',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        veiculo: {
+          type: 'object',
+          properties: {
+            id: { type: 'number' },
+            nome: { type: 'string' },
+            placa: { type: 'string' },
+            capacidade_tanque: { type: 'number' },
+            tipo_abastecimento: { type: 'string' },
+            quantidade: { type: 'number' },
+            orgao: {
+              type: 'object',
+              properties: {
+                id: { type: 'number' },
+                nome: { type: 'string' },
+                sigla: { type: 'string' },
+              },
+            },
+            prefeitura: {
+              type: 'object',
+              properties: {
+                id: { type: 'number' },
+                nome: { type: 'string' },
+                imagem_perfil: { type: 'string' },
+              },
+            },
+          },
+        },
+        combustiveisPermitidos: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              combustivelId: { type: 'number' },
+              combustivel: {
+                type: 'object',
+                properties: {
+                  id: { type: 'number' },
+                  nome: { type: 'string' },
+                  sigla: { type: 'string' },
+                },
+              },
+              qtd_disponivel_cota_orgao: { type: 'number' },
+              qtd_disponivel_cota_veiculo: { type: 'number' },
+              preco_atual: { type: 'number' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Veículo ou empresa não encontrado' })
+  @ApiResponse({ status: 403, description: 'Você não tem permissão para acessar veículos de outras prefeituras' })
+  async listarCombustiveisPermitidosParaVeiculoEmpresa(
+    @Param('veiculoId', ParseIntPipe) veiculoId: number,
+    @Param('empresaId', ParseIntPipe) empresaId: number,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.appService.listarCombustiveisPermitidosParaVeiculoEmpresa(veiculoId, empresaId, req.user);
+  }
 }
 

@@ -606,5 +606,247 @@ export class AppService {
       },
     };
   }
+
+  /**
+   * Lista os combustíveis permitidos para um veículo em uma empresa específica
+   * Retorna apenas combustíveis que:
+   * - Estão cadastrados no veículo
+   * - Estão na cota do órgão
+   * - Têm saldo disponível na cota do órgão
+   * - Têm preço cadastrado na empresa
+   */
+  async listarCombustiveisPermitidosParaVeiculoEmpresa(
+    veiculoId: number,
+    empresaId: number,
+    user: {
+      id: number;
+      tipo_usuario: string;
+      prefeitura?: { id: number; nome: string; cnpj: string };
+      empresa?: { id: number; nome: string; cnpj: string; uf?: string | null };
+    },
+  ) {
+    // Buscar veículo com todos os dados necessários
+    const veiculo = await this.prisma.veiculo.findUnique({
+      where: { id: veiculoId },
+      include: {
+        prefeitura: {
+          select: {
+            id: true,
+            nome: true,
+            imagem_perfil: true,
+          },
+        },
+        orgao: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+        combustiveis: {
+          where: {
+            ativo: true,
+          },
+          select: {
+            combustivelId: true,
+            combustivel: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!veiculo) {
+      throw new NotFoundException(`Veículo com ID ${veiculoId} não encontrado`);
+    }
+
+    // Validar se o veículo pertence à prefeitura do usuário logado
+    const prefeituraIdUsuario = user?.prefeitura?.id;
+    if (prefeituraIdUsuario && veiculo.prefeituraId !== prefeituraIdUsuario) {
+      throw new ForbiddenException(
+        `Você não tem permissão para acessar veículos de outras prefeituras. Este veículo pertence à prefeitura ID ${veiculo.prefeituraId}.`,
+      );
+    }
+
+    // Validar se a empresa existe e está ativa
+    const empresa = await this.prisma.empresa.findUnique({
+      where: { id: empresaId },
+      select: {
+        id: true,
+        nome: true,
+        ativo: true,
+      },
+    });
+
+    if (!empresa) {
+      throw new NotFoundException(`Empresa com ID ${empresaId} não encontrada`);
+    }
+
+    if (!empresa.ativo) {
+      throw new NotFoundException(`Empresa com ID ${empresaId} está inativa`);
+    }
+
+    // Buscar processo ativo da prefeitura
+    const processo = await this.prisma.processo.findFirst({
+      where: {
+        prefeituraId: veiculo.prefeituraId,
+        tipo_contrato: TipoContrato.OBJETIVO,
+        status: StatusProcesso.ATIVO,
+        ativo: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!processo || !veiculo.orgaoId || !veiculo.orgao) {
+      return {
+        message: 'Combustíveis permitidos recuperados com sucesso',
+        veiculo: {
+          id: veiculo.id,
+          nome: veiculo.nome,
+          placa: veiculo.placa,
+          capacidade_tanque: veiculo.capacidade_tanque ? Number(veiculo.capacidade_tanque) : null,
+          tipo_abastecimento: veiculo.tipo_abastecimento,
+          quantidade: veiculo.quantidade ? Number(veiculo.quantidade) : null,
+          orgao: veiculo.orgao,
+          prefeitura: veiculo.prefeitura,
+        },
+        combustiveisPermitidos: [],
+      };
+    }
+
+    // Buscar todas as cotas ativas do órgão no processo
+    const cotasOrgao = await this.prisma.cotaOrgao.findMany({
+      where: {
+        processoId: processo.id,
+        orgaoId: veiculo.orgaoId,
+        ativa: true,
+        saldo_disponivel_cota: {
+          gt: 0,
+        },
+      },
+      include: {
+        combustivel: {
+          select: {
+            id: true,
+            nome: true,
+            sigla: true,
+          },
+        },
+      },
+    });
+
+    // IDs dos combustíveis na cota do órgão com saldo disponível
+    const combustiveisIdsCotaOrgao = new Set(cotasOrgao.map((cota) => cota.combustivelId));
+
+    // Combustíveis permitidos = interseção entre combustíveis do veículo e cota do órgão
+    const combustiveisPermitidosInicial = veiculo.combustiveis.filter((vc) =>
+      combustiveisIdsCotaOrgao.has(vc.combustivelId),
+    );
+
+    // Buscar preços da empresa para os combustíveis permitidos
+    const combustiveisIdsPermitidos = combustiveisPermitidosInicial.map((vc) => vc.combustivelId);
+
+    const precosEmpresa = await this.prisma.empresaPrecoCombustivel.findMany({
+      where: {
+        empresa_id: empresaId,
+        combustivel_id: { in: combustiveisIdsPermitidos },
+        status: StatusPreco.ACTIVE,
+      },
+      select: {
+        combustivel_id: true,
+        preco_atual: true,
+      },
+      orderBy: {
+        updated_at: 'desc',
+      },
+    });
+
+    // Criar mapa de preços (pegando o mais recente por combustível)
+    const precosMap = new Map<number, number>();
+    for (const preco of precosEmpresa) {
+      if (!precosMap.has(preco.combustivel_id) && preco.preco_atual) {
+        precosMap.set(preco.combustivel_id, Number(preco.preco_atual));
+      }
+    }
+
+    // Buscar cota período do veículo se for tipo COTA
+    let cotaVeiculoPeriodo: any = null;
+    if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA && veiculo.periodicidade) {
+      const dataAtual = new Date();
+      const cotaPeriodo = await this.prisma.veiculoCotaPeriodo.findFirst({
+        where: {
+          veiculoId: veiculo.id,
+          periodicidade: veiculo.periodicidade,
+          data_inicio_periodo: { lte: dataAtual },
+          data_fim_periodo: { gte: dataAtual },
+          ativo: true,
+        },
+        orderBy: {
+          data_inicio_periodo: 'desc',
+        },
+      });
+
+      if (cotaPeriodo) {
+        cotaVeiculoPeriodo = {
+          quantidade_disponivel: Number(cotaPeriodo.quantidade_disponivel),
+        };
+      }
+    }
+
+    // Criar mapa de saldos disponíveis da cota do órgão
+    const saldosCotaOrgaoMap = new Map<number, number>();
+    for (const cota of cotasOrgao) {
+      if (cota.saldo_disponivel_cota) {
+        saldosCotaOrgaoMap.set(cota.combustivelId, Number(cota.saldo_disponivel_cota));
+      }
+    }
+
+    // Filtrar combustíveis que têm preço na empresa e montar resposta
+    const combustiveisPermitidos = combustiveisPermitidosInicial
+      .filter((vc) => precosMap.has(vc.combustivelId))
+      .map((vc) => {
+        const cotaOrgao = cotasOrgao.find((c) => c.combustivelId === vc.combustivelId);
+        const qtdDisponivelCotaOrgao = saldosCotaOrgaoMap.get(vc.combustivelId) || 0;
+        const precoAtual = precosMap.get(vc.combustivelId) || 0;
+
+        const resultado: any = {
+          combustivelId: vc.combustivelId,
+          combustivel: vc.combustivel,
+          qtd_disponivel_cota_orgao: qtdDisponivelCotaOrgao,
+          preco_atual: precoAtual,
+        };
+
+        // Se for tipo COTA, adicionar quantidade disponível da cota do veículo
+        if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA && cotaVeiculoPeriodo) {
+          resultado.qtd_disponivel_cota_veiculo = cotaVeiculoPeriodo.quantidade_disponivel;
+        } else {
+          resultado.qtd_disponivel_cota_veiculo = null;
+        }
+
+        return resultado;
+      });
+
+    return {
+      message: 'Combustíveis permitidos recuperados com sucesso',
+      veiculo: {
+        id: veiculo.id,
+        nome: veiculo.nome,
+        placa: veiculo.placa,
+        capacidade_tanque: veiculo.capacidade_tanque ? Number(veiculo.capacidade_tanque) : null,
+        tipo_abastecimento: veiculo.tipo_abastecimento,
+        quantidade: veiculo.quantidade ? Number(veiculo.quantidade) : null,
+        orgao: veiculo.orgao,
+        prefeitura: veiculo.prefeitura,
+      },
+      combustiveisPermitidos,
+    };
+  }
 }
 
