@@ -363,14 +363,33 @@ export class VeiculoController {
     return this.veiculoService.remove(id);
   }
 
-  @Post(':id/delegar')
-  @ApiOperation({ summary: 'Delegar veículo e restaurar quantidades de combustíveis' })
-  @ApiParam({ name: 'id', description: 'ID do veículo a ser delegado' })
-  @ApiResponse({ status: 200, description: 'Veículo delegado com sucesso' })
-  @ApiResponse({ status: 404, description: 'Veículo não encontrado' })
+  @Delete(':id/deletar_em_cascata')
+  @ApiOperation({ summary: 'Deletar veículo em cascata e restaurar quantidades de combustíveis' })
+  @ApiParam({ name: 'id', description: 'ID do veículo a ser deletado em cascata' })
+  @ApiResponse({ status: 200, description: 'Veículo deletado em cascata com sucesso' })
+  @ApiResponse({ status: 400, description: 'ID inválido, veículo inativo ou erro na transação' })
+  @ApiResponse({ status: 404, description: 'Veículo não encontrado ou cotas referenciadas não encontradas' })
+  @ApiResponse({ status: 409, description: 'Violação de constraint única' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   async delegarVeiculo(@Param('id', ParseIntPipe) id: number) {
-    return this.veiculoService.delegarVeiculo(id);
+    try {
+      return await this.veiculoService.delegarVeiculo(id);
+    } catch (error) {
+      // Re-lançar exceções conhecidas do NestJS
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ConflictException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+      // Log e relançar como BadRequestException para erros desconhecidos
+      console.error('Erro ao deletar veículo em cascata:', error);
+      throw new BadRequestException(
+        `Erro ao deletar veículo em cascata: ${error.message || 'Erro desconhecido'}`
+      );
+    }
   }
 
   @Post('solicitacoes/qrcode')

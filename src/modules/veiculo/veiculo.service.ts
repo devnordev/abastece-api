@@ -2125,6 +2125,11 @@ export class VeiculoService {
    * e removendo todos os registros relacionados
    */
   async delegarVeiculo(veiculoId: number) {
+    // Validar ID do veículo
+    if (!veiculoId || veiculoId <= 0 || !Number.isInteger(veiculoId)) {
+      throw new BadRequestException('ID do veículo inválido. Deve ser um número inteiro positivo.');
+    }
+
     // Verificar se veículo existe
     const veiculo = await this.prisma.veiculo.findUnique({
       where: { id: veiculoId },
@@ -2139,11 +2144,19 @@ export class VeiculoService {
     });
 
     if (!veiculo) {
-      throw new NotFoundException('Veículo não encontrado');
+      throw new NotFoundException(`Veículo com ID ${veiculoId} não encontrado.`);
+    }
+
+    // Verificar se o veículo já está inativo (opcional, mas pode ser útil)
+    if (!veiculo.ativo) {
+      throw new BadRequestException(
+        `O veículo "${veiculo.nome}" (ID: ${veiculoId}, Placa: ${veiculo.placa}) já está inativo.`
+      );
     }
 
     // Usar transação para garantir atomicidade
-    return await this.prisma.$transaction(async (tx) => {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
       // Buscar todos os abastecimentos do veículo que têm cota_id
       const abastecimentos = await tx.abastecimento.findMany({
         where: {
@@ -2180,6 +2193,7 @@ export class VeiculoService {
       }
 
       // Reverter as cotas (subtrair as quantidades e valores utilizados)
+      const cotasNaoEncontradas: number[] = [];
       for (const [cotaId, valores] of cotasParaReverter.entries()) {
         const cota = await tx.cotaOrgao.findUnique({
           where: { id: cotaId },
@@ -2188,32 +2202,52 @@ export class VeiculoService {
             quantidade: true,
             quantidade_utilizada: true,
             valor_utilizado: true,
+            orgaoId: true,
+            combustivelId: true,
           },
         });
 
-        if (cota) {
-          const quantidadeUtilizadaAtual = Number(cota.quantidade_utilizada);
-          const valorUtilizadoAtual = Number(cota.valor_utilizado);
-          const quantidadeTotal = Number(cota.quantidade);
+        if (!cota) {
+          cotasNaoEncontradas.push(cotaId);
+          continue;
+        }
 
-          // Subtrair as quantidades e valores
-          // Arredondar quantidade_utilizada para 1 casa decimal
-          const novaQuantidadeUtilizada = Math.max(
-            0,
-            Math.round((quantidadeUtilizadaAtual - valores.quantidade) * 10) / 10
-          );
-          // Arredondar valor_utilizado para 2 casas decimais
-          const novoValorUtilizado = Math.max(
-            0,
-            Math.round((valorUtilizadoAtual - valores.valor) * 100) / 100
-          );
-          // Arredondar restante para 1 casa decimal
-          const restante = Math.max(
-            0,
-            Math.round((quantidadeTotal - novaQuantidadeUtilizada) * 10) / 10
-          );
+        const quantidadeUtilizadaAtual = Number(cota.quantidade_utilizada);
+        const valorUtilizadoAtual = Number(cota.valor_utilizado);
+        const quantidadeTotal = Number(cota.quantidade);
 
-          // Atualizar a cota
+        // Validar valores antes de processar
+        if (isNaN(quantidadeUtilizadaAtual) || isNaN(valorUtilizadoAtual) || isNaN(quantidadeTotal)) {
+          throw new BadRequestException(
+            `Erro ao processar cota ID ${cotaId}: valores inválidos na cota do órgão.`
+          );
+        }
+
+        if (valores.quantidade <= 0 || valores.valor < 0) {
+          throw new BadRequestException(
+            `Erro ao processar cota ID ${cotaId}: valores de abastecimento inválidos (quantidade: ${valores.quantidade}, valor: ${valores.valor}).`
+          );
+        }
+
+        // Subtrair as quantidades e valores
+        // Arredondar quantidade_utilizada para 1 casa decimal
+        const novaQuantidadeUtilizada = Math.max(
+          0,
+          Math.round((quantidadeUtilizadaAtual - valores.quantidade) * 10) / 10
+        );
+        // Arredondar valor_utilizado para 2 casas decimais
+        const novoValorUtilizado = Math.max(
+          0,
+          Math.round((valorUtilizadoAtual - valores.valor) * 100) / 100
+        );
+        // Arredondar restante para 1 casa decimal
+        const restante = Math.max(
+          0,
+          Math.round((quantidadeTotal - novaQuantidadeUtilizada) * 10) / 10
+        );
+
+        // Atualizar a cota
+        try {
           await tx.cotaOrgao.update({
             where: { id: cotaId },
             data: {
@@ -2223,7 +2257,18 @@ export class VeiculoService {
               saldo_disponivel_cota: new Decimal(restante.toFixed(1)),
             },
           });
+        } catch (error) {
+          throw new BadRequestException(
+            `Erro ao atualizar cota ID ${cotaId} do órgão: ${error.message || 'Erro desconhecido'}.`
+          );
         }
+      }
+
+      // Se houver cotas não encontradas, lançar erro
+      if (cotasNaoEncontradas.length > 0) {
+        throw new NotFoundException(
+          `Não foi possível encontrar as seguintes cotas referenciadas nos abastecimentos: ${cotasNaoEncontradas.join(', ')}.`
+        );
       }
 
       // Deletar solicitações de abastecimento do veículo
@@ -2271,28 +2316,66 @@ export class VeiculoService {
         where: { id: veiculoId },
       });
 
-      return {
-        message: 'Veículo delegado com sucesso',
-        veiculo: {
-          id: veiculo.id,
-          nome: veiculo.nome,
-          placa: veiculo.placa,
-          orgao: veiculo.orgao,
-        },
-        cotasRevertidas: Array.from(cotasParaReverter.entries()).map(([cotaId, valores]) => ({
-          cotaId,
-          quantidadeRestaurada: valores.quantidade,
-          valorRestaurado: valores.valor,
-        })),
-        registrosRemovidos: {
-          abastecimentos: abastecimentos.length,
-          solicitacoesAbastecimento: true,
-          veiculoCotaPeriodo: true,
-          veiculoMotorista: true,
-          veiculoCategoria: true,
-          veiculoCombustivel: true,
-        },
-      };
-    });
+        return {
+          message: 'Veículo deletado em cascata com sucesso',
+          veiculo: {
+            id: veiculo.id,
+            nome: veiculo.nome,
+            placa: veiculo.placa,
+            orgao: veiculo.orgao,
+          },
+          cotasRevertidas: Array.from(cotasParaReverter.entries()).map(([cotaId, valores]) => ({
+            cotaId,
+            quantidadeRestaurada: valores.quantidade,
+            valorRestaurado: valores.valor,
+          })),
+          registrosRemovidos: {
+            abastecimentos: abastecimentos.length,
+            solicitacoesAbastecimento: true,
+            veiculoCotaPeriodo: true,
+            veiculoMotorista: true,
+            veiculoCategoria: true,
+            veiculoCombustivel: true,
+          },
+        };
+      });
+    } catch (error: any) {
+      // Se for uma exceção do NestJS, re-lançar
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof ConflictException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+
+      // Tratar erros específicos do Prisma
+      if (error?.code) {
+        switch (error.code) {
+          case 'P2002':
+            throw new ConflictException(
+              `Erro ao deletar veículo: violação de constraint única. Detalhes: ${error.meta?.target || 'campo duplicado'}.`
+            );
+          case 'P2003':
+            throw new BadRequestException(
+              `Erro ao deletar veículo: violação de chave estrangeira. Existem registros relacionados que impedem a exclusão.`
+            );
+          case 'P2025':
+            throw new NotFoundException(
+              `Erro ao deletar veículo: registro não encontrado durante a operação.`
+            );
+          default:
+            throw new BadRequestException(
+              `Erro do Prisma ao deletar veículo (código: ${error.code}): ${error.message || 'Erro desconhecido'}.`
+            );
+        }
+      }
+
+      // Erro genérico de transação
+      throw new BadRequestException(
+        `Erro ao deletar veículo em cascata: ${error?.message || 'Erro desconhecido durante a transação'}.`
+      );
+    }
   }
 }
