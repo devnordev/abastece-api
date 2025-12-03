@@ -763,11 +763,22 @@ export class MotoristaService {
    */
   async findByQrCode(codigoQrCode: string, prefeituraId: number) {
     if (!codigoQrCode || codigoQrCode.trim() === '') {
-      throw new NotFoundException('Código QR code não informado');
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Código QR code não informado',
+        error: 'O parâmetro "codigo" é obrigatório e não pode estar vazio',
+        details: 'Verifique se o código QR code foi informado corretamente na URL da requisição',
+      });
     }
 
     if (!prefeituraId || prefeituraId <= 0) {
-      throw new BadRequestException('prefeituraId deve ser informado e ser um número válido');
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'ID da prefeitura inválido ou não informado',
+        error: 'O parâmetro "prefeituraId" é obrigatório e deve ser um número inteiro positivo',
+        details: 'Certifique-se de informar um ID de prefeitura válido na query string da requisição',
+        exemplo: '/motoristas/qrcode/ABC12345?prefeituraId=5',
+      });
     }
 
     // Buscar solicitação de QR code do motorista pelo código
@@ -814,12 +825,29 @@ export class MotoristaService {
     });
 
     if (!qrCodeMotorista) {
-      throw new NotFoundException(`Motorista com código QR code ${codigoQrCode} não encontrado`);
+      throw new NotFoundException({
+        statusCode: 404,
+        message: `Nenhum motorista encontrado com o código QR code informado`,
+        error: `O código QR code "${codigoQrCode.trim()}" não foi encontrado no sistema`,
+        details: 'Verifique se o código QR code está correto e se existe uma solicitação de QR code aprovada para este código',
+        codigoInformado: codigoQrCode.trim(),
+      });
     }
 
     // Verificar se o motorista está ativo
     if (!qrCodeMotorista.motorista.ativo) {
-      throw new NotFoundException('Motorista inativo');
+      throw new NotFoundException({
+        statusCode: 404,
+        message: 'Motorista inativo',
+        error: `O motorista vinculado ao QR code "${codigoQrCode.trim()}" está inativo no sistema`,
+        details: 'Não é possível consultar motoristas que foram desativados. Entre em contato com o administrador da prefeitura para reativar o cadastro do motorista',
+        motorista: {
+          id: qrCodeMotorista.motorista.id,
+          nome: qrCodeMotorista.motorista.nome,
+          cpf: qrCodeMotorista.motorista.cpf,
+        },
+        codigoQrCode: codigoQrCode.trim(),
+      });
     }
 
     // Validar se o motorista pertence à prefeitura informada
@@ -827,25 +855,47 @@ export class MotoristaService {
     if (motoristaPrefeituraId !== prefeituraId) {
       throw new BadRequestException({
         statusCode: 400,
-        message: 'Motorista não pertence a essa prefeitura',
-        error: 'O motorista encontrado pertence à prefeitura de ID diferente da informada.',
+        message: 'Motorista não pertence à prefeitura informada',
+        error: `O motorista encontrado pertence à prefeitura de ID ${motoristaPrefeituraId}, mas foi informado o ID ${prefeituraId}`,
+        details: 'Você deve informar o ID da prefeitura correta à qual o motorista está vinculado. Verifique o código QR code e o ID da prefeitura na requisição',
         motorista: {
           id: qrCodeMotorista.motorista.id,
           nome: qrCodeMotorista.motorista.nome,
+          cpf: qrCodeMotorista.motorista.cpf,
           prefeituraId: motoristaPrefeituraId,
           prefeitura: qrCodeMotorista.motorista.prefeitura,
         },
         prefeituraIdInformado: prefeituraId,
+        codigoQrCode: codigoQrCode.trim(),
       });
     }
 
     // Verificar se o QR code está ativo (status válidos para uso)
     // Status válidos: Aprovado, Em_Producao, Integracao, Concluida
     const statusValidos = ['Aprovado', 'Em_Producao', 'Integracao', 'Concluida'];
-    if (!statusValidos.includes(qrCodeMotorista.status)) {
-      throw new NotFoundException(
-        `QR code não está ativo. Status atual: ${qrCodeMotorista.status}`
-      );
+    const statusAtual = qrCodeMotorista.status;
+    if (!statusValidos.includes(statusAtual)) {
+      const statusMapeamento: Record<string, string> = {
+        Solicitado: 'O QR code ainda está aguardando aprovação',
+        Inativo: 'O QR code foi desativado temporariamente',
+        Cancelado: 'O QR code foi cancelado permanentemente',
+      };
+
+      const detalheStatus = statusMapeamento[statusAtual] || 'Status não permite o uso do QR code no momento';
+
+      throw new NotFoundException({
+        statusCode: 404,
+        message: 'QR code não está disponível para uso',
+        error: `O QR code "${codigoQrCode.trim()}" não pode ser utilizado porque está com status "${statusAtual}"`,
+        details: `${detalheStatus}. Apenas QR codes com status "Aprovado", "Em_Producao", "Integracao" ou "Concluida" podem ser consultados`,
+        statusAtual,
+        statusValidos,
+        motorista: {
+          id: qrCodeMotorista.motorista.id,
+          nome: qrCodeMotorista.motorista.nome,
+        },
+        codigoQrCode: codigoQrCode.trim(),
+      });
     }
 
     // Retornar dados do motorista
