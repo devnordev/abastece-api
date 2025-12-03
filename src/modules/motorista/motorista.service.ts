@@ -5,6 +5,7 @@ import { UpdateMotoristaDto } from './dto/update-motorista.dto';
 import { FindMotoristaDto } from './dto/find-motorista.dto';
 import { CreateSolicitacaoQrCodeMotoristaDto } from './dto/create-solicitacao-qrcode.dto';
 import { UploadService } from '../upload/upload.service';
+import { StatusQrCodeMotorista } from '@prisma/client';
 
 @Injectable()
 export class MotoristaService {
@@ -928,6 +929,94 @@ export class MotoristaService {
         status: qrCodeMotorista.status,
         data_cadastro: qrCodeMotorista.data_cadastro,
         foto: qrCodeMotorista.foto,
+      },
+    };
+  }
+
+  /**
+   * Verifica se o QR code do motorista está com status "Concluida"
+   * @param motoristaId ID do motorista
+   * @returns Objeto com informações sobre o status do QR code
+   */
+  async verificarQrCodeConcluida(motoristaId: number) {
+    // Verificar se o motorista existe
+    const motorista = await this.prisma.motorista.findUnique({
+      where: { id: motoristaId },
+      select: {
+        id: true,
+        nome: true,
+        cpf: true,
+      },
+    });
+
+    if (!motorista) {
+      throw new NotFoundException({
+        statusCode: 404,
+        message: 'Motorista não encontrado',
+        error: `Nenhum motorista encontrado com o ID ${motoristaId}`,
+        details: 'Verifique se o ID do motorista está correto',
+        motoristaId,
+      });
+    }
+
+    // Buscar a solicitação de QR code mais recente do motorista que não esteja cancelada
+    let qrCodeMotorista: any = null;
+    try {
+      qrCodeMotorista = await (this.prisma as any).qrCodeMotorista.findFirst({
+        where: {
+          idMotorista: motoristaId,
+          status: {
+            not: 'Cancelado',
+          },
+        },
+        orderBy: {
+          data_cadastro: 'desc',
+        },
+        select: {
+          id: true,
+          idMotorista: true,
+          status: true,
+          codigo_qrcode: true,
+          data_cadastro: true,
+        },
+      });
+    } catch (error) {
+      // Se a tabela não existir ou houver erro, retornar que não há QR code
+      qrCodeMotorista = null;
+    }
+
+    if (!qrCodeMotorista) {
+      return {
+        message: 'QR code não encontrado para este motorista',
+        motorista: {
+          id: motorista.id,
+          nome: motorista.nome,
+          cpf: motorista.cpf,
+        },
+        qrCodeConcluida: false,
+        possuiQrCode: false,
+        statusAtual: null,
+      };
+    }
+
+    const statusConcluida = qrCodeMotorista.status === StatusQrCodeMotorista.Concluida;
+
+    return {
+      message: statusConcluida
+        ? 'QR code do motorista está com status Concluída'
+        : 'QR code do motorista não está com status Concluída',
+      motorista: {
+        id: motorista.id,
+        nome: motorista.nome,
+        cpf: motorista.cpf,
+      },
+      qrCodeConcluida: statusConcluida,
+      possuiQrCode: true,
+      statusAtual: qrCodeMotorista.status,
+      qrCode: {
+        id: qrCodeMotorista.id,
+        codigo_qrcode: qrCodeMotorista.codigo_qrcode,
+        data_cadastro: qrCodeMotorista.data_cadastro,
       },
     };
   }

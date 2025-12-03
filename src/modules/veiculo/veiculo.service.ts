@@ -5,7 +5,7 @@ import { UpdateVeiculoDto } from './dto/update-veiculo.dto';
 import { FindVeiculoDto } from './dto/find-veiculo.dto';
 import { CreateSolicitacaoQrCodeDto } from './dto/create-solicitacao-qrcode.dto';
 import { UploadService } from '../upload/upload.service';
-import { Periodicidade, TipoAbastecimentoVeiculo } from '@prisma/client';
+import { Periodicidade, TipoAbastecimentoVeiculo, StatusSolicitacaoQrCodeVeiculo } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
@@ -2377,5 +2377,93 @@ export class VeiculoService {
         `Erro ao deletar veículo em cascata: ${error?.message || 'Erro desconhecido durante a transação'}.`
       );
     }
+  }
+
+  /**
+   * Verifica se o QR code do veículo está com status "Concluida"
+   * @param veiculoId ID do veículo
+   * @returns Objeto com informações sobre o status do QR code
+   */
+  async verificarQrCodeConcluida(veiculoId: number) {
+    // Verificar se o veículo existe
+    const veiculo = await this.prisma.veiculo.findUnique({
+      where: { id: veiculoId },
+      select: {
+        id: true,
+        nome: true,
+        placa: true,
+      },
+    });
+
+    if (!veiculo) {
+      throw new NotFoundException({
+        statusCode: 404,
+        message: 'Veículo não encontrado',
+        error: `Nenhum veículo encontrado com o ID ${veiculoId}`,
+        details: 'Verifique se o ID do veículo está correto',
+        veiculoId,
+      });
+    }
+
+    // Buscar a solicitação de QR code mais recente do veículo que não esteja cancelada
+    let solicitacaoQrCode: any = null;
+    try {
+      solicitacaoQrCode = await (this.prisma as any).solicitacoesQrCodeVeiculo.findFirst({
+        where: {
+          idVeiculo: veiculoId,
+          status: {
+            not: 'Cancelado',
+          },
+        },
+        orderBy: {
+          data_cadastro: 'desc',
+        },
+        select: {
+          id: true,
+          idVeiculo: true,
+          status: true,
+          codigo_qrcode: true,
+          data_cadastro: true,
+        },
+      });
+    } catch (error) {
+      // Se a tabela não existir ou houver erro, retornar que não há QR code
+      solicitacaoQrCode = null;
+    }
+
+    if (!solicitacaoQrCode) {
+      return {
+        message: 'QR code não encontrado para este veículo',
+        veiculo: {
+          id: veiculo.id,
+          nome: veiculo.nome,
+          placa: veiculo.placa,
+        },
+        qrCodeConcluida: false,
+        possuiQrCode: false,
+        statusAtual: null,
+      };
+    }
+
+    const statusConcluida = solicitacaoQrCode.status === StatusSolicitacaoQrCodeVeiculo.Concluida;
+
+    return {
+      message: statusConcluida
+        ? 'QR code do veículo está com status Concluída'
+        : 'QR code do veículo não está com status Concluída',
+      veiculo: {
+        id: veiculo.id,
+        nome: veiculo.nome,
+        placa: veiculo.placa,
+      },
+      qrCodeConcluida: statusConcluida,
+      possuiQrCode: true,
+      statusAtual: solicitacaoQrCode.status,
+      qrCode: {
+        id: solicitacaoQrCode.id,
+        codigo_qrcode: solicitacaoQrCode.codigo_qrcode,
+        data_cadastro: solicitacaoQrCode.data_cadastro,
+      },
+    };
   }
 }

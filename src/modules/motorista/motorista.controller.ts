@@ -135,6 +135,45 @@ export class MotoristaController {
     return this.motoristaService.findByQrCode(codigo, prefeituraId);
   }
 
+  @Get(':id/qrcode/concluida')
+  @ApiOperation({ summary: 'Verificar se o QR code do motorista está com status Concluída' })
+  @ApiParam({ name: 'id', description: 'ID do motorista', example: 1, type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'Status do QR code verificado com sucesso',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        motorista: {
+          type: 'object',
+          properties: {
+            id: { type: 'number' },
+            nome: { type: 'string' },
+            cpf: { type: 'string' },
+          },
+        },
+        qrCodeConcluida: { type: 'boolean' },
+        possuiQrCode: { type: 'boolean' },
+        statusAtual: { type: 'string', nullable: true },
+        qrCode: {
+          type: 'object',
+          nullable: true,
+          properties: {
+            id: { type: 'number' },
+            codigo_qrcode: { type: 'string', nullable: true },
+            data_cadastro: { type: 'string', format: 'date-time' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Motorista não encontrado' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  async verificarQrCodeConcluida(@Param('id', ParseIntPipe) id: number) {
+    return this.motoristaService.verificarQrCodeConcluida(id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Buscar motorista por ID' })
   @ApiResponse({ status: 200, description: 'Motorista encontrado com sucesso' })
