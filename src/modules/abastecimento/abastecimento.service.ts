@@ -1086,8 +1086,8 @@ export class AbastecimentoService {
   async findOneWithCotaPeriodo(id: number) {
     const abastecimento = await this.prisma.abastecimento.findUnique({
       where: { id },
-      select: {
-        id: true,
+          select: {
+            id: true,
         veiculoId: true,
         data_abastecimento: true,
       },

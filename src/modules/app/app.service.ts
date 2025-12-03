@@ -658,6 +658,23 @@ export class AppService {
             },
           },
         },
+        motoristas: {
+          where: {
+            ativo: true,
+          },
+          select: {
+            motorista: {
+              select: {
+                id: true,
+                nome: true,
+                cpf: true,
+              },
+            },
+          },
+          orderBy: {
+            data_inicio: 'desc',
+          },
+        },
       },
     });
 
@@ -704,6 +721,13 @@ export class AppService {
       },
     });
 
+    // Buscar motoristas vinculados ao veículo
+    const motoristasVinculados = veiculo.motoristas.map((vm) => ({
+      id: vm.motorista.id,
+      nome: vm.motorista.nome,
+      cpf: vm.motorista.cpf,
+    }));
+
     if (!processo || !veiculo.orgaoId || !veiculo.orgao) {
       return {
         message: 'Combustíveis permitidos recuperados com sucesso',
@@ -714,9 +738,11 @@ export class AppService {
           capacidade_tanque: veiculo.capacidade_tanque ? Number(veiculo.capacidade_tanque) : null,
           tipo_abastecimento: veiculo.tipo_abastecimento,
           quantidade: veiculo.quantidade ? Number(veiculo.quantidade) : null,
+          conta_faturamento_orgao_id: veiculo.contaFaturamentoOrgaoId,
           orgao: veiculo.orgao,
           prefeitura: veiculo.prefeitura,
         },
+        motoristas: motoristasVinculados,
         combustiveisPermitidos: [],
       };
     }
@@ -800,11 +826,13 @@ export class AppService {
       }
     }
 
-    // Criar mapa de saldos disponíveis da cota do órgão
+    // Criar mapa de saldos disponíveis da cota do órgão e IDs das cotas
     const saldosCotaOrgaoMap = new Map<number, number>();
+    const cotasOrgaoMap = new Map<number, number>(); // Map combustivelId -> cotaId
     for (const cota of cotasOrgao) {
       if (cota.saldo_disponivel_cota) {
         saldosCotaOrgaoMap.set(cota.combustivelId, Number(cota.saldo_disponivel_cota));
+        cotasOrgaoMap.set(cota.combustivelId, cota.id);
       }
     }
 
@@ -815,12 +843,15 @@ export class AppService {
         const cotaOrgao = cotasOrgao.find((c) => c.combustivelId === vc.combustivelId);
         const qtdDisponivelCotaOrgao = saldosCotaOrgaoMap.get(vc.combustivelId) || 0;
         const precoAtual = precosMap.get(vc.combustivelId) || 0;
+        const cotaId = cotasOrgaoMap.get(vc.combustivelId) || null;
 
         const resultado: any = {
           combustivelId: vc.combustivelId,
           combustivel: vc.combustivel,
           qtd_disponivel_cota_orgao: qtdDisponivelCotaOrgao,
           preco_atual: precoAtual,
+          preco_empresa: precoAtual, // preco_empresa é o mesmo que preco_atual
+          cota_id: cotaId, // ID da cota do órgão para este combustível
         };
 
         // Se for tipo COTA, adicionar quantidade disponível da cota do veículo
@@ -842,9 +873,11 @@ export class AppService {
         capacidade_tanque: veiculo.capacidade_tanque ? Number(veiculo.capacidade_tanque) : null,
         tipo_abastecimento: veiculo.tipo_abastecimento,
         quantidade: veiculo.quantidade ? Number(veiculo.quantidade) : null,
+        conta_faturamento_orgao_id: veiculo.contaFaturamentoOrgaoId,
         orgao: veiculo.orgao,
         prefeitura: veiculo.prefeitura,
       },
+      motoristas: motoristasVinculados,
       combustiveisPermitidos,
     };
   }

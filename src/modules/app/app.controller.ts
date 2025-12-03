@@ -162,6 +162,7 @@ export class AppController {
             capacidade_tanque: { type: 'number' },
             tipo_abastecimento: { type: 'string' },
             quantidade: { type: 'number' },
+            conta_faturamento_orgao_id: { type: 'number', nullable: true },
             orgao: {
               type: 'object',
               properties: {
@@ -180,6 +181,18 @@ export class AppController {
             },
           },
         },
+        motoristas: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'number' },
+              nome: { type: 'string' },
+              cpf: { type: 'string' },
+            },
+          },
+          description: 'Lista de motoristas vinculados ao veículo (ativos)',
+        },
         combustiveisPermitidos: {
           type: 'array',
           items: {
@@ -195,8 +208,10 @@ export class AppController {
                 },
               },
               qtd_disponivel_cota_orgao: { type: 'number' },
-              qtd_disponivel_cota_veiculo: { type: 'number' },
+              qtd_disponivel_cota_veiculo: { type: 'number', nullable: true },
               preco_atual: { type: 'number' },
+              preco_empresa: { type: 'number' },
+              cota_id: { type: 'number', nullable: true },
             },
           },
         },
