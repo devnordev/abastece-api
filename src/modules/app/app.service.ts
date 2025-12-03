@@ -851,7 +851,7 @@ export class AppService {
           qtd_disponivel_cota_orgao: qtdDisponivelCotaOrgao,
           preco_atual: precoAtual,
           preco_empresa: precoAtual, // preco_empresa é o mesmo que preco_atual
-          cota_id: cotaId, // ID da cota do órgão para este combustível
+          cota_orgao_veiculo_id: cotaId, // ID da cota do órgão do veículo para este combustível
         };
 
         // Se for tipo COTA, adicionar quantidade disponível da cota do veículo

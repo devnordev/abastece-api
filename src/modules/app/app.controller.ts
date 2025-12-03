@@ -211,7 +211,7 @@ export class AppController {
               qtd_disponivel_cota_veiculo: { type: 'number', nullable: true },
               preco_atual: { type: 'number' },
               preco_empresa: { type: 'number' },
-              cota_id: { type: 'number', nullable: true },
+              cota_orgao_veiculo_id: { type: 'number', nullable: true, description: 'ID da cota do órgão do veículo para este combustível' },
             },
           },
         },
