@@ -510,18 +510,9 @@ export class AbastecimentoService {
       }
     }
 
-    // Verificar se abastecedor existe (se informado)
-    if (abastecedorId) {
-      const abastecedor = await this.prisma.empresa.findUnique({
-        where: { id: abastecedorId },
-      });
-      if (!abastecedor) {
-        throw new AbastecimentoAbastecedorNotFoundException(abastecedorId, {
-          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
-          payload: createAbastecimentoDto,
-        });
-      }
-    }
+    // abastecedorId sempre será preenchido automaticamente com user.empresa.id
+    // Não é necessário validar o abastecedorId do DTO, pois ele será ignorado
+    // O abastecedorId é sempre a empresa do usuário logado
 
     // Verificar se conta de faturamento existe (se informado)
     if (conta_faturamento_orgao_id) {
@@ -769,8 +760,8 @@ export class AbastecimentoService {
     const prefeituraId = veiculo.prefeituraId;
 
     // Definir valores padrão para campos que devem ser preenchidos automaticamente
-    // abastecedorId é o ID da empresa (user.empresa.id), não do usuário
-    const abastecedorIdParaUsar = empresaId; // ID da empresa que está fazendo o abastecimento (já validado acima)
+    // abastecedorId é sempre o ID da empresa do usuário logado (user.empresa.id), ignorando qualquer valor do DTO
+    const abastecedorIdParaUsar = user.empresa.id; // ID da empresa do usuário logado que está fazendo o abastecimento
     const abastecidoPorParaUsar = String(user.id); // ID do usuário logado que está confirmando o abastecimento
     const statusParaUsar = StatusAbastecimento.Aprovado; // Status deve ir para APROVADO automaticamente
     const ativoParaUsar = true; // ativo fica como true ao abastecer
