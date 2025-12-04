@@ -2596,38 +2596,31 @@ export class SolicitacaoAbastecimentoService {
     const minutoExp = parseInt(partsExp.find(p => p.type === 'minute')!.value);
     const segundoExp = parseInt(partsExp.find(p => p.type === 'second')!.value);
     
-    // Debug: log dos componentes para verificar
-    const expirado = (() => {
-      // Comparar diretamente os componentes em Fortaleza
-      // A data só expira quando dataAtualServidorFormatada > dataExpiracaoFormatada
-      // Ou seja, quando dataExpiracaoFormatada <= dataAtualServidorFormatada
-      // Comparação: ano, mês, dia, hora, minuto, segundo
-      if (anoExp < anoAtual) return true;  // Ano de expiração já passou
-      if (anoExp > anoAtual) return false; // Ano de expiração ainda não chegou
-      
-      if (mesExp < mesAtual) return true;  // Mês de expiração já passou
-      if (mesExp > mesAtual) return false; // Mês de expiração ainda não chegou
-      
-      if (diaExp < diaAtual) return true;  // Dia de expiração já passou
-      if (diaExp > diaAtual) return false; // Dia de expiração ainda não chegou
-      
-      if (horaExp < horaAtual) return true;  // Hora de expiração já passou
-      if (horaExp > horaAtual) return false; // Hora de expiração ainda não chegou
-      
-      if (minutoExp < minutoAtual) return true;  // Minuto de expiração já passou
-      if (minutoExp > minutoAtual) return false; // Minuto de expiração ainda não chegou
-      
-      // Se chegou aqui, está no mesmo minuto, comparar segundos
-      // Expira quando segundoExp <= segundoAtual (igual ou já passou)
-      return segundoExp <= segundoAtual;
-    })();
+    // Comparar diretamente os componentes em Fortaleza
+    // A data só expira quando dataAtualServidorFormatada > dataExpiracaoFormatada
+    // Ou seja, quando dataExpiracaoFormatada < dataAtualServidorFormatada (ou igual)
+    // Comparação: ano, mês, dia, hora, minuto, segundo
+    // Retorna true se expirado (dataAtual >= dataExpiracao), false se ainda não expirou
+    
+    // Criar strings formatadas para comparação
+    const dataAtualStr = `${anoAtual}-${String(mesAtual + 1).padStart(2, '0')}-${String(diaAtual).padStart(2, '0')} ${String(horaAtual).padStart(2, '0')}:${String(minutoAtual).padStart(2, '0')}:${String(segundoAtual).padStart(2, '0')}`;
+    const dataExpiracaoStr = `${anoExp}-${String(mesExp + 1).padStart(2, '0')}-${String(diaExp).padStart(2, '0')} ${String(horaExp).padStart(2, '0')}:${String(minutoExp).padStart(2, '0')}:${String(segundoExp).padStart(2, '0')}`;
+    
+    // Comparar as strings (formato ISO permite comparação lexicográfica)
+    // Expira quando dataAtualStr >= dataExpiracaoStr
+    const expirado = dataAtualStr >= dataExpiracaoStr;
     
     // Log de debug para verificar a comparação
     console.log('[verificarSeExpirado] Comparação detalhada:', {
-      dataAtualFortaleza: `${diaAtual}/${mesAtual + 1}/${anoAtual} ${horaAtual}:${minutoAtual}:${segundoAtual}`,
-      dataExpiracaoFortaleza: `${diaExp}/${mesExp + 1}/${anoExp} ${horaExp}:${minutoExp}:${segundoExp}`,
+      dataAtualUTC: dataAtual.toISOString(),
+      dataExpiracaoUTC: dataExpiracao.toISOString(),
+      dataAtualFortaleza: `${String(diaAtual).padStart(2, '0')}/${String(mesAtual + 1).padStart(2, '0')}/${anoAtual} ${String(horaAtual).padStart(2, '0')}:${String(minutoAtual).padStart(2, '0')}:${String(segundoAtual).padStart(2, '0')}`,
+      dataExpiracaoFortaleza: `${String(diaExp).padStart(2, '0')}/${String(mesExp + 1).padStart(2, '0')}/${anoExp} ${String(horaExp).padStart(2, '0')}:${String(minutoExp).padStart(2, '0')}:${String(segundoExp).padStart(2, '0')}`,
+      dataAtualStr,
+      dataExpiracaoStr,
       expirado,
-      comparacao: `${diaExp}/${mesExp + 1}/${anoExp} ${horaExp}:${minutoExp}:${segundoExp} <= ${diaAtual}/${mesAtual + 1}/${anoAtual} ${horaAtual}:${minutoAtual}:${segundoAtual}`
+      regra: 'Expira quando dataAtualServidorFormatada >= dataExpiracaoFormatada',
+      resultado: expirado ? 'EXPIRADO' : 'NÃO EXPIRADO'
     });
     
     return expirado;
