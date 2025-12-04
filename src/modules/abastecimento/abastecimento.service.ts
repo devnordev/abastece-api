@@ -1858,24 +1858,10 @@ export class AbastecimentoService {
     }
 
     // Processar solicitação e criar abastecimento em transação
-    // Fluxo: PENDENTE → APROVADA → Criar Abastecimento → EFETIVADA
+    // Fluxo: PENDENTE → Criar Abastecimento → EFETIVADA (com aprovação automática)
+    // OU: APROVADA → Criar Abastecimento → EFETIVADA
     const resultado = await this.prisma.$transaction(async (tx) => {
-      // PASSO 1: Se a solicitação estiver PENDENTE, alterar status para APROVADA
-      if (precisaAprovar) {
-        await tx.solicitacaoAbastecimento.update({
-          where: { id: solicitacaoId },
-          data: {
-            status: StatusSolicitacao.APROVADA,
-            data_aprovacao: new Date(),
-            aprovado_por: user.nome || user.email || 'Sistema',
-            aprovado_por_email: user.email || null,
-            aprovado_por_empresa: user.empresa?.nome || null,
-            updated_at: new Date(),
-          },
-        });
-      }
-
-      // PASSO 2: Criar registro na tabela de abastecimento com os dados da solicitação
+      // PASSO 1: Criar registro na tabela de abastecimento com os dados da solicitação
       const abastecimento = await tx.abastecimento.create({
         data: abastecimentoData,
         include: {
@@ -1935,14 +1921,35 @@ export class AbastecimentoService {
         },
       });
 
-      // PASSO 3: Atualizar solicitação vinculando o abastecimento criado e marcando como EFETIVADA
+      // PASSO 2: SEMPRE atualizar solicitação vinculando o abastecimento criado e marcando como EFETIVADA
+      // Esta atualização SEMPRE deve acontecer, independentemente do status anterior
+      // Se estava PENDENTE, também preenche os campos de aprovação
+      const dataAtualizacao: any = {
+        abastecimento_id: abastecimento.id,
+        status: StatusSolicitacao.EFETIVADA, // SEMPRE atualizar para EFETIVADA
+        updated_at: new Date(),
+      };
+
+      // Se a solicitação estava PENDENTE, preencher os campos de aprovação também
+      if (precisaAprovar) {
+        dataAtualizacao.data_aprovacao = new Date();
+        dataAtualizacao.aprovado_por = user.nome || user.email || 'Sistema';
+        dataAtualizacao.aprovado_por_email = user.email || null;
+        dataAtualizacao.aprovado_por_empresa = user.empresa?.nome || null;
+      }
+
+      // Log para depuração
+      console.log(`[createFromSolicitacao] Atualizando solicitação ${solicitacaoId} para status EFETIVADA`, {
+        solicitacaoId,
+        abastecimentoId: abastecimento.id,
+        statusAnterior: solicitacao.status,
+        novoStatus: StatusSolicitacao.EFETIVADA,
+        dataAtualizacao,
+      });
+
       const solicitacaoAtualizada = await tx.solicitacaoAbastecimento.update({
         where: { id: solicitacaoId },
-        data: {
-          abastecimento_id: abastecimento.id,
-          status: StatusSolicitacao.EFETIVADA,
-          updated_at: new Date(),
-        },
+        data: dataAtualizacao,
         select: {
           id: true,
           status: true,
