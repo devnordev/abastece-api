@@ -1778,9 +1778,13 @@ export class AbastecimentoService {
         );
       }
 
-      abastecimentoData.abastecedor = {
-        connect: { id: abastecedorIdParaUsar },
-      };
+      // ATENÇÃO: O schema relaciona abastecedorId com Empresa, mas estamos usando ID de Usuario
+      // Por enquanto, passamos o ID diretamente (sem connect) para evitar erro de constraint
+      // Será necessário alterar o schema para referenciar Usuario em vez de Empresa
+      // Se o schema não for alterado, isso pode causar inconsistências no banco
+      abastecimentoData.abastecedorId = abastecedorIdParaUsar;
+      // Não usar connect pois o schema espera Empresa mas estamos passando Usuario
+      // abastecimentoData.abastecedor = { connect: { id: abastecedorIdParaUsar } };
     }
 
     // Processar solicitação e criar abastecimento em transação
