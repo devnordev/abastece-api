@@ -6,6 +6,7 @@ import {
   StatusPreco,
   TipoAbastecimentoVeiculo,
   Periodicidade,
+  AcaoLog,
 } from '@prisma/client';
 
 @Injectable()
@@ -522,6 +523,86 @@ export class AppService {
     }
 
     return resposta;
+  }
+
+  /**
+   * Retorna logs de edição (UPDATE) feitos por colaboradores de uma empresa em registros de Abastecimento
+   */
+  async getLogsEdicaoAbastecimentoColabEmpresa(
+    user: {
+      id: number;
+      tipo_usuario: string;
+      empresa?: { id: number; nome: string; cnpj: string };
+    },
+    page: number = 1,
+    limit: number = 20,
+    dataInicial?: string,
+    dataFinal?: string,
+    abastecimentoId?: number,
+  ) {
+    if (!user?.empresa?.id) {
+      throw new ForbiddenException('Usuário não está vinculado a nenhuma empresa');
+    }
+
+    const empresaId = user.empresa.id;
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      tabela: 'abastecimento',
+      acao: AcaoLog.UPDATE,
+      usuario: {
+        empresaId,
+        tipo_usuario: 'COLABORADOR_EMPRESA',
+      },
+    };
+
+    if (abastecimentoId) {
+      where.registro_id = abastecimentoId;
+    }
+
+    if (dataInicial || dataFinal) {
+      where.executado_em = {};
+      if (dataInicial) {
+        where.executado_em.gte = new Date(dataInicial);
+      }
+      if (dataFinal) {
+        where.executado_em.lte = new Date(dataFinal);
+      }
+    }
+
+    const [logs, total] = await Promise.all([
+      this.prisma.logsAlteracoes.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          usuario: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+              empresaId: true,
+              tipo_usuario: true,
+            },
+          },
+        },
+        orderBy: {
+          executado_em: 'desc',
+        },
+      }),
+      this.prisma.logsAlteracoes.count({ where }),
+    ]);
+
+    return {
+      message: 'Logs de edição de abastecimentos por colaboradores da empresa encontrados com sucesso',
+      logs,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**

@@ -138,6 +138,60 @@ export class AppController {
     return this.appService.verificarPrecoCombustivelEmpresa(combustivelId, req.user);
   }
 
+  @Get('logs/edicao/colab/empresa')
+  @UseGuards(EmpresaGuard)
+  @ApiOperation({
+    summary: 'Listar logs de edição de abastecimentos feitos por colaboradores da empresa',
+    description:
+      'Retorna logs de alterações (UPDATE) na tabela de abastecimentos realizadas por usuários com perfil COLABORADOR_EMPRESA da empresa do usuário logado.',
+  })
+  @ApiQuery({ name: 'page', required: false, description: 'Página para paginação', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens por página', example: 20 })
+  @ApiQuery({
+    name: 'dataInicial',
+    required: false,
+    description: 'Data inicial para filtro (ISO 8601)',
+    example: '2025-01-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'dataFinal',
+    required: false,
+    description: 'Data final para filtro (ISO 8601)',
+    example: '2025-01-31T23:59:59.999Z',
+  })
+  @ApiQuery({
+    name: 'abastecimentoId',
+    required: false,
+    description: 'Filtrar por ID específico de abastecimento',
+    example: 123,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Logs de edição de abastecimentos retornados com sucesso',
+  })
+  async getLogsEdicaoAbastecimentoColabEmpresa(
+    @Query('page') page: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('dataInicial') dataInicial: string | undefined,
+    @Query('dataFinal') dataFinal: string | undefined,
+    @Query('abastecimentoId') abastecimentoId: string | undefined,
+    @Req() req: Request & { user: any },
+  ) {
+    const pageNumber = page ? parseInt(page, 10) : 1;
+    const limitNumber = limit ? parseInt(limit, 10) : 20;
+    const abastecimentoIdNumber =
+      abastecimentoId && abastecimentoId.trim() !== '' ? parseInt(abastecimentoId, 10) : undefined;
+
+    return this.appService.getLogsEdicaoAbastecimentoColabEmpresa(
+      req.user,
+      pageNumber,
+      limitNumber,
+      dataInicial,
+      dataFinal,
+      abastecimentoIdNumber,
+    );
+  }
+
   @Get('veiculo/:veiculoId/:empresaId')
   @UseGuards(AdminPrefeituraEmpresaColaboradorGuard)
   @ApiOperation({ 
