@@ -27,7 +27,7 @@ export class AppService {
       empresa?: { id: number; nome: string; cnpj: string; uf?: string | null };
     },
   ) {
-    // Buscar veículo com órgão, combustíveis e informações de cota
+    // Buscar veículo com órgão, combustíveis, motoristas e informações de cota
     const veiculo = await this.prisma.veiculo.findUnique({
       where: { id: veiculoId },
       include: {
@@ -35,6 +35,7 @@ export class AppService {
           select: {
             id: true,
             nome: true,
+            imagem_perfil: true,
           },
         },
         orgao: {
@@ -60,6 +61,20 @@ export class AppService {
             },
           },
         },
+        motoristas: {
+          where: {
+            ativo: true,
+          },
+          include: {
+            motorista: {
+              select: {
+                id: true,
+                nome: true,
+                cpf: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -76,21 +91,33 @@ export class AppService {
     }
 
     if (!veiculo.orgaoId || !veiculo.orgao) {
+      const motoristasSemOrgao = veiculo.motoristas.map((vm) => ({
+        id: vm.motorista.id,
+        nome: vm.motorista.nome,
+        cpf: vm.motorista.cpf,
+      }));
+
       const respostaSemOrgao: any = {
         message: 'Combustíveis permitidos recuperados com sucesso',
         veiculo: {
           id: veiculo.id,
           nome: veiculo.nome,
           placa: veiculo.placa,
+          capacidade_tanque: veiculo.capacidade_tanque ? Number(veiculo.capacidade_tanque) : null,
           tipo_abastecimento: veiculo.tipo_abastecimento,
-          periodicidade: veiculo.periodicidade,
           quantidade: veiculo.quantidade ? Number(veiculo.quantidade) : null,
+          conta_faturamento_orgao_id: veiculo.contaFaturamentoOrgaoId,
+          orgao: null,
+          prefeitura: veiculo.prefeitura
+            ? {
+                id: veiculo.prefeitura.id,
+                nome: veiculo.prefeitura.nome,
+                imagem_perfil: veiculo.prefeitura.imagem_perfil,
+              }
+            : null,
         },
-        orgao: null,
-        processo: null,
+        motoristas: motoristasSemOrgao,
         combustiveisPermitidos: [],
-        combustiveisCotaOrgao: [],
-        observacao: 'Veículo não possui órgão vinculado',
         cotaVeiculo: null,
       };
 
@@ -161,25 +188,37 @@ export class AppService {
     });
 
     if (!processo) {
+      const motoristasSemProcesso = veiculo.motoristas.map((vm) => ({
+        id: vm.motorista.id,
+        nome: vm.motorista.nome,
+        cpf: vm.motorista.cpf,
+      }));
+
       const respostaSemProcesso: any = {
         message: 'Combustíveis permitidos recuperados com sucesso',
         veiculo: {
           id: veiculo.id,
           nome: veiculo.nome,
           placa: veiculo.placa,
+          capacidade_tanque: veiculo.capacidade_tanque ? Number(veiculo.capacidade_tanque) : null,
           tipo_abastecimento: veiculo.tipo_abastecimento,
-          periodicidade: veiculo.periodicidade,
           quantidade: veiculo.quantidade ? Number(veiculo.quantidade) : null,
+          conta_faturamento_orgao_id: veiculo.contaFaturamentoOrgaoId,
+          orgao: {
+            id: veiculo.orgao.id,
+            nome: veiculo.orgao.nome,
+            sigla: veiculo.orgao.sigla,
+          },
+          prefeitura: veiculo.prefeitura
+            ? {
+                id: veiculo.prefeitura.id,
+                nome: veiculo.prefeitura.nome,
+                imagem_perfil: veiculo.prefeitura.imagem_perfil,
+              }
+            : null,
         },
-        orgao: {
-          id: veiculo.orgao.id,
-          nome: veiculo.orgao.nome,
-          sigla: veiculo.orgao.sigla,
-        },
-        processo: null,
+        motoristas: motoristasSemProcesso,
         combustiveisPermitidos: [],
-        combustiveisCotaOrgao: [],
-        observacao: 'Não há processo ativo para a prefeitura do órgão',
         cotaVeiculo: null,
       };
 
@@ -365,6 +404,37 @@ export class AppService {
       };
     });
 
+    // Mapear motoristas
+    const motoristas = veiculo.motoristas.map((vm) => ({
+      id: vm.motorista.id,
+      nome: vm.motorista.nome,
+      cpf: vm.motorista.cpf,
+    }));
+
+    // Ajustar combustíveis permitidos com preco_empresa e cota_id
+    const combustiveisPermitidosFormatados = combustiveisPermitidos.map((vc) => {
+      const cotaOrgao = cotasOrgao.find((c) => c.combustivelId === vc.combustivelId);
+      const precoInfo = precosCombustiveis.get(vc.combustivelId);
+
+      // Buscar quantidade disponível da cota do veículo se for tipo COTA
+      let qtdDisponivelCotaVeiculo: number | null = null;
+      if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA) {
+        // Será preenchido depois quando buscar cotaVeiculo
+      }
+
+      return {
+        combustivelId: vc.combustivelId,
+        combustivel: vc.combustivel,
+        qtd_disponivel_cota_orgao: cotaOrgao?.saldo_disponivel_cota
+          ? Number(cotaOrgao.saldo_disponivel_cota)
+          : 0,
+        qtd_disponivel_cota_veiculo: qtdDisponivelCotaVeiculo,
+        preco_atual: precoInfo?.preco_atual || null,
+        preco_empresa: precoInfo?.preco_atual || null,
+        cota_id: cotaOrgao?.id || null,
+      };
+    });
+
     // Preparar resposta base
     const resposta: any = {
       message: 'Combustíveis permitidos recuperados com sucesso',
@@ -372,29 +442,31 @@ export class AppService {
         id: veiculo.id,
         nome: veiculo.nome,
         placa: veiculo.placa,
+        capacidade_tanque: veiculo.capacidade_tanque ? Number(veiculo.capacidade_tanque) : null,
         tipo_abastecimento: veiculo.tipo_abastecimento,
-        periodicidade: veiculo.periodicidade,
         quantidade: veiculo.quantidade ? Number(veiculo.quantidade) : null,
+        conta_faturamento_orgao_id: veiculo.contaFaturamentoOrgaoId,
+        orgao: veiculo.orgao
+          ? {
+              id: veiculo.orgao.id,
+              nome: veiculo.orgao.nome,
+              sigla: veiculo.orgao.sigla,
+            }
+          : null,
+        prefeitura: veiculo.prefeitura
+          ? {
+              id: veiculo.prefeitura.id,
+              nome: veiculo.prefeitura.nome,
+              imagem_perfil: veiculo.prefeitura.imagem_perfil,
+            }
+          : null,
       },
-      orgao: {
-        id: veiculo.orgao.id,
-        nome: veiculo.orgao.nome,
-        sigla: veiculo.orgao.sigla,
-      },
-      processo: {
-        id: processo.id,
-        numero_processo: processo.numero_processo,
-        status: processo.status,
-      },
-      combustiveisPermitidos: combustiveisPermitidosComPreco,
-      combustiveisCotaOrgao: combustiveisCotaOrgaoComPreco,
-      totalPermitidos: combustiveisPermitidosComPreco.length,
-      totalCotaOrgao: combustiveisCotaOrgaoComPreco.length,
-      empresaId: empresaId || null,
+      motoristas,
+      combustiveisPermitidos: combustiveisPermitidosFormatados,
       cotaVeiculo: null,
     };
 
-    // Se o veículo for do tipo COTA, buscar dados da cota período
+    // Se o veículo for do tipo COTA, buscar dados da cota período e preencher qtd_disponivel_cota_veiculo
     if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA && veiculo.periodicidade) {
       const dataAtual = new Date();
       const cotaPeriodo = await this.prisma.veiculoCotaPeriodo.findFirst({
@@ -413,7 +485,10 @@ export class AppService {
       // Calcular intervalo do período atual
       const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, veiculo.periodicidade);
 
+      let quantidadeDisponivelCotaVeiculo: number | null = null;
+
       if (cotaPeriodo) {
+        quantidadeDisponivelCotaVeiculo = Number(cotaPeriodo.quantidade_disponivel);
         resposta.cotaVeiculo = {
           id: cotaPeriodo.id,
           periodicidade: cotaPeriodo.periodicidade,
@@ -427,6 +502,7 @@ export class AppService {
       } else {
         // Se não encontrou cota período, retornar informações baseadas na configuração do veículo
         const quantidadePermitida = veiculo.quantidade ? Number(veiculo.quantidade) : null;
+        quantidadeDisponivelCotaVeiculo = quantidadePermitida;
         resposta.cotaVeiculo = {
           id: null,
           periodicidade: veiculo.periodicidade,
@@ -439,6 +515,12 @@ export class AppService {
           observacao: 'Cota período não encontrada. Os valores são baseados na configuração do veículo.',
         };
       }
+
+      // Atualizar qtd_disponivel_cota_veiculo em todos os combustíveis permitidos
+      resposta.combustiveisPermitidos = resposta.combustiveisPermitidos.map((comb: any) => ({
+        ...comb,
+        qtd_disponivel_cota_veiculo: quantidadeDisponivelCotaVeiculo,
+      }));
     }
 
     return resposta;
