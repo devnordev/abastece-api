@@ -761,7 +761,46 @@ export class AbastecimentoService {
 
     // Definir valores padrão para campos que devem ser preenchidos automaticamente
     // abastecedorId é sempre o ID da empresa do usuário logado (user.empresa.id), ignorando qualquer valor do DTO
+    
+    // Validar que o usuário possui empresa vinculada
+    if (!user.empresa?.id) {
+      throw new AbastecimentoUsuarioSemEmpresaException({
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
     const abastecedorIdParaUsar = user.empresa.id; // ID da empresa do usuário logado que está fazendo o abastecimento
+    
+    // Validar se a empresa abastecedora existe antes de criar o abastecimento
+    const empresaAbastecedora = await this.prisma.empresa.findUnique({
+      where: { id: abastecedorIdParaUsar },
+      select: { id: true, nome: true, cnpj: true, ativo: true },
+    });
+
+    if (!empresaAbastecedora) {
+      throw new AbastecimentoAbastecedorNotFoundException(
+        abastecedorIdParaUsar,
+        {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createAbastecimentoDto,
+        },
+        {
+          userEmpresaId: user.empresa.id,
+          empresaIdFromDto: empresaId,
+          abastecedorIdFromDto: abastecedorId,
+          method: 'create',
+        },
+      );
+    }
+
+    if (!empresaAbastecedora.ativo) {
+      throw new AbastecimentoEmpresaInativaException(abastecedorIdParaUsar, {
+        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+        payload: createAbastecimentoDto,
+      });
+    }
+
     const abastecidoPorParaUsar = String(user.id); // ID do usuário logado que está confirmando o abastecimento
     const statusParaUsar = StatusAbastecimento.Aprovado; // Status deve ir para APROVADO automaticamente
     const ativoParaUsar = true; // ativo fica como true ao abastecer
@@ -1721,14 +1760,23 @@ export class AbastecimentoService {
     if (abastecedorIdParaUsar) {
       const empresaAbastecedora = await this.prisma.empresa.findUnique({
         where: { id: abastecedorIdParaUsar },
-        select: { id: true, ativo: true },
+        select: { id: true, nome: true, cnpj: true, ativo: true },
       });
 
       if (!empresaAbastecedora) {
-        throw new AbastecimentoAbastecedorNotFoundException(abastecedorIdParaUsar, {
-          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
-          payload: createDto,
-        });
+        throw new AbastecimentoAbastecedorNotFoundException(
+          abastecedorIdParaUsar,
+          {
+            user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+            payload: createDto,
+          },
+          {
+            userEmpresaId: user?.empresa?.id,
+            empresaIdFromDto: undefined, // Não há empresaId no createFromSolicitacaoDto
+            abastecedorIdFromDto: abastecedorId,
+            method: 'createFromSolicitacao',
+          },
+        );
       }
 
       if (!empresaAbastecedora.ativo) {

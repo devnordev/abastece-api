@@ -251,19 +251,78 @@ export class AbastecimentoValidadorNotFoundException extends CrudException {
 }
 
 export class AbastecimentoAbastecedorNotFoundException extends CrudException {
-  constructor(abastecedorId: number, context?: ContextOverrides) {
+  constructor(
+    abastecedorId: number | undefined,
+    context?: ContextOverrides,
+    details?: {
+      userEmpresaId?: number;
+      empresaIdFromDto?: number;
+      abastecedorIdFromDto?: number;
+      method?: string;
+    },
+  ) {
+    const detailInfo = details || {};
+    const userEmpresaId = detailInfo.userEmpresaId;
+    const empresaIdFromDto = detailInfo.empresaIdFromDto;
+    const abastecedorIdFromDto = detailInfo.abastecedorIdFromDto;
+    const method = detailInfo.method || 'create';
+
     super({
       message: `Empresa abastecedora não encontrada`,
       statusCode: HttpStatus.NOT_FOUND,
       errorCode: 'ABASTECIMENTO_ABASTECEDOR_NOT_FOUND',
-      context: buildContext('create', {
+      context: buildContext(method, {
         ...context,
         additionalInfo: {
-          abastecedorId,
-          campoOpcional: 'abastecedorId',
-          error: `Nenhuma empresa abastecedora encontrada com o ID ${abastecedorId} no sistema`,
-          details: 'O campo abastecedorId é opcional, mas quando informado, deve referenciar uma empresa existente e ativa. O abastecedorId será preenchido automaticamente com o ID da empresa do usuário logado se não for informado',
-          suggestion: 'Para resolver: 1) Verifique se o ID da empresa abastecedora está correto; 2) Se a empresa não existe, remova o campo abastecedorId e ele será preenchido automaticamente; 3) O sistema preenche automaticamente o abastecedorId com a empresa do usuário logado que está criando o abastecimento.',
+          abastecedorIdBuscado: abastecedorId,
+          abastecedorIdTipo: typeof abastecedorId,
+          abastecedorIdIsUndefined: abastecedorId === undefined,
+          abastecedorIdIsNull: abastecedorId === null,
+          // Informações sobre o que foi recebido no DTO
+          payloadRecebido: {
+            abastecedorIdNoDto: abastecedorIdFromDto,
+            empresaIdNoDto: empresaIdFromDto,
+            abastecedorIdNoDtoTipo: typeof abastecedorIdFromDto,
+          },
+          // Informações sobre o usuário logado
+          usuarioLogado: {
+            userId: context?.user?.id,
+            userTipo: context?.user?.tipo,
+            userEmail: context?.user?.email,
+            empresaIdDoUsuario: userEmpresaId,
+            empresaIdDoUsuarioTipo: typeof userEmpresaId,
+            empresaDoUsuarioExiste: userEmpresaId !== undefined && userEmpresaId !== null,
+          },
+          // O que era esperado
+          esperado: {
+            descricao: 'O sistema deve usar automaticamente o ID da empresa do usuário logado (user.empresa.id) como abastecedorId',
+            valorEsperado: `user.empresa.id = ${userEmpresaId}`,
+            condicoes: [
+              'O usuário logado deve ter uma empresa vinculada (user.empresa.id deve existir)',
+              'A empresa vinculada ao usuário deve existir no banco de dados',
+              'A empresa vinculada ao usuário deve estar ativa',
+            ],
+          },
+          // O que não foi satisfeito
+          problema: {
+            descricao: `Não foi possível encontrar uma empresa com o ID ${abastecedorId} no banco de dados`,
+            possiveisCausas: [
+              `O usuário logado não possui empresa vinculada (user.empresa.id está ${userEmpresaId === undefined ? 'undefined' : userEmpresaId === null ? 'null' : `definido como ${userEmpresaId}, mas a empresa não existe no banco`})`,
+              `A empresa com ID ${abastecedorId} foi deletada ou nunca existiu`,
+              `Houve um problema ao buscar a empresa no banco de dados`,
+              `O valor de abastecedorId calculado está incorreto (valor: ${abastecedorId}, tipo: ${typeof abastecedorId})`,
+            ],
+          },
+          error: `Nenhuma empresa abastecedora encontrada com o ID ${abastecedorId} no sistema. AbastecedorId calculado: ${abastecedorId}, Tipo: ${typeof abastecedorId}, User.empresa.id: ${userEmpresaId}`,
+          details: `O sistema tenta preencher automaticamente o abastecedorId com o ID da empresa do usuário logado (user.empresa.id = ${userEmpresaId}), mas não foi possível encontrar essa empresa no banco de dados. Dados recebidos no payload: abastecedorId=${abastecedorIdFromDto}, empresaId=${empresaIdFromDto}. O sistema ignora o abastecedorId do DTO e sempre usa user.empresa.id.`,
+          suggestion: [
+            '1. Verifique se o usuário logado possui uma empresa vinculada (user.empresa.id deve existir e não ser null)',
+            `2. Verifique se a empresa com ID ${abastecedorId} existe no banco de dados`,
+            `3. Verifique se a empresa do usuário logado (ID: ${userEmpresaId}) existe e está ativa`,
+            '4. Confirme que o token JWT do usuário contém as informações corretas da empresa',
+            '5. Se o problema persistir, verifique os logs do servidor para mais detalhes sobre a consulta ao banco de dados',
+            '6. O campo abastecedorId no DTO é ignorado - o sistema sempre usa user.empresa.id automaticamente',
+          ].join('\n'),
         },
       }),
     });
