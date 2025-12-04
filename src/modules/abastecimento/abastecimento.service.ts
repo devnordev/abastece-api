@@ -809,7 +809,8 @@ export class AbastecimentoService {
         'data_abastecimento',
       );
     } else {
-      dataAbastecimentoParaSalvar = new Date();
+      // Usar data atual na timezone de Fortaleza
+      dataAbastecimentoParaSalvar = this.getCurrentDateInFortaleza();
     }
 
     // Criar abastecimento e atualizar cota e processo em transação
@@ -1558,7 +1559,8 @@ export class AbastecimentoService {
         'data_abastecimento',
       );
     } else {
-      dataAbastecimentoParaSalvar = new Date();
+      // Usar data atual na timezone de Fortaleza
+      dataAbastecimentoParaSalvar = this.getCurrentDateInFortaleza();
     }
 
     // Verificar se o usuário pertence a uma empresa (obrigatório para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
@@ -2518,7 +2520,8 @@ export class AbastecimentoService {
       
       dataAbastecimentoParaSalvar = dataAbastecimentoNormalizada;
     } else {
-      dataAbastecimentoParaSalvar = new Date();
+      // Usar data atual na timezone de Fortaleza
+      dataAbastecimentoParaSalvar = this.getCurrentDateInFortaleza();
     }
 
     // Validar chave de acesso NFE (se informada)
@@ -2722,6 +2725,57 @@ export class AbastecimentoService {
     }
 
     return parsed;
+  }
+
+  /**
+   * Retorna a data/hora atual na timezone America/Fortaleza (UTC-3)
+   * Garante que a data seja salva considerando o horário de Fortaleza
+   * 
+   * Esta função pega o horário UTC atual, converte para Fortaleza (subtraindo 3 horas),
+   * e cria uma data que representa esse horário em Fortaleza.
+   * Ao salvar no banco, o Prisma salva em UTC, mas o valor representa o horário correto de Fortaleza.
+   */
+  private getCurrentDateInFortaleza(): Date {
+    const now = new Date();
+    
+    // Obter componentes UTC
+    const utcYear = now.getUTCFullYear();
+    const utcMonth = now.getUTCMonth();
+    const utcDay = now.getUTCDate();
+    const utcHours = now.getUTCHours();
+    const utcMinutes = now.getUTCMinutes();
+    const utcSeconds = now.getUTCSeconds();
+    const utcMilliseconds = now.getUTCMilliseconds();
+
+    // Converter UTC para Fortaleza (UTC-3): subtrair 3 horas
+    let fortalezaHours = utcHours - 3;
+    let fortalezaDay = utcDay;
+    let fortalezaMonth = utcMonth;
+    let fortalezaYear = utcYear;
+
+    // Ajustar se passar da meia-noite (horas negativas)
+    if (fortalezaHours < 0) {
+      fortalezaHours += 24;
+      fortalezaDay--;
+      if (fortalezaDay < 1) {
+        fortalezaMonth--;
+        if (fortalezaMonth < 0) {
+          fortalezaMonth = 11;
+          fortalezaYear--;
+        }
+        // Obter último dia do mês anterior
+        fortalezaDay = new Date(Date.UTC(fortalezaYear, fortalezaMonth + 1, 0)).getUTCDate();
+      }
+    }
+
+    // Criar uma string ISO com o horário de Fortaleza e timezone -03:00
+    // Isso garante que o JavaScript interprete como horário de Fortaleza
+    const isoString = `${fortalezaYear}-${String(fortalezaMonth + 1).padStart(2, '0')}-${String(fortalezaDay).padStart(2, '0')}T${String(fortalezaHours).padStart(2, '0')}:${String(utcMinutes).padStart(2, '0')}:${String(utcSeconds).padStart(2, '0')}.${String(utcMilliseconds).padStart(3, '0')}-03:00`;
+    
+    // Criar Date a partir da string com timezone de Fortaleza
+    // O JavaScript automaticamente converte para UTC ao salvar no banco
+    // Exemplo: "2025-01-15T10:00:00-03:00" vira 13:00:00 UTC no banco
+    return new Date(isoString);
   }
 
   private ensureDate(value: Date | undefined, fieldName: string): Date {
