@@ -163,7 +163,7 @@ export class AbastecimentoService {
 
   /**
    * Atualiza a cota do órgão após um abastecimento
-   * Incrementa quantidade_utilizada e valor_utilizado
+   * Incrementa ou decrementa quantidade_utilizada e valor_utilizado
    * Recalcula restante = quantidade - quantidade_utilizada
    * Atualiza saldo_disponivel_cota = restante
    */
@@ -174,15 +174,12 @@ export class AbastecimentoService {
     valorTotal: number,
   ): Promise<void> {
     // Validar valores de entrada
-    const quantidadeValidada = this.validarEConverterValor(quantidade, 'quantidade', false);
-    const valorTotalValidado = this.validarEConverterValor(valorTotal, 'valor_total', false);
+    const quantidadeValidada = this.validarEConverterValor(quantidade, 'quantidade', true);
+    const valorTotalValidado = this.validarEConverterValor(valorTotal, 'valor_total', true);
 
-    if (quantidadeValidada <= 0) {
-      throw new Error(`Quantidade deve ser maior que zero: ${quantidadeValidada}`);
-    }
-
-    if (valorTotalValidado < 0) {
-      throw new Error(`Valor total não pode ser negativo: ${valorTotalValidado}`);
+    // Se não houver diferença, não faz nada
+    if (quantidadeValidada === 0 && valorTotalValidado === 0) {
+      return;
     }
 
     // Buscar cota atual dentro da transação (incluindo processoId)
@@ -225,13 +222,23 @@ export class AbastecimentoService {
 
     // Calcular novos valores com arredondamento adequado
     // quantidade_utilizada: Decimal(10, 1) - 1 casa decimal
-    const novaQuantidadeUtilizada = this.arredondarDecimal(
+    let novaQuantidadeUtilizada = this.arredondarDecimal(
       quantidadeUtilizadaAtual + quantidadeValidada,
       1,
     );
 
+    // Garantir que não fique negativa
+    if (novaQuantidadeUtilizada < 0) {
+      novaQuantidadeUtilizada = 0;
+    }
+
     // valor_utilizado: Decimal(10, 2) - 2 casas decimais
-    const novoValorUtilizado = this.arredondarDecimal(valorUtilizadoAtual + valorTotalValidado, 2);
+    let novoValorUtilizado = this.arredondarDecimal(valorUtilizadoAtual + valorTotalValidado, 2);
+
+    // Garantir que não fique negativo
+    if (novoValorUtilizado < 0) {
+      novoValorUtilizado = 0;
+    }
 
     // restante e saldo_disponivel_cota: Decimal(10, 1) - 1 casa decimal
     const restante = Math.max(0, this.arredondarDecimal(quantidadeTotal - novaQuantidadeUtilizada, 1));
@@ -1342,6 +1349,17 @@ export class AbastecimentoService {
     // Preparar dados para atualização (apenas campos permitidos)
     const updateData: any = {};
 
+    // Guardar valores antigos para ajuste de cota/processo
+    const quantidadeAntiga = existingAbastecimento.quantidade
+      ? Number((existingAbastecimento.quantidade as any).toString?.() ?? existingAbastecimento.quantidade)
+      : 0;
+    const valorTotalAntigo = existingAbastecimento.valor_total
+      ? Number((existingAbastecimento.valor_total as any).toString?.() ?? existingAbastecimento.valor_total)
+      : 0;
+
+    let diffQuantidade = 0;
+    let diffValorTotal = 0;
+
     // Validar e processar quantidade (se fornecida)
     if (updateAbastecimentoDto.quantidade !== undefined) {
       if (!updateAbastecimentoDto.quantidade || updateAbastecimentoDto.quantidade <= 0) {
@@ -1353,20 +1371,29 @@ export class AbastecimentoService {
 
       // Recalcular valor_total baseado nos preços existentes
       const quantidadeNova = updateAbastecimentoDto.quantidade;
-      const precoEmpresa = existingAbastecimento.preco_empresa 
-        ? Number(existingAbastecimento.preco_empresa.toString()) 
+      const precoEmpresa = existingAbastecimento.preco_empresa
+        ? Number((existingAbastecimento.preco_empresa as any).toString?.() ?? existingAbastecimento.preco_empresa)
         : null;
-      const desconto = existingAbastecimento.desconto 
-        ? Number(existingAbastecimento.desconto.toString()) 
+      const desconto = existingAbastecimento.desconto
+        ? Number((existingAbastecimento.desconto as any).toString?.() ?? existingAbastecimento.desconto)
         : 0;
 
       if (precoEmpresa) {
-        const novoValorTotal = quantidadeNova * precoEmpresa - desconto;
+        const novoValorTotalBruto = quantidadeNova * precoEmpresa - desconto;
+        const novoValorTotal = Math.max(0, novoValorTotalBruto);
+
         updateData.quantidade = new Decimal(quantidadeNova);
-        updateData.valor_total = new Decimal(Math.max(0, novoValorTotal));
+        updateData.valor_total = new Decimal(novoValorTotal);
+
+        diffQuantidade = quantidadeNova - quantidadeAntiga;
+        diffValorTotal = novoValorTotal - valorTotalAntigo;
       } else {
         // Se não houver preco_empresa, apenas atualiza a quantidade
         updateData.quantidade = new Decimal(quantidadeNova);
+
+        diffQuantidade = quantidadeNova - quantidadeAntiga;
+        // Sem preco_empresa, não ajustamos valor_total nem cota em valor
+        diffValorTotal = 0;
       }
     }
 
@@ -1437,55 +1464,82 @@ export class AbastecimentoService {
       updateData.nfe_img_url = updateAbastecimentoDto.nfe_img_url || null;
     }
 
-    // Atualizar abastecimento
-    const abastecimento = await this.prisma.abastecimento.update({
-      where: { id },
-      data: updateData,
-      include: {
-        veiculo: {
-          select: {
-            id: true,
-            nome: true,
-            placa: true,
-            modelo: true,
+    // Atualizar abastecimento (e cota/processo, se aplicável) em transação
+    const abastecimento = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.abastecimento.update({
+        where: { id },
+        data: updateData,
+        include: {
+          veiculo: {
+            select: {
+              id: true,
+              nome: true,
+              placa: true,
+              modelo: true,
+            },
+          },
+          motorista: {
+            select: {
+              id: true,
+              nome: true,
+              cpf: true,
+            },
+          },
+          combustivel: {
+            select: {
+              id: true,
+              nome: true,
+              sigla: true,
+            },
+          },
+          empresa: {
+            select: {
+              id: true,
+              nome: true,
+              cnpj: true,
+            },
+          },
+          solicitante: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
+          },
+          validador: {
+            select: {
+              id: true,
+              nome: true,
+              email: true,
+            },
           },
         },
-        motorista: {
-          select: {
-            id: true,
-            nome: true,
-            cpf: true,
-          },
-        },
-        combustivel: {
-          select: {
-            id: true,
-            nome: true,
-            sigla: true,
-          },
-        },
-        empresa: {
-          select: {
-            id: true,
-            nome: true,
-            cnpj: true,
-          },
-        },
-        solicitante: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-          },
-        },
-        validador: {
-          select: {
-            id: true,
-            nome: true,
-            email: true,
-          },
-        },
-      },
+      });
+
+      // Ajustar cota/processo se:
+      // - o abastecimento está vinculado a uma cota
+      // - houve alteração na quantidade
+      // - o status é Aprovado (somente aprovados consomem cota)
+      if (
+        existingAbastecimento.cota_id &&
+        diffQuantidade !== 0 &&
+        existingAbastecimento.status === StatusAbastecimento.Aprovado
+      ) {
+        try {
+          await this.atualizarCotaOrgao(tx, existingAbastecimento.cota_id, diffQuantidade, diffValorTotal);
+        } catch (error) {
+          // Se der erro específico de cota, relança; senão loga e segue
+          if (error instanceof AbastecimentoCotaNotFoundException) {
+            throw error;
+          }
+          console.warn(
+            `Erro ao ajustar cota na atualização do abastecimento ${id}:`,
+            (error as any)?.message || error,
+          );
+        }
+      }
+
+      return updated;
     });
 
     return {
