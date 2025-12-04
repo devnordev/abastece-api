@@ -2596,26 +2596,41 @@ export class SolicitacaoAbastecimentoService {
     const minutoExp = parseInt(partsExp.find(p => p.type === 'minute')!.value);
     const segundoExp = parseInt(partsExp.find(p => p.type === 'second')!.value);
     
-    // Comparar diretamente os componentes em Fortaleza
-    // Criar timestamps comparando ano, mês, dia, hora, minuto, segundo
-    // Usamos uma comparação simples de componentes para evitar problemas de timezone
-    if (anoExp < anoAtual) return true;
-    if (anoExp > anoAtual) return false;
+    // Debug: log dos componentes para verificar
+    const expirado = (() => {
+      // Comparar diretamente os componentes em Fortaleza
+      // A data só expira quando dataAtualServidorFormatada > dataExpiracaoFormatada
+      // Ou seja, quando dataExpiracaoFormatada <= dataAtualServidorFormatada
+      // Comparação: ano, mês, dia, hora, minuto, segundo
+      if (anoExp < anoAtual) return true;  // Ano de expiração já passou
+      if (anoExp > anoAtual) return false; // Ano de expiração ainda não chegou
+      
+      if (mesExp < mesAtual) return true;  // Mês de expiração já passou
+      if (mesExp > mesAtual) return false; // Mês de expiração ainda não chegou
+      
+      if (diaExp < diaAtual) return true;  // Dia de expiração já passou
+      if (diaExp > diaAtual) return false; // Dia de expiração ainda não chegou
+      
+      if (horaExp < horaAtual) return true;  // Hora de expiração já passou
+      if (horaExp > horaAtual) return false; // Hora de expiração ainda não chegou
+      
+      if (minutoExp < minutoAtual) return true;  // Minuto de expiração já passou
+      if (minutoExp > minutoAtual) return false; // Minuto de expiração ainda não chegou
+      
+      // Se chegou aqui, está no mesmo minuto, comparar segundos
+      // Expira quando segundoExp <= segundoAtual (igual ou já passou)
+      return segundoExp <= segundoAtual;
+    })();
     
-    if (mesExp < mesAtual) return true;
-    if (mesExp > mesAtual) return false;
+    // Log de debug para verificar a comparação
+    console.log('[verificarSeExpirado] Comparação detalhada:', {
+      dataAtualFortaleza: `${diaAtual}/${mesAtual + 1}/${anoAtual} ${horaAtual}:${minutoAtual}:${segundoAtual}`,
+      dataExpiracaoFortaleza: `${diaExp}/${mesExp + 1}/${anoExp} ${horaExp}:${minutoExp}:${segundoExp}`,
+      expirado,
+      comparacao: `${diaExp}/${mesExp + 1}/${anoExp} ${horaExp}:${minutoExp}:${segundoExp} <= ${diaAtual}/${mesAtual + 1}/${anoAtual} ${horaAtual}:${minutoAtual}:${segundoAtual}`
+    });
     
-    if (diaExp < diaAtual) return true;
-    if (diaExp > diaAtual) return false;
-    
-    if (horaExp < horaAtual) return true;
-    if (horaExp > horaAtual) return false;
-    
-    if (minutoExp < minutoAtual) return true;
-    if (minutoExp > minutoAtual) return false;
-    
-    // Se chegou aqui, está no mesmo minuto, comparar segundos
-    return segundoExp <= segundoAtual;
+    return expirado;
   }
 
   private async expirarSolicitacaoSeNecessario(
@@ -2652,15 +2667,36 @@ export class SolicitacaoAbastecimentoService {
     const minutoAtual = parseInt(partsAtual.find(p => p.type === 'minute')!.value);
     const segundoAtual = parseInt(partsAtual.find(p => p.type === 'second')!.value);
     
-    const anoExp = solicitacao.data_expiracao.getUTCFullYear();
-    const mesExp = solicitacao.data_expiracao.getUTCMonth();
-    const diaExp = solicitacao.data_expiracao.getUTCDate();
-    const horaExp = solicitacao.data_expiracao.getUTCHours();
-    const minutoExp = solicitacao.data_expiracao.getUTCMinutes();
-    const segundoExp = solicitacao.data_expiracao.getUTCSeconds();
+    // Formatar ambas as datas em Fortaleza para o log
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Fortaleza',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
     
-    const dataAtualServidorFormatada = dataAtual.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' });
-    const dataExpiracaoFormatada = `${String(diaExp).padStart(2, '0')}/${String(mesExp + 1).padStart(2, '0')}/${anoExp}, ${String(horaExp).padStart(2, '0')}:${String(minutoExp).padStart(2, '0')}:${String(segundoExp).padStart(2, '0')}`;
+    const partsAtualLog = formatter.formatToParts(dataAtual);
+    const anoAtualLog = parseInt(partsAtualLog.find(p => p.type === 'year')!.value);
+    const mesAtualLog = parseInt(partsAtualLog.find(p => p.type === 'month')!.value);
+    const diaAtualLog = parseInt(partsAtualLog.find(p => p.type === 'day')!.value);
+    const horaAtualLog = parseInt(partsAtualLog.find(p => p.type === 'hour')!.value);
+    const minutoAtualLog = parseInt(partsAtualLog.find(p => p.type === 'minute')!.value);
+    const segundoAtualLog = parseInt(partsAtualLog.find(p => p.type === 'second')!.value);
+    
+    const partsExpLog = formatter.formatToParts(solicitacao.data_expiracao);
+    const anoExpLog = parseInt(partsExpLog.find(p => p.type === 'year')!.value);
+    const mesExpLog = parseInt(partsExpLog.find(p => p.type === 'month')!.value);
+    const diaExpLog = parseInt(partsExpLog.find(p => p.type === 'day')!.value);
+    const horaExpLog = parseInt(partsExpLog.find(p => p.type === 'hour')!.value);
+    const minutoExpLog = parseInt(partsExpLog.find(p => p.type === 'minute')!.value);
+    const segundoExpLog = parseInt(partsExpLog.find(p => p.type === 'second')!.value);
+    
+    const dataAtualServidorFormatada = `${String(diaAtualLog).padStart(2, '0')}/${String(mesAtualLog).padStart(2, '0')}/${anoAtualLog}, ${String(horaAtualLog).padStart(2, '0')}:${String(minutoAtualLog).padStart(2, '0')}:${String(segundoAtualLog).padStart(2, '0')}`;
+    const dataExpiracaoFormatada = `${String(diaExpLog).padStart(2, '0')}/${String(mesExpLog).padStart(2, '0')}/${anoExpLog}, ${String(horaExpLog).padStart(2, '0')}:${String(minutoExpLog).padStart(2, '0')}:${String(segundoExpLog).padStart(2, '0')}`;
     
     console.log('[expirarSolicitacaoSeNecessario] Comparação de datas (horário local Fortaleza):', {
       solicitacaoId: solicitacao.id,
