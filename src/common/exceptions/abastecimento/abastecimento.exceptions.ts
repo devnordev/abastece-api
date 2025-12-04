@@ -135,7 +135,7 @@ export class AbastecimentoNotFoundException extends CrudException {
 export class AbastecimentoVeiculoNotFoundException extends CrudException {
   constructor(veiculoId: number, context?: ContextOverrides) {
     super({
-      message: `Veículo com ID ${veiculoId} não foi encontrado. O campo veiculoId é obrigatório e deve referenciar um veículo existente e ativo no sistema.`,
+      message: `Veículo não encontrado`,
       statusCode: HttpStatus.NOT_FOUND,
       errorCode: 'ABASTECIMENTO_VEICULO_NOT_FOUND',
       context: buildContext('create', {
@@ -143,7 +143,9 @@ export class AbastecimentoVeiculoNotFoundException extends CrudException {
         additionalInfo: {
           veiculoId,
           campoObrigatorio: 'veiculoId',
-          suggestion: 'Verifique se o ID do veículo está correto e se o veículo existe e está ativo.',
+          error: `Nenhum veículo encontrado com o ID ${veiculoId} no sistema`,
+          details: 'O campo veiculoId é obrigatório e deve referenciar um veículo existente e ativo no sistema. Verifique se o ID informado está correto e se o veículo foi cadastrado',
+          suggestion: 'Verifique se o ID do veículo está correto. Se o veículo não existe, cadastre-o primeiro antes de criar o abastecimento. Se o veículo existe mas foi desativado, é necessário ativá-lo antes de realizar abastecimentos.',
         },
       }),
     });
@@ -153,7 +155,7 @@ export class AbastecimentoVeiculoNotFoundException extends CrudException {
 export class AbastecimentoCombustivelNotFoundException extends CrudException {
   constructor(combustivelId: number, context?: ContextOverrides) {
     super({
-      message: `Combustível com ID ${combustivelId} não foi encontrado. O campo combustivelId é obrigatório e deve referenciar um combustível existente e ativo no sistema.`,
+      message: `Combustível não encontrado`,
       statusCode: HttpStatus.NOT_FOUND,
       errorCode: 'ABASTECIMENTO_COMBUSTIVEL_NOT_FOUND',
       context: buildContext('create', {
@@ -161,7 +163,9 @@ export class AbastecimentoCombustivelNotFoundException extends CrudException {
         additionalInfo: {
           combustivelId,
           campoObrigatorio: 'combustivelId',
-          suggestion: 'Verifique se o ID do combustível está correto e se o combustível existe e está ativo.',
+          error: `Nenhum combustível encontrado com o ID ${combustivelId} no sistema`,
+          details: 'O campo combustivelId é obrigatório e deve referenciar um combustível existente e ativo no sistema. Verifique se o ID informado está correto',
+          suggestion: 'Verifique se o ID do combustível está correto. Se o combustível não existe, ele precisa ser cadastrado primeiro. Consulte a lista de combustíveis disponíveis no sistema para obter IDs válidos.',
         },
       }),
     });
@@ -171,7 +175,7 @@ export class AbastecimentoCombustivelNotFoundException extends CrudException {
 export class AbastecimentoEmpresaNotFoundException extends CrudException {
   constructor(empresaId: number, context?: ContextOverrides) {
     super({
-      message: `Empresa com ID ${empresaId} não foi encontrada. O campo empresaId é obrigatório e deve referenciar uma empresa existente e ativa no sistema.`,
+      message: `Empresa não encontrada`,
       statusCode: HttpStatus.NOT_FOUND,
       errorCode: 'ABASTECIMENTO_EMPRESA_NOT_FOUND',
       context: buildContext('create', {
@@ -179,7 +183,9 @@ export class AbastecimentoEmpresaNotFoundException extends CrudException {
         additionalInfo: {
           empresaId,
           campoObrigatorio: 'empresaId',
-          suggestion: 'Verifique se o ID da empresa está correto e se a empresa existe e está ativa.',
+          error: `Nenhuma empresa encontrada com o ID ${empresaId} no sistema`,
+          details: 'O campo empresaId é obrigatório e deve referenciar uma empresa existente e ativa no sistema. A empresa deve estar cadastrada e autorizada para realizar abastecimentos',
+          suggestion: 'Verifique se o ID da empresa está correto. O empresaId deve corresponder à empresa do usuário logado. Se você é ADMIN_EMPRESA ou COLABORADOR_EMPRESA, use o ID da empresa vinculada ao seu usuário.',
         },
       }),
     });
@@ -189,7 +195,7 @@ export class AbastecimentoEmpresaNotFoundException extends CrudException {
 export class AbastecimentoMotoristaNotFoundException extends CrudException {
   constructor(motoristaId: number, context?: ContextOverrides) {
     super({
-      message: `Motorista com ID ${motoristaId} não foi encontrado. O campo motoristaId é opcional, mas quando informado, deve referenciar um motorista existente e ativo no sistema.`,
+      message: `Motorista não encontrado`,
       statusCode: HttpStatus.NOT_FOUND,
       errorCode: 'ABASTECIMENTO_MOTORISTA_NOT_FOUND',
       context: buildContext('create', {
@@ -197,7 +203,9 @@ export class AbastecimentoMotoristaNotFoundException extends CrudException {
         additionalInfo: {
           motoristaId,
           campoOpcional: 'motoristaId',
-          suggestion: 'Verifique se o ID do motorista está correto e se o motorista existe e está ativo, ou remova o campo se não for necessário.',
+          error: `Nenhum motorista encontrado com o ID ${motoristaId} no sistema`,
+          details: 'O campo motoristaId é opcional, mas quando informado, deve referenciar um motorista existente, ativo e vinculado à mesma prefeitura do veículo',
+          suggestion: 'Opções para resolver: 1) Verifique se o ID do motorista está correto; 2) Se o motorista não existe, cadastre-o primeiro ou remova o campo motoristaId se não for necessário; 3) Se o motorista existe mas foi desativado, ative-o ou selecione outro motorista ativo; 4) Se o motorista não está vinculado ao veículo, vincule-o ou remova o campo motoristaId.',
         },
       }),
     });
@@ -225,7 +233,7 @@ export class AbastecimentoSolicitanteNotFoundException extends CrudException {
 export class AbastecimentoValidadorNotFoundException extends CrudException {
   constructor(validadorId: number, context?: ContextOverrides) {
     super({
-      message: `Usuário validador com ID ${validadorId} não foi encontrado. O campo validadorId é opcional, mas quando informado, deve referenciar um usuário existente e ativo no sistema.`,
+      message: `Validador não encontrado`,
       statusCode: HttpStatus.NOT_FOUND,
       errorCode: 'ABASTECIMENTO_VALIDADOR_NOT_FOUND',
       context: buildContext('create', {
@@ -233,7 +241,9 @@ export class AbastecimentoValidadorNotFoundException extends CrudException {
         additionalInfo: {
           validadorId,
           campoOpcional: 'validadorId',
-          suggestion: 'Verifique se o ID do validador está correto e se o usuário existe e está ativo, ou remova o campo se não for necessário.',
+          error: `Nenhum usuário validador encontrado com o ID ${validadorId} no sistema`,
+          details: 'O campo validadorId é opcional, mas quando informado, deve referenciar um usuário existente e ativo no sistema que possui permissão para validar abastecimentos',
+          suggestion: 'Para resolver: 1) Verifique se o ID do validador está correto; 2) Se o usuário não existe, remova o campo validadorId ou informe o ID de um usuário existente; 3) Se o usuário foi desativado, selecione outro validador ativo; 4) O validador será atribuído automaticamente durante o processo de aprovação se não for informado.',
         },
       }),
     });
@@ -243,7 +253,7 @@ export class AbastecimentoValidadorNotFoundException extends CrudException {
 export class AbastecimentoAbastecedorNotFoundException extends CrudException {
   constructor(abastecedorId: number, context?: ContextOverrides) {
     super({
-      message: `Empresa abastecedora com ID ${abastecedorId} não foi encontrada. O campo abastecedorId é opcional, mas quando informado, deve referenciar uma empresa existente e ativa no sistema.`,
+      message: `Empresa abastecedora não encontrada`,
       statusCode: HttpStatus.NOT_FOUND,
       errorCode: 'ABASTECIMENTO_ABASTECEDOR_NOT_FOUND',
       context: buildContext('create', {
@@ -251,7 +261,9 @@ export class AbastecimentoAbastecedorNotFoundException extends CrudException {
         additionalInfo: {
           abastecedorId,
           campoOpcional: 'abastecedorId',
-          suggestion: 'Verifique se o ID da empresa abastecedora está correto e se a empresa existe e está ativa, ou remova o campo se não for necessário.',
+          error: `Nenhuma empresa abastecedora encontrada com o ID ${abastecedorId} no sistema`,
+          details: 'O campo abastecedorId é opcional, mas quando informado, deve referenciar uma empresa existente e ativa. O abastecedorId será preenchido automaticamente com o ID da empresa do usuário logado se não for informado',
+          suggestion: 'Para resolver: 1) Verifique se o ID da empresa abastecedora está correto; 2) Se a empresa não existe, remova o campo abastecedorId e ele será preenchido automaticamente; 3) O sistema preenche automaticamente o abastecedorId com a empresa do usuário logado que está criando o abastecimento.',
         },
       }),
     });
@@ -261,7 +273,7 @@ export class AbastecimentoAbastecedorNotFoundException extends CrudException {
 export class AbastecimentoContaFaturamentoNotFoundException extends CrudException {
   constructor(contaFaturamentoId: number, context?: ContextOverrides) {
     super({
-      message: `Conta de faturamento com ID ${contaFaturamentoId} não foi encontrada. O campo conta_faturamento_orgao_id é opcional, mas quando informado, deve referenciar uma conta de faturamento existente no sistema.`,
+      message: `Conta de faturamento não encontrada`,
       statusCode: HttpStatus.NOT_FOUND,
       errorCode: 'ABASTECIMENTO_CONTA_FATURAMENTO_NOT_FOUND',
       context: buildContext('create', {
@@ -269,7 +281,9 @@ export class AbastecimentoContaFaturamentoNotFoundException extends CrudExceptio
         additionalInfo: {
           contaFaturamentoId,
           campoOpcional: 'conta_faturamento_orgao_id',
-          suggestion: 'Verifique se o ID da conta de faturamento está correto e se a conta existe, ou remova o campo se não for necessário.',
+          error: `Nenhuma conta de faturamento encontrada com o ID ${contaFaturamentoId} no sistema`,
+          details: 'O campo conta_faturamento_orgao_id é opcional e deve referenciar uma conta de faturamento do órgão existente. A conta de faturamento é usada para identificar onde o valor do abastecimento será contabilizado',
+          suggestion: 'Para resolver: 1) Verifique se o ID da conta de faturamento está correto; 2) Se a conta não existe, remova o campo conta_faturamento_orgao_id se não for obrigatório; 3) Verifique se há uma conta de faturamento vinculada ao órgão do veículo; 4) Se necessário, consulte a lista de contas de faturamento disponíveis para o órgão do veículo.',
         },
       }),
     });
@@ -279,7 +293,7 @@ export class AbastecimentoContaFaturamentoNotFoundException extends CrudExceptio
 export class AbastecimentoCotaNotFoundException extends CrudException {
   constructor(cotaId: number, context?: ContextOverrides) {
     super({
-      message: `Cota do órgão com ID ${cotaId} não foi encontrada. O campo cota_id é opcional, mas quando informado, deve referenciar uma cota existente e ativa no sistema.`,
+      message: `Cota do órgão não encontrada`,
       statusCode: HttpStatus.NOT_FOUND,
       errorCode: 'ABASTECIMENTO_COTA_NOT_FOUND',
       context: buildContext('create', {
@@ -287,7 +301,9 @@ export class AbastecimentoCotaNotFoundException extends CrudException {
         additionalInfo: {
           cotaId,
           campoOpcional: 'cota_id',
-          suggestion: 'Verifique se o ID da cota está correto e se a cota existe e está ativa, ou remova o campo se não for necessário.',
+          error: `Nenhuma cota do órgão encontrada com o ID ${cotaId} no sistema`,
+          details: 'O campo cota_id é opcional, mas quando informado, deve referenciar uma CotaOrgao existente e ativa. A cota será buscada automaticamente através do orgaoId do veículo e combustivelId se não for informada',
+          suggestion: 'Para resolver: 1) Verifique se o ID da cota está correto; 2) Se você informou manualmente o cota_id, remova-o e deixe o sistema buscar automaticamente; 3) O sistema tenta encontrar a cota através do órgão do veículo e do combustível; 4) Se não há cota cadastrada, o abastecimento pode ser criado sem cota_id para abastecimentos do tipo LIVRE.',
         },
       }),
     });
@@ -319,14 +335,16 @@ export class AbastecimentoSolicitacaoNotFoundException extends CrudException {
 export class AbastecimentoUsuarioSemEmpresaException extends CrudException {
   constructor(context?: ContextOverrides) {
     super({
-      message: `Usuário não está vinculado a uma empresa. Apenas usuários com perfil ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem criar abastecimentos. É necessário que o usuário esteja vinculado a uma empresa ativa.`,
+      message: `Usuário não está vinculado a uma empresa`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_USUARIO_SEM_EMPRESA',
       context: buildContext('create', {
         ...context,
         additionalInfo: {
           perfisPermitidos: ['ADMIN_EMPRESA', 'COLABORADOR_EMPRESA'],
-          suggestion: 'Verifique se o usuário está vinculado a uma empresa e se o perfil é ADMIN_EMPRESA ou COLABORADOR_EMPRESA.',
+          error: 'O usuário logado não possui uma empresa vinculada ao seu perfil',
+          details: 'Apenas usuários com perfil ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem criar abastecimentos. É necessário que o usuário esteja vinculado a uma empresa ativa no sistema para realizar esta operação',
+          suggestion: 'Para resolver: 1) Verifique se você está usando o perfil correto (ADMIN_EMPRESA ou COLABORADOR_EMPRESA); 2) Certifique-se de que seu usuário está vinculado a uma empresa ativa; 3) Se você não tem uma empresa vinculada, entre em contato com o administrador do sistema para vincular seu usuário a uma empresa; 4) Se você é de outra prefeitura, use uma conta de usuário da empresa que realizará o abastecimento.',
         },
       }),
     });
@@ -336,7 +354,7 @@ export class AbastecimentoUsuarioSemEmpresaException extends CrudException {
 export class AbastecimentoEmpresaDiferenteException extends CrudException {
   constructor(empresaIdSolicitada: number, empresaIdUsuario: number, context?: ContextOverrides) {
     super({
-      message: `Você não pode criar abastecimento para uma empresa diferente da sua. A empresa do abastecimento (ID: ${empresaIdSolicitada}) deve corresponder à empresa do usuário logado (ID: ${empresaIdUsuario}).`,
+      message: `Empresa do abastecimento não corresponde à empresa do usuário`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_EMPRESA_DIFERENTE',
       context: buildContext('create', {
@@ -345,7 +363,9 @@ export class AbastecimentoEmpresaDiferenteException extends CrudException {
           empresaIdSolicitada,
           empresaIdUsuario,
           campoObrigatorio: 'empresaId',
-          suggestion: 'Altere o campo empresaId para corresponder à empresa do usuário logado, ou use uma conta de usuário vinculada à empresa desejada.',
+          error: `O empresaId informado (${empresaIdSolicitada}) é diferente da empresa vinculada ao usuário logado (${empresaIdUsuario})`,
+          details: 'Por questões de segurança e controle, você só pode criar abastecimentos para a empresa à qual seu usuário está vinculado. Esta regra garante que cada empresa gerencie apenas seus próprios abastecimentos',
+          suggestion: 'Para resolver: 1) Verifique se o empresaId informado está correto; 2) Altere o campo empresaId para corresponder à sua empresa (ID: ' + empresaIdUsuario + '); 3) Se você precisa criar abastecimentos para outra empresa, use uma conta de usuário vinculada àquela empresa; 4) O sistema preenche automaticamente o abastecedorId com a empresa do usuário logado.',
         },
       }),
     });
@@ -355,14 +375,16 @@ export class AbastecimentoEmpresaDiferenteException extends CrudException {
 export class AbastecimentoEmpresaInativaException extends CrudException {
   constructor(empresaId: number, context?: ContextOverrides) {
     super({
-      message: `Não é possível criar abastecimento para uma empresa inativa (ID: ${empresaId}). A empresa deve estar ativa no sistema para realizar abastecimentos.`,
+      message: `Empresa está inativa`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_EMPRESA_INATIVA',
       context: buildContext('create', {
         ...context,
         additionalInfo: {
           empresaId,
-          suggestion: 'Verifique se a empresa está ativa no sistema ou entre em contato com o administrador para ativar a empresa.',
+          error: `A empresa com ID ${empresaId} está inativa no sistema`,
+          details: 'Apenas empresas ativas podem realizar abastecimentos. Empresas inativas foram desabilitadas e não podem criar ou processar novos abastecimentos no sistema',
+          suggestion: 'Para resolver: 1) Entre em contato com o administrador do sistema para reativar a empresa; 2) Verifique se a empresa realmente precisa estar inativa; 3) Se você não tem permissão para ativar empresas, solicite ao administrador que reative sua empresa antes de criar abastecimentos.',
         },
       }),
     });
@@ -372,7 +394,7 @@ export class AbastecimentoEmpresaInativaException extends CrudException {
 export class AbastecimentoQuantidadeInvalidaException extends CrudException {
   constructor(quantidade: number, context?: ContextOverrides) {
     super({
-      message: `Quantidade de combustível inválida: ${quantidade}. A quantidade deve ser um número positivo maior que zero. O campo quantidade é obrigatório e deve ser informado em litros.`,
+      message: `Quantidade de combustível inválida`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_QUANTIDADE_INVALIDA',
       context: buildContext('create', {
@@ -382,7 +404,9 @@ export class AbastecimentoQuantidadeInvalidaException extends CrudException {
           campoObrigatorio: 'quantidade',
           formatoEsperado: 'Número decimal positivo maior que zero',
           unidade: 'litros',
-          suggestion: 'Informe uma quantidade válida em litros, maior que zero.',
+          error: `O valor informado (${quantidade}) não é uma quantidade válida`,
+          details: 'A quantidade deve ser um número positivo maior que zero e deve ser informada em litros. O campo quantidade é obrigatório e representa o volume de combustível abastecido',
+          suggestion: 'Para resolver: 1) Verifique se informou um número válido (não pode ser zero, negativo, nulo ou vazio); 2) Informe a quantidade em litros, por exemplo: 50.5, 100, 25.75; 3) Certifique-se de que a quantidade não excede a capacidade do tanque do veículo; 4) Se estiver usando valores decimais, use ponto (.) como separador, não vírgula.',
         },
       }),
     });
@@ -392,7 +416,7 @@ export class AbastecimentoQuantidadeInvalidaException extends CrudException {
 export class AbastecimentoValorTotalInvalidoException extends CrudException {
   constructor(valorTotal: number, context?: ContextOverrides) {
     super({
-      message: `Valor total inválido: ${valorTotal}. O valor total deve ser um número positivo maior ou igual a zero. O campo valor_total é obrigatório.`,
+      message: `Valor total inválido`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_VALOR_TOTAL_INVALIDO',
       context: buildContext('create', {
@@ -401,7 +425,9 @@ export class AbastecimentoValorTotalInvalidoException extends CrudException {
           valorTotal,
           campoObrigatorio: 'valor_total',
           formatoEsperado: 'Número decimal positivo maior ou igual a zero',
-          suggestion: 'Informe um valor total válido. O valor pode ser calculado como: quantidade × preço - desconto.',
+          error: `O valor informado (${valorTotal}) não é um valor total válido`,
+          details: 'O valor total deve ser um número positivo maior ou igual a zero e representa o valor financeiro do abastecimento em reais. O campo valor_total é obrigatório e deve corresponder ao cálculo: quantidade × preco_empresa - desconto',
+          suggestion: 'Para resolver: 1) Verifique se informou um número válido (não pode ser negativo, nulo ou vazio); 2) O valor total deve ser calculado como: quantidade × preco_empresa - desconto; 3) Se estiver usando valores decimais, use ponto (.) como separador; 4) Certifique-se de que o valor total está consistente com a quantidade e o preço informados.',
         },
       }),
     });
@@ -814,7 +840,7 @@ export class AbastecimentoCotaExcedidaException extends CrudException {
 export class AbastecimentoCombustivelNaoVinculadoVeiculoException extends CrudException {
   constructor(veiculoId: number, combustivelId: number, context?: ContextOverrides) {
     super({
-      message: `Combustível com ID ${combustivelId} não está vinculado ao veículo com ID ${veiculoId}. O combustível deve estar relacionado ao veículo antes de criar o abastecimento.`,
+      message: `Combustível não está vinculado ao veículo`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_COMBUSTIVEL_NAO_VINCULADO_VEICULO',
       context: buildContext('create', {
@@ -822,7 +848,9 @@ export class AbastecimentoCombustivelNaoVinculadoVeiculoException extends CrudEx
         additionalInfo: {
           veiculoId,
           combustivelId,
-          suggestion: 'Verifique se o combustível está vinculado ao veículo ou vincule o combustível ao veículo antes de criar o abastecimento.',
+          error: `O combustível com ID ${combustivelId} não está cadastrado como permitido para o veículo com ID ${veiculoId}`,
+          details: 'Para criar um abastecimento, o combustível deve estar previamente vinculado ao veículo através do cadastro de VeiculoCombustivel. Apenas combustíveis cadastrados para o veículo podem ser utilizados em abastecimentos',
+          suggestion: 'Para resolver: 1) Verifique se o combustível está correto; 2) Vincule o combustível ao veículo através do cadastro de veículo antes de criar o abastecimento; 3) Se o combustível já estava vinculado, verifique se o vínculo está ativo (campo ativo = true); 4) Se necessário, selecione outro combustível que já esteja vinculado ao veículo.',
         },
       }),
     });
@@ -832,14 +860,16 @@ export class AbastecimentoCombustivelNaoVinculadoVeiculoException extends CrudEx
 export class AbastecimentoVeiculoInativoException extends CrudException {
   constructor(veiculoId: number, context?: ContextOverrides) {
     super({
-      message: `Veículo com ID ${veiculoId} está inativo. Apenas veículos ativos podem receber abastecimentos.`,
+      message: `Veículo está inativo`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_VEICULO_INATIVO',
       context: buildContext('create', {
         ...context,
         additionalInfo: {
           veiculoId,
-          suggestion: 'Verifique se o veículo está ativo no sistema ou ative o veículo antes de criar o abastecimento.',
+          error: `O veículo com ID ${veiculoId} está inativo no sistema`,
+          details: 'Apenas veículos ativos podem receber abastecimentos. Veículos inativos não podem ter abastecimentos registrados',
+          suggestion: 'Para resolver este problema: 1) Verifique se o veículo realmente precisa estar inativo; 2) Se necessário, ative o veículo no sistema antes de criar o abastecimento; 3) Entre em contato com o administrador da prefeitura para reativar o veículo se necessário.',
         },
       }),
     });
@@ -849,14 +879,16 @@ export class AbastecimentoVeiculoInativoException extends CrudException {
 export class AbastecimentoCombustivelInativoException extends CrudException {
   constructor(combustivelId: number, context?: ContextOverrides) {
     super({
-      message: `Combustível com ID ${combustivelId} está inativo. Apenas combustíveis ativos podem ser utilizados em abastecimentos.`,
+      message: `Combustível está inativo`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_COMBUSTIVEL_INATIVO',
       context: buildContext('create', {
         ...context,
         additionalInfo: {
           combustivelId,
-          suggestion: 'Verifique se o combustível está ativo no sistema ou ative o combustível antes de criar o abastecimento.',
+          error: `O combustível com ID ${combustivelId} está inativo no sistema`,
+          details: 'Apenas combustíveis ativos podem ser utilizados em abastecimentos. Combustíveis inativos foram desabilitados e não podem ser selecionados para novos abastecimentos',
+          suggestion: 'Para resolver: 1) Verifique se o combustível precisa estar inativo; 2) Se necessário, ative o combustível no sistema antes de criar o abastecimento; 3) Se o combustível não deve mais ser usado, selecione outro combustível que esteja ativo para o veículo.',
         },
       }),
     });
@@ -866,14 +898,16 @@ export class AbastecimentoCombustivelInativoException extends CrudException {
 export class AbastecimentoCotaInativaException extends CrudException {
   constructor(cotaId: number, context?: ContextOverrides) {
     super({
-      message: `Cota do órgão com ID ${cotaId} está inativa. Apenas cotas ativas podem ser utilizadas em abastecimentos.`,
+      message: `Cota do órgão está inativa`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_COTA_INATIVA',
       context: buildContext('create', {
         ...context,
         additionalInfo: {
           cotaId,
-          suggestion: 'Verifique se a cota está ativa no sistema ou ative a cota antes de criar o abastecimento.',
+          error: `A cota do órgão com ID ${cotaId} está inativa no sistema`,
+          details: 'Apenas cotas ativas podem ser utilizadas em abastecimentos. Cotas inativas foram desabilitadas e não podem ter suas quantidades utilizadas ou valores consumidos atualizados',
+          suggestion: 'Para resolver: 1) Verifique se a cota realmente precisa estar inativa; 2) Se necessário, ative a cota no sistema antes de criar o abastecimento; 3) Entre em contato com o administrador da prefeitura para reativar a cota; 4) Se você informou o cota_id manualmente, remova-o e deixe o sistema buscar uma cota ativa automaticamente.',
         },
       }),
     });
@@ -901,8 +935,10 @@ export class AbastecimentoDataAbastecimentoFuturaException extends CrudException
 export class AbastecimentoValorTotalInconsistenteException extends CrudException {
   constructor(valorTotal: number, quantidade: number, precoEmpresa: number, desconto: number, context?: ContextOverrides) {
     const valorCalculado = quantidade * precoEmpresa - desconto;
+    const diferenca = Math.abs(valorTotal - valorCalculado);
+    
     super({
-      message: `Valor total informado (${valorTotal}) é inconsistente com os valores calculados. Quantidade: ${quantidade} litros × Preço: R$ ${precoEmpresa} - Desconto: R$ ${desconto} = R$ ${valorCalculado.toFixed(2)}. O valor total deve corresponder ao cálculo: quantidade × preco_empresa - desconto.`,
+      message: `Valor total inconsistente com os valores informados`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_VALOR_TOTAL_INCONSISTENTE',
       context: buildContext('create', {
@@ -913,9 +949,13 @@ export class AbastecimentoValorTotalInconsistenteException extends CrudException
           precoEmpresa,
           desconto,
           valorCalculado: valorCalculado.toFixed(2),
+          diferenca: diferenca.toFixed(2),
           campos: ['quantidade', 'preco_empresa', 'desconto', 'valor_total'],
           formula: 'valor_total = quantidade × preco_empresa - desconto',
-          suggestion: 'Verifique os valores informados e certifique-se de que o valor_total corresponde ao cálculo correto.',
+          error: `O valor_total informado (R$ ${valorTotal.toFixed(2)}) não corresponde ao cálculo esperado (R$ ${valorCalculado.toFixed(2)})`,
+          calculoDetalhado: `${quantidade} litros × R$ ${precoEmpresa.toFixed(2)} - R$ ${desconto.toFixed(2)} = R$ ${valorCalculado.toFixed(2)}`,
+          details: 'O valor total do abastecimento deve corresponder exatamente ao cálculo: quantidade × preco_empresa - desconto. Pequenas diferenças de até R$ 0,01 são permitidas devido a arredondamentos',
+          suggestion: `Para resolver: 1) Recalcule o valor_total usando a fórmula: ${quantidade} × ${precoEmpresa.toFixed(2)} - ${desconto.toFixed(2)} = R$ ${valorCalculado.toFixed(2)}; 2) Ajuste o valor_total para R$ ${valorCalculado.toFixed(2)}; 3) Verifique se os valores de quantidade, preco_empresa e desconto estão corretos; 4) Se os valores estiverem corretos mas o cálculo ainda diferir, use o valor calculado automaticamente.`,
         },
       }),
     });
@@ -925,7 +965,7 @@ export class AbastecimentoValorTotalInconsistenteException extends CrudException
 export class AbastecimentoQuantidadeMaiorQueCapacidadeTanqueException extends CrudException {
   constructor(quantidade: number, capacidadeTanque: number, veiculoId: number, context?: ContextOverrides) {
     super({
-      message: `Quantidade de combustível solicitada (${quantidade} litros) excede a capacidade do tanque do veículo (${capacidadeTanque} litros). Veículo ID: ${veiculoId}. A quantidade não pode ser maior que a capacidade do tanque.`,
+      message: `Quantidade excede a capacidade do tanque do veículo`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_QUANTIDADE_MAIOR_CAPACIDADE_TANQUE',
       context: buildContext('create', {
@@ -935,7 +975,10 @@ export class AbastecimentoQuantidadeMaiorQueCapacidadeTanqueException extends Cr
           capacidadeTanque,
           veiculoId,
           campo: 'quantidade',
-          suggestion: `Ajuste a quantidade para não exceder a capacidade do tanque (${capacidadeTanque} litros) ou verifique a capacidade do veículo.`,
+          error: `A quantidade solicitada (${quantidade} litros) é maior que a capacidade do tanque (${capacidadeTanque} litros)`,
+          details: `O veículo com ID ${veiculoId} possui uma capacidade de tanque de ${capacidadeTanque} litros. Não é possível abastecer uma quantidade maior que a capacidade física do tanque do veículo`,
+          diferenca: quantidade - capacidadeTanque,
+          suggestion: `Para resolver: 1) Ajuste a quantidade para ${capacidadeTanque} litros ou menos (a capacidade máxima do tanque); 2) Verifique se a capacidade do tanque do veículo está correta no cadastro; 3) Se o veículo recebeu um tanque maior, atualize a capacidade_tanque no cadastro do veículo; 4) Considere criar múltiplos abastecimentos se necessário, respeitando a capacidade do tanque em cada um.`,
         },
       }),
     });
@@ -944,8 +987,11 @@ export class AbastecimentoQuantidadeMaiorQueCapacidadeTanqueException extends Cr
 
 export class AbastecimentoNFEChaveAcessoInvalidaException extends CrudException {
   constructor(chaveAcesso: string, context?: ContextOverrides) {
+    const tamanhoAtual = chaveAcesso?.length || 0;
+    const temCaracteresNaoNumericos = chaveAcesso && !/^\d+$/.test(chaveAcesso);
+    
     super({
-      message: `Chave de acesso da NFE inválida: ${chaveAcesso}. A chave de acesso deve ter 44 caracteres numéricos. O campo nfe_chave_acesso é opcional.`,
+      message: `Chave de acesso da NFE inválida`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_NFE_CHAVE_ACESSO_INVALIDA',
       context: buildContext('create', {
@@ -954,8 +1000,17 @@ export class AbastecimentoNFEChaveAcessoInvalidaException extends CrudException 
           chaveAcesso,
           campoOpcional: 'nfe_chave_acesso',
           formatoEsperado: '44 caracteres numéricos',
-          tamanhoAtual: chaveAcesso.length,
-          suggestion: 'Informe uma chave de acesso válida com 44 caracteres numéricos ou remova o campo se não for necessário.',
+          tamanhoAtual,
+          tamanhoEsperado: 44,
+          temCaracteresNaoNumericos,
+          error: tamanhoAtual !== 44 
+            ? `A chave de acesso possui ${tamanhoAtual} caracteres, mas deve ter exatamente 44 caracteres`
+            : temCaracteresNaoNumericos
+            ? 'A chave de acesso contém caracteres não numéricos. Deve conter apenas dígitos de 0 a 9'
+            : `A chave de acesso informada não está no formato válido`,
+          details: 'A chave de acesso da NFE (Nota Fiscal Eletrônica) deve seguir o padrão oficial: exatamente 44 caracteres numéricos consecutivos, sem espaços, letras ou caracteres especiais. Este campo é opcional',
+          exemploValido: '12345678901234567890123456789012345678901234',
+          suggestion: 'Para resolver: 1) Verifique se a chave de acesso tem exatamente 44 caracteres (sem espaços no início ou fim); 2) Certifique-se de que contém apenas números (0-9), sem letras ou caracteres especiais; 3) Copie a chave diretamente da NFE para evitar erros de digitação; 4) Se a chave não estiver disponível, remova o campo nfe_chave_acesso - ele é opcional.',
         },
       }),
     });
@@ -964,8 +1019,10 @@ export class AbastecimentoNFEChaveAcessoInvalidaException extends CrudException 
 
 export class AbastecimentoNFEUrlInvalidaException extends CrudException {
   constructor(campo: string, url: string, context?: ContextOverrides) {
+    const naoComecaComHttp = !url?.match(/^https?:\/\//);
+    
     super({
-      message: `URL da NFE inválida no campo ${campo}: ${url}. A URL deve ser válida e começar com http:// ou https://. Os campos nfe_img_url e nfe_link são opcionais.`,
+      message: `URL da NFE inválida`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_NFE_URL_INVALIDA',
       context: buildContext('create', {
@@ -974,8 +1031,17 @@ export class AbastecimentoNFEUrlInvalidaException extends CrudException {
           campo,
           url,
           camposOpcionais: ['nfe_img_url', 'nfe_link'],
-          formatoEsperado: 'URL válida (http:// ou https://)',
-          suggestion: `Informe uma URL válida para o campo ${campo} ou remova o campo se não for necessário.`,
+          formatoEsperado: 'URL válida começando com http:// ou https://',
+          error: naoComecaComHttp
+            ? `A URL informada não começa com http:// ou https://`
+            : `A URL informada não está em um formato válido`,
+          details: `O campo ${campo} deve conter uma URL válida que comece com http:// ou https://. Este campo é opcional e usado para armazenar links ou imagens da Nota Fiscal Eletrônica`,
+          exemplosValidos: [
+            'https://exemplo.com/nfe.jpg',
+            'http://exemplo.com/nfe',
+            'https://www.exemplo.com.br/documentos/nfe.pdf'
+          ],
+          suggestion: `Para resolver: 1) Certifique-se de que a URL começa com http:// ou https://; 2) Verifique se a URL está completa e acessível; 3) Se estiver usando nfe_img_url, pode fazer upload do arquivo usando o campo nfe_img (multipart/form-data) ao invés de informar a URL; 4) Se não tiver a URL ou imagem, remova o campo ${campo} - ele é opcional.`,
         },
       }),
     });
@@ -984,8 +1050,10 @@ export class AbastecimentoNFEUrlInvalidaException extends CrudException {
 
 export class AbastecimentoDescontoMaiorQueValorException extends CrudException {
   constructor(desconto: number, valorTotal: number, context?: ContextOverrides) {
+    const diferenca = desconto - valorTotal;
+    
     super({
-      message: `Desconto informado (R$ ${desconto}) é maior que o valor total (R$ ${valorTotal}). O desconto não pode ser maior que o valor total do abastecimento.`,
+      message: `Desconto maior que o valor total do abastecimento`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_DESCONTO_MAIOR_VALOR',
       context: buildContext('create', {
@@ -994,7 +1062,11 @@ export class AbastecimentoDescontoMaiorQueValorException extends CrudException {
           desconto,
           valorTotal,
           campoOpcional: 'desconto',
-          suggestion: 'Ajuste o desconto para ser menor ou igual ao valor total do abastecimento.',
+          error: `O desconto informado (R$ ${desconto.toFixed(2)}) é maior que o valor total (R$ ${valorTotal.toFixed(2)})`,
+          diferenca: diferenca.toFixed(2),
+          details: 'O desconto não pode ser maior que o valor total do abastecimento. O valor final após desconto seria negativo, o que não é permitido. O desconto é um valor opcional que reduz o valor total',
+          formula: 'valor_final = valor_total - desconto (onde valor_final >= 0)',
+          suggestion: `Para resolver: 1) Ajuste o desconto para ser menor ou igual ao valor total (R$ ${valorTotal.toFixed(2)}); 2) Se o desconto realmente deve ser aplicado, verifique se o valor_total está correto; 3) O desconto máximo permitido é igual ao valor_total (resultando em valor final = 0); 4) Se não há desconto, remova o campo desconto ou informe 0.`,
         },
       }),
     });
@@ -1040,7 +1112,7 @@ export class AbastecimentoVeiculoNaoPertenceEmpresaException extends CrudExcepti
 export class AbastecimentoMotoristaNaoPertencePrefeituraException extends CrudException {
   constructor(motoristaId: number, veiculoId: number, context?: ContextOverrides) {
     super({
-      message: `Motorista com ID ${motoristaId} não pertence à mesma prefeitura do veículo com ID ${veiculoId}. O motorista deve estar vinculado à mesma prefeitura do veículo.`,
+      message: `Motorista não pertence à prefeitura do veículo`,
       statusCode: HttpStatus.BAD_REQUEST,
       errorCode: 'ABASTECIMENTO_MOTORISTA_NAO_PERTENCE_PREFEITURA',
       context: buildContext('create', {
@@ -1049,7 +1121,9 @@ export class AbastecimentoMotoristaNaoPertencePrefeituraException extends CrudEx
           motoristaId,
           veiculoId,
           campoOpcional: 'motoristaId',
-          suggestion: 'Verifique se o motorista pertence à mesma prefeitura do veículo ou selecione outro motorista.',
+          error: `O motorista com ID ${motoristaId} pertence a uma prefeitura diferente da prefeitura do veículo com ID ${veiculoId}`,
+          details: 'Para criar um abastecimento, o motorista deve pertencer à mesma prefeitura do veículo. Esta regra garante que apenas motoristas autorizados pela mesma prefeitura possam abastecer os veículos',
+          suggestion: 'Para resolver: 1) Verifique se o motorista está correto; 2) Selecione um motorista que pertença à mesma prefeitura do veículo; 3) Se o motorista precisa ser alterado, cadastre-o na prefeitura correta primeiro; 4) Alternativamente, remova o campo motoristaId se não for obrigatório informar o motorista no momento do abastecimento.',
         },
       }),
     });

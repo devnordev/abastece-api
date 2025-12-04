@@ -721,9 +721,20 @@ export class AbastecimentoService {
       });
 
       if (abastecimentoComMesmoNfeLink) {
-        throw new BadRequestException(
-          `Já existe um abastecimento da empresa com o nfe_link "${nfe_link}". O nfe_link deve ser único por empresa.`
-        );
+        throw new BadRequestException({
+          statusCode: 400,
+          message: 'Link da NFE já está em uso',
+          error: `Já existe um abastecimento da empresa com o nfe_link "${nfe_link}"`,
+          details: 'O campo nfe_link deve ser único por empresa. Cada link de NFE só pode ser usado uma vez por empresa para evitar duplicidades. Verifique se você está tentando criar um abastecimento duplicado',
+          nfeLink: nfe_link,
+          empresaId: user.empresa.id,
+          abastecimentoExistente: {
+            id: abastecimentoComMesmoNfeLink.id,
+            veiculoId: abastecimentoComMesmoNfeLink.veiculoId,
+            dataAbastecimento: abastecimentoComMesmoNfeLink.data_abastecimento,
+          },
+          suggestion: 'Para resolver: 1) Verifique se você já criou um abastecimento com este nfe_link; 2) Se sim, consulte o abastecimento existente ao invés de criar um novo; 3) Se o nfe_link está correto mas você precisa criar um novo abastecimento, verifique se não está duplicando um abastecimento já registrado; 4) Se necessário, remova o campo nfe_link e informe um valor único ou deixe vazio.',
+        });
       }
     }
 
