@@ -783,19 +783,62 @@ export class AbastecimentoService {
       }
 
       // Criar abastecimento
+      // Preparar dados para criação, removendo campos undefined para evitar problemas no Prisma
+      const dataCreate: any = {
+        veiculoId: createAbastecimentoDto.veiculoId,
+        combustivelId: createAbastecimentoDto.combustivelId,
+        empresaId: createAbastecimentoDto.empresaId,
+        tipo_abastecimento: createAbastecimentoDto.tipo_abastecimento,
+        quantidade: createAbastecimentoDto.quantidade,
+        valor_total: createAbastecimentoDto.valor_total,
+        solicitanteId: solicitanteIdParaUsar,
+        abastecedorId: abastecedorIdParaUsar,
+        preco_anp: precoAnpParaUsar,
+        preco_empresa: precoEmpresaParaUsar,
+        abastecido_por: abastecidoPorParaUsar,
+        status: statusParaUsar,
+        cota_id: cotaIdParaUsar || undefined,
+        ativo: ativoParaUsar,
+        data_abastecimento: new Date(), // Sempre usa a data/hora atual do servidor
+      };
+
+      // Adicionar campos opcionais apenas se estiverem definidos
+      if (createAbastecimentoDto.motoristaId) {
+        dataCreate.motoristaId = createAbastecimentoDto.motoristaId;
+      }
+      if (createAbastecimentoDto.validadorId) {
+        dataCreate.validadorId = createAbastecimentoDto.validadorId;
+      }
+      if (createAbastecimentoDto.desconto) {
+        dataCreate.desconto = createAbastecimentoDto.desconto;
+      }
+      if (createAbastecimentoDto.odometro) {
+        dataCreate.odometro = createAbastecimentoDto.odometro;
+      }
+      if (createAbastecimentoDto.orimetro) {
+        dataCreate.orimetro = createAbastecimentoDto.orimetro;
+      }
+      if (createAbastecimentoDto.motivo_rejeicao) {
+        dataCreate.motivo_rejeicao = createAbastecimentoDto.motivo_rejeicao;
+      }
+      if (createAbastecimentoDto.nfe_chave_acesso) {
+        dataCreate.nfe_chave_acesso = createAbastecimentoDto.nfe_chave_acesso;
+      }
+      if (nfe_img_url) {
+        dataCreate.nfe_img_url = nfe_img_url;
+      }
+      if (createAbastecimentoDto.nfe_link) {
+        dataCreate.nfe_link = createAbastecimentoDto.nfe_link;
+      }
+      if (createAbastecimentoDto.observacao) {
+        dataCreate.observacao = createAbastecimentoDto.observacao;
+      }
+      if (createAbastecimentoDto.conta_faturamento_orgao_id) {
+        dataCreate.conta_faturamento_orgao_id = createAbastecimentoDto.conta_faturamento_orgao_id;
+      }
+
       const abastecimentoCriado = await tx.abastecimento.create({
-        data: {
-          ...createAbastecimentoDto,
-          solicitanteId: solicitanteIdParaUsar,
-          abastecedorId: abastecedorIdParaUsar,
-          preco_anp: precoAnpParaUsar,
-          preco_empresa: precoEmpresaParaUsar,
-          abastecido_por: abastecidoPorParaUsar,
-          status: statusParaUsar,
-          cota_id: cotaIdParaUsar || undefined,
-          ativo: ativoParaUsar,
-          data_abastecimento: new Date(), // Sempre usa a data/hora atual do servidor
-        },
+        data: dataCreate,
         include: {
           veiculo: {
             select: {
@@ -1680,9 +1723,32 @@ export class AbastecimentoService {
       };
     }
 
-    if (abastecedorId) {
+    // AbastecedorId: usar o informado no DTO, ou a empresa do usuário logado, ou a empresa da solicitação
+    const abastecedorIdParaUsar = abastecedorId || user?.empresa?.id || solicitacao.empresaId;
+    
+    // Validar se a empresa abastecedora existe antes de fazer o connect
+    if (abastecedorIdParaUsar) {
+      const empresaAbastecedora = await this.prisma.empresa.findUnique({
+        where: { id: abastecedorIdParaUsar },
+        select: { id: true, ativo: true },
+      });
+
+      if (!empresaAbastecedora) {
+        throw new AbastecimentoAbastecedorNotFoundException(abastecedorIdParaUsar, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createDto,
+        });
+      }
+
+      if (!empresaAbastecedora.ativo) {
+        throw new AbastecimentoEmpresaInativaException(abastecedorIdParaUsar, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createDto,
+        });
+      }
+
       abastecimentoData.abastecedor = {
-        connect: { id: abastecedorId },
+        connect: { id: abastecedorIdParaUsar },
       };
     }
 
