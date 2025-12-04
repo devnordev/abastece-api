@@ -1689,7 +1689,8 @@ export class AbastecimentoService {
     }
 
     // Criar abastecimento
-    const abastecimentoData: Prisma.AbastecimentoCreateInput = {
+    // Usar 'any' para permitir definir abastecedorId diretamente (necessário até ajustar o schema)
+    const abastecimentoData: any = {
       veiculo: {
         connect: { id: solicitacao.veiculoId },
       },
@@ -1778,13 +1779,13 @@ export class AbastecimentoService {
         );
       }
 
-      // ATENÇÃO: O schema relaciona abastecedorId com Empresa, mas estamos usando ID de Usuario
-      // Por enquanto, passamos o ID diretamente (sem connect) para evitar erro de constraint
-      // Será necessário alterar o schema para referenciar Usuario em vez de Empresa
-      // Se o schema não for alterado, isso pode causar inconsistências no banco
-      abastecimentoData.abastecedorId = abastecedorIdParaUsar;
+      // ATENÇÃO: O schema relaciona abastecedorId com Empresa, mas queremos usar ID de Usuario
+      // Como não podemos fazer connect com Empresa usando ID de Usuario, deixamos abastecedorId como null/undefined
+      // Será necessário alterar o schema para referenciar Usuario em vez de Empresa para funcionar corretamente
+      // Por enquanto, o campo abastecedorId será deixado como null/undefined
       // Não usar connect pois o schema espera Empresa mas estamos passando Usuario
       // abastecimentoData.abastecedor = { connect: { id: abastecedorIdParaUsar } };
+      // O abastecedorId não será definido até que o schema seja ajustado
     }
 
     // Processar solicitação e criar abastecimento em transação
