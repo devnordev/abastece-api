@@ -1858,7 +1858,7 @@ export class AbastecimentoService {
     }
 
     // Processar solicitação e criar abastecimento em transação
-    // Fluxo: PENDENTE → APROVADA → Criar Abastecimento → APROVADA (mantém status)
+    // Fluxo: PENDENTE → APROVADA → Criar Abastecimento → EFETIVADA
     const resultado = await this.prisma.$transaction(async (tx) => {
       // PASSO 1: Se a solicitação estiver PENDENTE, alterar status para APROVADA
       if (precisaAprovar) {
@@ -1935,12 +1935,12 @@ export class AbastecimentoService {
         },
       });
 
-      // PASSO 3: Atualizar solicitação vinculando o abastecimento criado e mantendo status APROVADA
+      // PASSO 3: Atualizar solicitação vinculando o abastecimento criado e marcando como EFETIVADA
       const solicitacaoAtualizada = await tx.solicitacaoAbastecimento.update({
         where: { id: solicitacaoId },
         data: {
           abastecimento_id: abastecimento.id,
-          status: StatusSolicitacao.APROVADA,
+          status: StatusSolicitacao.EFETIVADA,
           updated_at: new Date(),
         },
         select: {
