@@ -2466,24 +2466,78 @@ export class AbastecimentoService {
       );
     }
 
-    // Buscar motorista vinculado ao veículo (se houver)
-    const veiculoMotorista = await this.prisma.veiculoMotorista.findFirst({
-      where: {
-        veiculoId: veiculoId,
-        ativo: true,
-        data_inicio: { lte: new Date() },
-        OR: [
-          { data_fim: null },
-          { data_fim: { gte: new Date() } },
-        ],
-      },
-      orderBy: {
-        data_inicio: 'desc',
-      },
-      take: 1,
-    });
+    // Usar motoristaId do DTO se fornecido, caso contrário buscar automaticamente do veículo
+    let motoristaId: number | null = null;
+    if (createDto.motoristaId) {
+      motoristaId = createDto.motoristaId;
+    } else {
+      // Buscar motorista vinculado ao veículo (se houver)
+      const veiculoMotorista = await this.prisma.veiculoMotorista.findFirst({
+        where: {
+          veiculoId: veiculoId,
+          ativo: true,
+          data_inicio: { lte: new Date() },
+          OR: [
+            { data_fim: null },
+            { data_fim: { gte: new Date() } },
+          ],
+        },
+        orderBy: {
+          data_inicio: 'desc',
+        },
+        take: 1,
+      });
+      motoristaId = veiculoMotorista?.motoristaId || null;
+    }
 
-    const motoristaId = veiculoMotorista?.motoristaId || null;
+    // Validar motorista se fornecido
+    if (motoristaId) {
+      const motorista = await this.prisma.motorista.findUnique({
+        where: { id: motoristaId },
+        include: {
+          prefeitura: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+      if (!motorista) {
+        throw new AbastecimentoMotoristaNotFoundException(motoristaId, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createDto,
+        });
+      }
+      // Verificar se motorista pertence à mesma prefeitura do veículo
+      if (veiculo.orgao?.prefeituraId && motorista.prefeituraId !== veiculo.orgao.prefeituraId) {
+        throw new AbastecimentoMotoristaNaoPertencePrefeituraException(motoristaId, veiculoId, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createDto,
+        });
+      }
+    }
+
+    // Usar empresaId do DTO se fornecido, caso contrário usar do usuário logado
+    const empresaId = createDto.empresaId || user.empresa.id;
+    
+    // Validar empresa se fornecido
+    if (createDto.empresaId) {
+      const empresa = await this.prisma.empresa.findUnique({
+        where: { id: empresaId },
+      });
+      if (!empresa) {
+        throw new AbastecimentoEmpresaNotFoundException(empresaId, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createDto,
+        });
+      }
+      if (!empresa.ativo) {
+        throw new AbastecimentoEmpresaInativaException(empresaId, {
+          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
+          payload: createDto,
+        });
+      }
+    }
 
     // Validar outros campos obrigatórios
     if (!quantidade || quantidade <= 0) {
@@ -2547,6 +2601,24 @@ export class AbastecimentoService {
       });
     }
 
+    // Validar nfe_link único por empresa (apenas para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
+    if (createDto.nfe_link && user?.tipo_usuario && 
+        (user.tipo_usuario === 'ADMIN_EMPRESA' || user.tipo_usuario === 'COLABORADOR_EMPRESA')) {
+      // Verificar se já existe um abastecimento da mesma empresa com o mesmo nfe_link
+      const abastecimentoComMesmoNfeLink = await this.prisma.abastecimento.findFirst({
+        where: {
+          empresaId: empresaId,
+          nfe_link: createDto.nfe_link,
+        },
+      });
+
+      if (abastecimentoComMesmoNfeLink) {
+        throw new BadRequestException(
+          `Já existe um abastecimento da empresa com o nfe_link "${createDto.nfe_link}". O nfe_link deve ser único por empresa.`
+        );
+      }
+    }
+
     // Validar desconto (se informado)
     const descontoValor = createDto.desconto || 0;
     if (descontoValor > valor_total) {
@@ -2582,7 +2654,7 @@ export class AbastecimentoService {
           veiculoId,
           motoristaId,
           combustivelId,
-          empresaId: user.empresa.id,
+          empresaId,
           solicitanteId: user.id,
           abastecedorId: user.empresa.id,
           validadorId: user.id,
@@ -2598,6 +2670,7 @@ export class AbastecimentoService {
           nfe_chave_acesso: createDto.nfe_chave_acesso || null,
           nfe_img_url: createDto.nfe_img_url || null,
           nfe_link: createDto.nfe_link || null,
+          observacao: createDto.observacao || null,
           conta_faturamento_orgao_id: createDto.conta_faturamento_orgao_id || null,
           cota_id: cotaOrgao.id,
           status: StatusAbastecimento.Aguardando,
