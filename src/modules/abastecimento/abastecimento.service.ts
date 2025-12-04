@@ -51,6 +51,9 @@ import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class AbastecimentoService {
+  private readonly defaultTimezoneOffset = '-03:00';
+  private readonly timezoneSuffixRegex = /([zZ]|[+\-]\d{2}:\d{2})$/;
+
   constructor(
     private prisma: PrismaService,
     private uploadService: UploadService,
@@ -821,7 +824,7 @@ export class AbastecimentoService {
         status: statusParaUsar,
         cota_id: cotaIdParaUsar || undefined,
         ativo: ativoParaUsar,
-        data_abastecimento: new Date(), // Sempre usa a data/hora atual do servidor
+        data_abastecimento: this.normalizeDateInput(createAbastecimentoDto.data_abastecimento) || new Date(),
       };
 
       // Adicionar campos opcionais apenas se estiverem definidos
@@ -1703,7 +1706,7 @@ export class AbastecimentoService {
       tipo_abastecimento: tipoAbastecimento,
       quantidade: new Decimal(solicitacao.quantidade),
       valor_total: new Decimal(valorTotal),
-      data_abastecimento: data_abastecimento ? new Date(data_abastecimento) : new Date(),
+      data_abastecimento: this.normalizeDateInput(data_abastecimento) || new Date(),
       status: statusAbastecimento,
       ativo: ativo !== undefined ? ativo : true,
       nfe_chave_acesso: solicitacao.nfe_chave_acesso || undefined,
@@ -2471,12 +2474,14 @@ export class AbastecimentoService {
       });
     }
 
+    // Normalizar e validar data de abastecimento
+    const dataAbastecimentoNormalizada = this.normalizeDateInput(createDto.data_abastecimento);
+    
     // Validar data de abastecimento (não pode ser futura)
-    if (createDto.data_abastecimento) {
-      const dataAbastecimento = new Date(createDto.data_abastecimento);
+    if (dataAbastecimentoNormalizada) {
       const dataAtual = new Date();
-      if (dataAbastecimento > dataAtual) {
-        throw new AbastecimentoDataAbastecimentoFuturaException(dataAbastecimento, {
+      if (dataAbastecimentoNormalizada > dataAtual) {
+        throw new AbastecimentoDataAbastecimentoFuturaException(dataAbastecimentoNormalizada, {
           user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
           payload: createDto,
         });
@@ -2551,9 +2556,7 @@ export class AbastecimentoService {
           preco_empresa: createDto.preco_empresa ? new Decimal(createDto.preco_empresa) : null,
           desconto: createDto.desconto ? new Decimal(createDto.desconto) : new Decimal(0),
           valor_total: new Decimal(valor_total),
-          data_abastecimento: createDto.data_abastecimento 
-            ? new Date(createDto.data_abastecimento) 
-            : new Date(),
+          data_abastecimento: dataAbastecimentoNormalizada || new Date(),
           odometro: createDto.odometro || null,
           orimetro: createDto.orimetro || null,
           nfe_chave_acesso: createDto.nfe_chave_acesso || null,
@@ -2660,5 +2663,39 @@ export class AbastecimentoService {
       message: 'Abastecimento criado com sucesso a partir da solicitação de QR Code veículo',
       abastecimento,
     };
+  }
+
+  private normalizeDateInput(value?: string | Date | null): Date | undefined {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+
+    if (value instanceof Date) {
+      return value;
+    }
+
+    const trimmed = value.toString().trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    const isoWithTimezone = this.timezoneSuffixRegex.test(trimmed)
+      ? trimmed
+      : `${trimmed}${this.defaultTimezoneOffset}`;
+
+    const parsed = new Date(isoWithTimezone);
+    if (isNaN(parsed.getTime())) {
+      return undefined;
+    }
+
+    return parsed;
+  }
+
+  private ensureDate(value: Date | undefined, fieldName: string): Date {
+    if (!value) {
+      throw new BadRequestException(`Campo ${fieldName} possui data inválida ou não foi informado`);
+    }
+
+    return value;
   }
 }
