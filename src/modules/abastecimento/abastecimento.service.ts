@@ -5,7 +5,7 @@ import { UpdateAbastecimentoDto } from './dto/update-abastecimento.dto';
 import { FindAbastecimentoDto } from './dto/find-abastecimento.dto';
 import { CreateAbastecimentoFromSolicitacaoDto } from './dto/create-abastecimento-from-solicitacao.dto';
 import { CreateAbastecimentoFromQrCodeVeiculoDto } from './dto/create-abastecimento-from-qrcode-veiculo.dto';
-import { Prisma, StatusAbastecimento, StatusSolicitacao, TipoAbastecimento, Periodicidade, TipoAbastecimentoVeiculo, TipoContrato, StatusProcesso } from '@prisma/client';
+import { Prisma, StatusAbastecimento, StatusSolicitacao, TipoAbastecimento, Periodicidade, TipoAbastecimentoVeiculo, TipoContrato, StatusProcesso, StatusPreco } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
   AbastecimentoNotFoundException,
@@ -557,6 +557,86 @@ export class AbastecimentoService {
       }
     }
 
+    // Buscar solicitação de abastecimento relacionada para obter solicitanteId
+    let solicitanteIdParaUsar: number | undefined = createAbastecimentoDto.solicitanteId;
+    if (!solicitanteIdParaUsar) {
+      const solicitacao = await this.prisma.solicitacaoAbastecimento.findFirst({
+        where: {
+          veiculoId,
+          combustivelId,
+          empresaId,
+          status: {
+            in: [StatusSolicitacao.APROVADA, StatusSolicitacao.PENDENTE],
+          },
+          abastecimento_id: null, // Solicitação ainda não foi convertida em abastecimento
+          ativo: true,
+        },
+        orderBy: {
+          data_solicitacao: 'desc',
+        },
+        include: {
+          // Nota: A solicitação não tem solicitanteId direto, mas podemos tentar buscar de outra forma se necessário
+        },
+      });
+
+      // Se encontrou solicitação, manter para usar dados relacionados
+      // Como não há solicitanteId direto na solicitação, vamos manter undefined se não foi informado
+    }
+
+    // Buscar EmpresaPrecoCombustivel para obter preco_anp (anp_base_valor) e preco_empresa (preco_atual)
+    const precoCombustivel = await this.prisma.empresaPrecoCombustivel.findFirst({
+      where: {
+        empresa_id: empresaId,
+        combustivel_id: combustivelId,
+        status: StatusPreco.ACTIVE,
+      },
+      orderBy: {
+        updated_at: 'desc',
+      },
+    });
+
+    // Preencher preco_anp e preco_empresa automaticamente se não foram informados
+    let precoAnpParaUsar = createAbastecimentoDto.preco_anp;
+    let precoEmpresaParaUsar = createAbastecimentoDto.preco_empresa;
+    
+    if (precoCombustivel) {
+      if (!precoAnpParaUsar && precoCombustivel.anp_base_valor) {
+        precoAnpParaUsar = Number(precoCombustivel.anp_base_valor);
+      }
+      if (!precoEmpresaParaUsar && precoCombustivel.preco_atual) {
+        precoEmpresaParaUsar = Number(precoCombustivel.preco_atual);
+      }
+    }
+
+    // Buscar CotaOrgao através do orgaoId do veículo e combustivelId
+    let cotaIdParaUsar: number | undefined = createAbastecimentoDto.cota_id;
+    if (!cotaIdParaUsar && veiculo.orgaoId) {
+      // Buscar processo ativo da prefeitura
+      const processo = await this.prisma.processo.findFirst({
+        where: {
+          prefeituraId: veiculo.prefeituraId,
+          tipo_contrato: TipoContrato.OBJETIVO,
+          status: StatusProcesso.ATIVO,
+          ativo: true,
+        },
+      });
+
+      if (processo) {
+        const cotaOrgao = await this.prisma.cotaOrgao.findFirst({
+          where: {
+            processoId: processo.id,
+            orgaoId: veiculo.orgaoId,
+            combustivelId,
+            ativa: true,
+          },
+        });
+
+        if (cotaOrgao) {
+          cotaIdParaUsar = cotaOrgao.id;
+        }
+      }
+    }
+
     // Upload da imagem da NFE, se enviada
     let nfe_img_url = createAbastecimentoDto.nfe_img_url;
     if (nfeImgFile) {
@@ -677,10 +757,16 @@ export class AbastecimentoService {
     // Obter prefeituraId do veículo
     const prefeituraId = veiculo.prefeituraId;
 
+    // Definir valores padrão para campos que devem ser preenchidos automaticamente
+    // abastecedorId é o ID da empresa (user.empresa.id), não do usuário
+    const abastecedorIdParaUsar = empresaId; // ID da empresa que está fazendo o abastecimento (já validado acima)
+    const abastecidoPorParaUsar = String(user.id); // ID do usuário logado que está confirmando o abastecimento
+    const statusParaUsar = StatusAbastecimento.Aprovado; // Status deve ir para APROVADO automaticamente
+    const ativoParaUsar = true; // ativo fica como true ao abastecer
+
     // Criar abastecimento e atualizar cota e processo em transação
     const abastecimento = await this.prisma.$transaction(async (tx) => {
-      // Buscar CotaOrgao automaticamente se não foi informado cota_id
-      let cotaIdParaUsar = cota_id;
+      // Buscar CotaOrgao automaticamente se não foi encontrado antes
       if (!cotaIdParaUsar) {
         cotaIdParaUsar = await this.buscarCotaOrgao(tx, veiculoId, prefeituraId, combustivelId);
       }
@@ -689,7 +775,14 @@ export class AbastecimentoService {
       const abastecimentoCriado = await tx.abastecimento.create({
         data: {
           ...createAbastecimentoDto,
+          solicitanteId: solicitanteIdParaUsar,
+          abastecedorId: abastecedorIdParaUsar,
+          preco_anp: precoAnpParaUsar,
+          preco_empresa: precoEmpresaParaUsar,
+          abastecido_por: abastecidoPorParaUsar,
+          status: statusParaUsar,
           cota_id: cotaIdParaUsar || undefined,
+          ativo: ativoParaUsar,
           data_abastecimento: new Date(), // Sempre usa a data/hora atual do servidor
         },
         include: {
