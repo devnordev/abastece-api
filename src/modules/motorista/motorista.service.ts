@@ -904,31 +904,6 @@ export class MotoristaService {
       message: 'Motorista encontrado com sucesso',
       motorista: {
         id: qrCodeMotorista.motorista.id,
-        nome: qrCodeMotorista.motorista.nome,
-        cpf: qrCodeMotorista.motorista.cpf,
-        email: qrCodeMotorista.motorista.email,
-        cnh: qrCodeMotorista.motorista.cnh,
-        categoria_cnh: qrCodeMotorista.motorista.categoria_cnh,
-        data_vencimento_cnh: qrCodeMotorista.motorista.data_vencimento_cnh,
-        telefone: qrCodeMotorista.motorista.telefone,
-        endereco: qrCodeMotorista.motorista.endereco,
-        ativo: qrCodeMotorista.motorista.ativo,
-        imagem_perfil: qrCodeMotorista.motorista.imagem_perfil,
-        prefeitura: qrCodeMotorista.motorista.prefeitura,
-        veiculos: qrCodeMotorista.motorista.veiculos.map((v: any) => ({
-          id: v.veiculo.id,
-          nome: v.veiculo.nome,
-          placa: v.veiculo.placa,
-          modelo: v.veiculo.modelo,
-          tipo_veiculo: v.veiculo.tipo_veiculo,
-        })),
-      },
-      qrCode: {
-        id: qrCodeMotorista.id,
-        codigo_qrcode: qrCodeMotorista.codigo_qrcode,
-        status: qrCodeMotorista.status,
-        data_cadastro: qrCodeMotorista.data_cadastro,
-        foto: qrCodeMotorista.foto,
       },
     };
   }
