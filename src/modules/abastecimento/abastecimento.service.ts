@@ -790,6 +790,12 @@ export class AbastecimentoService {
           empresaIdFromDto: empresaId,
           abastecedorIdFromDto: abastecedorId,
           method: 'create',
+          veiculoId: veiculoId,
+          combustivelId: combustivelId,
+          empresaId: empresaId,
+          payloadCompleto: createAbastecimentoDto,
+          consultaRealizada: `SELECT id, nome, cnpj, ativo FROM Empresa WHERE id = ${abastecedorIdParaUsar}`,
+          timestamp: new Date().toISOString(),
         },
       );
     }
@@ -1775,6 +1781,12 @@ export class AbastecimentoService {
             empresaIdFromDto: undefined, // Não há empresaId no createFromSolicitacaoDto
             abastecedorIdFromDto: abastecedorId,
             method: 'createFromSolicitacao',
+            veiculoId: solicitacao?.veiculoId,
+            combustivelId: solicitacao?.combustivelId,
+            empresaId: solicitacao?.empresaId,
+            payloadCompleto: createDto,
+            consultaRealizada: `SELECT id, nome, cnpj, ativo FROM Empresa WHERE id = ${abastecedorIdParaUsar}`,
+            timestamp: new Date().toISOString(),
           },
         );
       }

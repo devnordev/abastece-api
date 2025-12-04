@@ -259,6 +259,12 @@ export class AbastecimentoAbastecedorNotFoundException extends CrudException {
       empresaIdFromDto?: number;
       abastecedorIdFromDto?: number;
       method?: AbastecimentoAction;
+      veiculoId?: number;
+      combustivelId?: number;
+      empresaId?: number;
+      payloadCompleto?: any;
+      consultaRealizada?: string;
+      timestamp?: string;
     },
   ) {
     const detailInfo = details || {};
@@ -266,6 +272,12 @@ export class AbastecimentoAbastecedorNotFoundException extends CrudException {
     const empresaIdFromDto = detailInfo.empresaIdFromDto;
     const abastecedorIdFromDto = detailInfo.abastecedorIdFromDto;
     const method: AbastecimentoAction = detailInfo.method || 'create';
+    const veiculoId = detailInfo.veiculoId;
+    const combustivelId = detailInfo.combustivelId;
+    const empresaId = detailInfo.empresaId;
+    const payloadCompleto = detailInfo.payloadCompleto;
+    const consultaRealizada = detailInfo.consultaRealizada || `SELECT * FROM Empresa WHERE id = ${abastecedorId}`;
+    const timestamp = detailInfo.timestamp || new Date().toISOString();
 
     super({
       message: `Empresa abastecedora não encontrada`,
@@ -274,16 +286,25 @@ export class AbastecimentoAbastecedorNotFoundException extends CrudException {
       context: buildContext(method, {
         ...context,
         additionalInfo: {
+          // Informações sobre o ID buscado
           abastecedorIdBuscado: abastecedorId,
           abastecedorIdTipo: typeof abastecedorId,
           abastecedorIdIsUndefined: abastecedorId === undefined,
           abastecedorIdIsNull: abastecedorId === null,
+          abastecedorIdValido: typeof abastecedorId === 'number' && abastecedorId > 0,
+          
           // Informações sobre o que foi recebido no DTO
           payloadRecebido: {
             abastecedorIdNoDto: abastecedorIdFromDto,
             empresaIdNoDto: empresaIdFromDto,
             abastecedorIdNoDtoTipo: typeof abastecedorIdFromDto,
+            abastecedorIdNoDtoPresente: abastecedorIdFromDto !== undefined && abastecedorIdFromDto !== null,
+            veiculoId: veiculoId,
+            combustivelId: combustivelId,
+            empresaId: empresaId,
+            payloadCompleto: payloadCompleto ? JSON.stringify(payloadCompleto, null, 2) : null,
           },
+          
           // Informações sobre o usuário logado
           usuarioLogado: {
             userId: context?.user?.id,
@@ -292,37 +313,112 @@ export class AbastecimentoAbastecedorNotFoundException extends CrudException {
             empresaIdDoUsuario: userEmpresaId,
             empresaIdDoUsuarioTipo: typeof userEmpresaId,
             empresaDoUsuarioExiste: userEmpresaId !== undefined && userEmpresaId !== null,
+            empresaDoUsuarioValida: typeof userEmpresaId === 'number' && userEmpresaId > 0,
+            userEmpresaCoincideComAbastecedor: userEmpresaId === abastecedorId,
+            userEmpresaCoincideComEmpresaDto: userEmpresaId === empresaIdFromDto,
           },
+          
+          // Informações sobre a consulta ao banco de dados
+          consultaBancoDados: {
+            descricao: 'Consulta realizada para verificar a existência da empresa abastecedora',
+            query: consultaRealizada,
+            empresaIdBuscado: abastecedorId,
+            resultado: 'Nenhuma empresa encontrada com o ID especificado',
+            possiveisRazoes: [
+              'A empresa foi deletada do banco de dados',
+              'A empresa nunca existiu',
+              'O ID fornecido está incorreto',
+              'Problema de conexão ou permissão no banco de dados',
+            ],
+          },
+          
+          // Fluxo de processamento
+          fluxoProcessamento: {
+            passo1: 'Sistema extrai user.empresa.id do token JWT do usuário logado',
+            passo2: `Sistema define abastecedorId = user.empresa.id (valor: ${userEmpresaId})`,
+            passo3: `Sistema executa consulta: SELECT * FROM Empresa WHERE id = ${abastecedorId}`,
+            passo4: 'Sistema verifica se a empresa foi encontrada',
+            passo5Atual: 'FALHA: Nenhuma empresa encontrada no banco de dados',
+            passo6: 'NÃO EXECUTADO: Criar abastecimento com abastecedorId',
+          },
+          
           // O que era esperado
           esperado: {
             descricao: 'O sistema deve usar automaticamente o ID da empresa do usuário logado (user.empresa.id) como abastecedorId',
             valorEsperado: `user.empresa.id = ${userEmpresaId}`,
+            comportamentoEsperado: 'A empresa com esse ID deve existir no banco de dados e estar ativa',
             condicoes: [
-              'O usuário logado deve ter uma empresa vinculada (user.empresa.id deve existir)',
+              'O usuário logado deve ter uma empresa vinculada (user.empresa.id deve existir e ser um número positivo)',
               'A empresa vinculada ao usuário deve existir no banco de dados',
               'A empresa vinculada ao usuário deve estar ativa',
+              'O token JWT deve conter as informações corretas da empresa',
             ],
           },
+          
           // O que não foi satisfeito
           problema: {
             descricao: `Não foi possível encontrar uma empresa com o ID ${abastecedorId} no banco de dados`,
+            momentoFalha: 'Durante a validação da empresa abastecedora, antes de criar o abastecimento',
+            impacto: 'O abastecimento não pode ser criado sem uma empresa abastecedora válida',
             possiveisCausas: [
-              `O usuário logado não possui empresa vinculada (user.empresa.id está ${userEmpresaId === undefined ? 'undefined' : userEmpresaId === null ? 'null' : `definido como ${userEmpresaId}, mas a empresa não existe no banco`})`,
-              `A empresa com ID ${abastecedorId} foi deletada ou nunca existiu`,
-              `Houve um problema ao buscar a empresa no banco de dados`,
-              `O valor de abastecedorId calculado está incorreto (valor: ${abastecedorId}, tipo: ${typeof abastecedorId})`,
+              `O usuário logado não possui empresa vinculada válida (user.empresa.id está ${userEmpresaId === undefined ? 'undefined' : userEmpresaId === null ? 'null' : `definido como ${userEmpresaId}, mas a empresa não existe no banco`})`,
+              `A empresa com ID ${abastecedorId} foi deletada ou nunca existiu no banco de dados`,
+              `Houve um problema ao buscar a empresa no banco de dados (timeout, erro de conexão, etc.)`,
+              `O valor de abastecedorId calculado está incorreto (valor: ${abastecedorId}, tipo: ${typeof abastecedorId}, esperado: número positivo)`,
+              `O token JWT do usuário pode estar desatualizado ou não conter a empresa correta`,
+              `A empresa do usuário pode ter sido desvinculada ou inativada após a geração do token`,
+            ],
+            dadosContexto: {
+              veiculoId: veiculoId || 'não informado',
+              combustivelId: combustivelId || 'não informado',
+              empresaIdDto: empresaIdFromDto || 'não informado',
+              timestamp: timestamp,
+            },
+          },
+          
+          // Diagnóstico
+          diagnostico: {
+            verificacoesNecessarias: [
+              `Verificar se existe registro na tabela Empresa com id = ${abastecedorId}`,
+              `Verificar se user.empresa.id = ${userEmpresaId} está correto no token JWT`,
+              `Verificar se a empresa ${userEmpresaId} existe e está ativa no banco`,
+              `Verificar logs do servidor para erros de conexão ao banco de dados`,
+              `Verificar se há problemas de sincronização entre o token JWT e o banco de dados`,
+            ],
+            comandosSqlUtilitarios: [
+              `-- Verificar se a empresa existe:`,
+              `SELECT id, nome, cnpj, ativo FROM Empresa WHERE id = ${abastecedorId};`,
+              `-- Verificar todas as empresas ativas:`,
+              `SELECT id, nome, cnpj FROM Empresa WHERE ativo = true ORDER BY id;`,
+              `-- Verificar usuário e sua empresa:`,
+              `SELECT u.id, u.email, u.tipo_usuario, e.id as empresa_id, e.nome as empresa_nome, e.ativo as empresa_ativo FROM Usuario u LEFT JOIN Empresa e ON u.empresa_id = e.id WHERE u.id = ${context?.user?.id};`,
             ],
           },
+          
+          // Mensagens de erro detalhadas
           error: `Nenhuma empresa abastecedora encontrada com o ID ${abastecedorId} no sistema. AbastecedorId calculado: ${abastecedorId}, Tipo: ${typeof abastecedorId}, User.empresa.id: ${userEmpresaId}`,
-          details: `O sistema tenta preencher automaticamente o abastecedorId com o ID da empresa do usuário logado (user.empresa.id = ${userEmpresaId}), mas não foi possível encontrar essa empresa no banco de dados. Dados recebidos no payload: abastecedorId=${abastecedorIdFromDto}, empresaId=${empresaIdFromDto}. O sistema ignora o abastecedorId do DTO e sempre usa user.empresa.id.`,
+          details: `O sistema tenta preencher automaticamente o abastecedorId com o ID da empresa do usuário logado (user.empresa.id = ${userEmpresaId}), mas não foi possível encontrar essa empresa no banco de dados. Dados recebidos no payload: abastecedorId=${abastecedorIdFromDto}, empresaId=${empresaIdFromDto}. O sistema ignora o abastecedorId do DTO e sempre usa user.empresa.id. Timestamp: ${timestamp}`,
+          
+          // Sugestões de resolução
           suggestion: [
-            '1. Verifique se o usuário logado possui uma empresa vinculada (user.empresa.id deve existir e não ser null)',
-            `2. Verifique se a empresa com ID ${abastecedorId} existe no banco de dados`,
-            `3. Verifique se a empresa do usuário logado (ID: ${userEmpresaId}) existe e está ativa`,
-            '4. Confirme que o token JWT do usuário contém as informações corretas da empresa',
-            '5. Se o problema persistir, verifique os logs do servidor para mais detalhes sobre a consulta ao banco de dados',
+            '1. Verifique se o usuário logado possui uma empresa vinculada (user.empresa.id deve existir e ser um número positivo)',
+            `2. Execute no banco: SELECT * FROM Empresa WHERE id = ${abastecedorId} para verificar se a empresa existe`,
+            `3. Verifique se a empresa do usuário logado (ID: ${userEmpresaId}) existe e está ativa: SELECT * FROM Empresa WHERE id = ${userEmpresaId}`,
+            '4. Confirme que o token JWT do usuário contém as informações corretas da empresa (pode precisar fazer logout e login novamente)',
+            '5. Verifique os logs do servidor para erros de conexão ou timeout no banco de dados',
             '6. O campo abastecedorId no DTO é ignorado - o sistema sempre usa user.empresa.id automaticamente',
+            `7. Verifique se houve alguma alteração na empresa após a geração do token (empresa deletada, desvinculada do usuário, etc.)`,
+            `8. Se necessário, re-associe o usuário à empresa correta no banco de dados`,
+            `9. Contexto da requisição: veiculoId=${veiculoId || 'não informado'}, combustivelId=${combustivelId || 'não informado'}, empresaId no DTO=${empresaIdFromDto || 'não informado'}`,
           ].join('\n'),
+          
+          // Informações técnicas adicionais
+          informacoesTecnicas: {
+            rota: method === 'create' ? 'POST /abastecimentos' : 'POST /abastecimentos/from-solicitacao',
+            timestamp: timestamp,
+            ambiente: process.env.NODE_ENV || 'development',
+            stackTrace: 'Verifique os logs do servidor para o stack trace completo',
+          },
         },
       }),
     });
