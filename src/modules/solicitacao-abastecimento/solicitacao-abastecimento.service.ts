@@ -2648,27 +2648,8 @@ export class SolicitacaoAbastecimentoService {
       (solicitacao.status === StatusSolicitacao.PENDENTE ||
         solicitacao.status === StatusSolicitacao.APROVADA);
     
-    // Debug temporário
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Fortaleza',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    });
-    const partsAtual = formatter.formatToParts(dataAtual);
-    const anoAtual = parseInt(partsAtual.find(p => p.type === 'year')!.value);
-    const mesAtual = parseInt(partsAtual.find(p => p.type === 'month')!.value) - 1;
-    const diaAtual = parseInt(partsAtual.find(p => p.type === 'day')!.value);
-    const horaAtual = parseInt(partsAtual.find(p => p.type === 'hour')!.value);
-    const minutoAtual = parseInt(partsAtual.find(p => p.type === 'minute')!.value);
-    const segundoAtual = parseInt(partsAtual.find(p => p.type === 'second')!.value);
-    
     // Formatar ambas as datas em Fortaleza para o log
-    const formatter = new Intl.DateTimeFormat('en-US', {
+    const dateFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/Fortaleza',
       year: 'numeric',
       month: '2-digit',
@@ -2679,7 +2660,7 @@ export class SolicitacaoAbastecimentoService {
       hour12: false
     });
     
-    const partsAtualLog = formatter.formatToParts(dataAtual);
+    const partsAtualLog = dateFormatter.formatToParts(dataAtual);
     const anoAtualLog = parseInt(partsAtualLog.find(p => p.type === 'year')!.value);
     const mesAtualLog = parseInt(partsAtualLog.find(p => p.type === 'month')!.value);
     const diaAtualLog = parseInt(partsAtualLog.find(p => p.type === 'day')!.value);
@@ -2687,7 +2668,7 @@ export class SolicitacaoAbastecimentoService {
     const minutoAtualLog = parseInt(partsAtualLog.find(p => p.type === 'minute')!.value);
     const segundoAtualLog = parseInt(partsAtualLog.find(p => p.type === 'second')!.value);
     
-    const partsExpLog = formatter.formatToParts(solicitacao.data_expiracao);
+    const partsExpLog = dateFormatter.formatToParts(solicitacao.data_expiracao);
     const anoExpLog = parseInt(partsExpLog.find(p => p.type === 'year')!.value);
     const mesExpLog = parseInt(partsExpLog.find(p => p.type === 'month')!.value);
     const diaExpLog = parseInt(partsExpLog.find(p => p.type === 'day')!.value);
