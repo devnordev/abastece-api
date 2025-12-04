@@ -2585,42 +2585,37 @@ export class SolicitacaoAbastecimentoService {
     const minutoAtual = parseInt(partsAtual.find(p => p.type === 'minute')!.value);
     const segundoAtual = parseInt(partsAtual.find(p => p.type === 'second')!.value);
     
-    // Obter componentes UTC de data_expiracao (que está salva em UTC no banco)
-    const anoExp = dataExpiracao.getUTCFullYear();
-    const mesExp = dataExpiracao.getUTCMonth();
-    const diaExp = dataExpiracao.getUTCDate();
-    const horaExp = dataExpiracao.getUTCHours();
-    const minutoExp = dataExpiracao.getUTCMinutes();
-    const segundoExp = dataExpiracao.getUTCSeconds();
+    // Obter horário local de Fortaleza para data_expiracao
+    // A data_expiracao está salva em UTC no banco, mas representa um horário em Fortaleza
+    // Precisamos converter de UTC para Fortaleza para comparar corretamente
+    const partsExp = formatter.formatToParts(dataExpiracao);
+    const anoExp = parseInt(partsExp.find(p => p.type === 'year')!.value);
+    const mesExp = parseInt(partsExp.find(p => p.type === 'month')!.value) - 1;
+    const diaExp = parseInt(partsExp.find(p => p.type === 'day')!.value);
+    const horaExp = parseInt(partsExp.find(p => p.type === 'hour')!.value);
+    const minutoExp = parseInt(partsExp.find(p => p.type === 'minute')!.value);
+    const segundoExp = parseInt(partsExp.find(p => p.type === 'second')!.value);
     
-    // Converter horário de Fortaleza para UTC (adicionar 3 horas)
-    // dataAtualServidorFormatada está em Fortaleza, precisa converter para UTC para comparar
-    let utcHoursAtual = horaAtual + 3;
-    let utcDayAtual = diaAtual;
-    let utcMonthAtual = mesAtual;
-    let utcYearAtual = anoAtual;
+    // Comparar diretamente os componentes em Fortaleza
+    // Criar timestamps comparando ano, mês, dia, hora, minuto, segundo
+    // Usamos uma comparação simples de componentes para evitar problemas de timezone
+    if (anoExp < anoAtual) return true;
+    if (anoExp > anoAtual) return false;
     
-    // Ajustar se passar de 23:59 (horas >= 24)
-    if (utcHoursAtual >= 24) {
-      utcHoursAtual -= 24;
-      utcDayAtual++;
-      // Verificar se passou do último dia do mês
-      const lastDayOfMonth = new Date(Date.UTC(utcYearAtual, utcMonthAtual + 1, 0)).getUTCDate();
-      if (utcDayAtual > lastDayOfMonth) {
-        utcDayAtual = 1;
-        utcMonthAtual++;
-        if (utcMonthAtual > 11) {
-          utcMonthAtual = 0;
-          utcYearAtual++;
-        }
-      }
-    }
+    if (mesExp < mesAtual) return true;
+    if (mesExp > mesAtual) return false;
     
-    // Comparar ambos em UTC usando Date.UTC para garantir comparação correta
-    const timestampAtualUTC = Date.UTC(utcYearAtual, utcMonthAtual, utcDayAtual, utcHoursAtual, minutoAtual, segundoAtual);
-    const timestampExpUTC = Date.UTC(anoExp, mesExp, diaExp, horaExp, minutoExp, segundoExp);
+    if (diaExp < diaAtual) return true;
+    if (diaExp > diaAtual) return false;
     
-    return timestampExpUTC <= timestampAtualUTC;
+    if (horaExp < horaAtual) return true;
+    if (horaExp > horaAtual) return false;
+    
+    if (minutoExp < minutoAtual) return true;
+    if (minutoExp > minutoAtual) return false;
+    
+    // Se chegou aqui, está no mesmo minuto, comparar segundos
+    return segundoExp <= segundoAtual;
   }
 
   private async expirarSolicitacaoSeNecessario(
