@@ -2585,16 +2585,23 @@ export class SolicitacaoAbastecimentoService {
     const minutoAtual = parseInt(partsAtual.find(p => p.type === 'minute')!.value);
     const segundoAtual = parseInt(partsAtual.find(p => p.type === 'second')!.value);
     
-    // Obter horário local de Fortaleza para data_expiracao
-    // A data_expiracao está salva em UTC no banco, mas representa um horário em Fortaleza
-    // Precisamos converter de UTC para Fortaleza para comparar corretamente
-    const partsExp = formatter.formatToParts(dataExpiracao);
-    const anoExp = parseInt(partsExp.find(p => p.type === 'year')!.value);
-    const mesExp = parseInt(partsExp.find(p => p.type === 'month')!.value) - 1;
-    const diaExp = parseInt(partsExp.find(p => p.type === 'day')!.value);
-    const horaExp = parseInt(partsExp.find(p => p.type === 'hour')!.value);
-    const minutoExp = parseInt(partsExp.find(p => p.type === 'minute')!.value);
-    const segundoExp = parseInt(partsExp.find(p => p.type === 'second')!.value);
+    // Obter componentes UTC de data_expiracao
+    // IMPORTANTE: A data_expiracao está salva em UTC no banco, mas os componentes UTC
+    // representam o horário de Fortaleza que foi salvo. Quando salvamos '2025-12-04T02:00:00-03:00',
+    // o JavaScript converte para UTC e salva como '2025-12-04T05:00:00.000Z'. Mas quando o usuário
+    // envia '2025-12-04T02:00:00' (sem timezone), o normalizeDateInput adiciona '-03:00', mas
+    // se já vier com timezone ou for salva diretamente, pode estar como '2025-12-04T02:00:00.000Z'
+    // que representa 02:00 em Fortaleza, não 02:00 UTC.
+    // 
+    // Para garantir que usamos o horário correto de Fortaleza, vamos usar os componentes UTC
+    // diretamente, pois quando a data foi salva, os componentes UTC já representam o horário
+    // de Fortaleza que foi informado.
+    const anoExp = dataExpiracao.getUTCFullYear();
+    const mesExp = dataExpiracao.getUTCMonth();
+    const diaExp = dataExpiracao.getUTCDate();
+    const horaExp = dataExpiracao.getUTCHours();
+    const minutoExp = dataExpiracao.getUTCMinutes();
+    const segundoExp = dataExpiracao.getUTCSeconds();
     
     // Comparar diretamente os componentes em Fortaleza
     // A data só expira quando dataAtualServidorFormatada > dataExpiracaoFormatada
@@ -2661,13 +2668,13 @@ export class SolicitacaoAbastecimentoService {
     const minutoAtualLog = parseInt(partsAtualLog.find(p => p.type === 'minute')!.value);
     const segundoAtualLog = parseInt(partsAtualLog.find(p => p.type === 'second')!.value);
     
-    const partsExpLog = dateFormatter.formatToParts(solicitacao.data_expiracao);
-    const anoExpLog = parseInt(partsExpLog.find(p => p.type === 'year')!.value);
-    const mesExpLog = parseInt(partsExpLog.find(p => p.type === 'month')!.value);
-    const diaExpLog = parseInt(partsExpLog.find(p => p.type === 'day')!.value);
-    const horaExpLog = parseInt(partsExpLog.find(p => p.type === 'hour')!.value);
-    const minutoExpLog = parseInt(partsExpLog.find(p => p.type === 'minute')!.value);
-    const segundoExpLog = parseInt(partsExpLog.find(p => p.type === 'second')!.value);
+    // Usar componentes UTC diretamente para data_expiracao (representa horário de Fortaleza)
+    const anoExpLog = solicitacao.data_expiracao.getUTCFullYear();
+    const mesExpLog = solicitacao.data_expiracao.getUTCMonth() + 1; // +1 porque getUTCMonth retorna 0-11
+    const diaExpLog = solicitacao.data_expiracao.getUTCDate();
+    const horaExpLog = solicitacao.data_expiracao.getUTCHours();
+    const minutoExpLog = solicitacao.data_expiracao.getUTCMinutes();
+    const segundoExpLog = solicitacao.data_expiracao.getUTCSeconds();
     
     const dataAtualServidorFormatada = `${String(diaAtualLog).padStart(2, '0')}/${String(mesAtualLog).padStart(2, '0')}/${anoAtualLog}, ${String(horaAtualLog).padStart(2, '0')}:${String(minutoAtualLog).padStart(2, '0')}:${String(segundoAtualLog).padStart(2, '0')}`;
     const dataExpiracaoFormatada = `${String(diaExpLog).padStart(2, '0')}/${String(mesExpLog).padStart(2, '0')}/${anoExpLog}, ${String(horaExpLog).padStart(2, '0')}:${String(minutoExpLog).padStart(2, '0')}:${String(segundoExpLog).padStart(2, '0')}`;
