@@ -5,13 +5,11 @@ import { TipoAbastecimento } from '@prisma/client';
 
 export class CreateAbastecimentoFromQrCodeVeiculoDto {
   @ApiProperty({
-    description: 'ID da solicitação de QR Code do veículo',
-    example: 1,
+    description: 'Código QR code do veículo (8 caracteres)',
+    example: 'ABC12345',
   })
-  @Type(() => Number)
-  @IsInt({ message: 'ID da solicitação de QR Code deve ser um número inteiro' })
-  @Min(1, { message: 'ID da solicitação de QR Code deve ser maior que zero' })
-  solicitacaoQrCodeVeiculoId: number;
+  @IsString({ message: 'Código QR code deve ser uma string' })
+  codigo_qrcode: string;
 
   @ApiProperty({
     description: 'ID da empresa (opcional - se não informado, usa a empresa do usuário logado)',
