@@ -51,7 +51,8 @@ import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class AbastecimentoService {
-  private readonly defaultTimezoneOffset = '-03:00';
+  // Quando a data vem sem timezone, tratamos como UTC puro para evitar adiantar 3h na gravação
+  private readonly defaultTimezoneOffset = 'Z';
   private readonly timezoneSuffixRegex = /([zZ]|[+\-]\d{2}:\d{2})$/;
 
   constructor(
