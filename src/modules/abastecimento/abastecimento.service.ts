@@ -800,6 +800,18 @@ export class AbastecimentoService {
     const statusParaUsar = StatusAbastecimento.Aprovado; // Status deve ir para APROVADO automaticamente
     const ativoParaUsar = true; // ativo fica como true ao abastecer
 
+    // Normalizar e validar data de abastecimento (se informada)
+    // Segue o mesmo padrão de data_solicitacao em solicitacao-abastecimento
+    let dataAbastecimentoParaSalvar: Date;
+    if (createAbastecimentoDto.data_abastecimento) {
+      dataAbastecimentoParaSalvar = this.ensureDate(
+        this.normalizeDateInput(createAbastecimentoDto.data_abastecimento),
+        'data_abastecimento',
+      );
+    } else {
+      dataAbastecimentoParaSalvar = new Date();
+    }
+
     // Criar abastecimento e atualizar cota e processo em transação
     const abastecimento = await this.prisma.$transaction(async (tx) => {
       // Buscar CotaOrgao automaticamente se não foi encontrado antes
@@ -824,7 +836,7 @@ export class AbastecimentoService {
         status: statusParaUsar,
         cota_id: cotaIdParaUsar || undefined,
         ativo: ativoParaUsar,
-        data_abastecimento: this.normalizeDateInput(createAbastecimentoDto.data_abastecimento) || new Date(),
+        data_abastecimento: dataAbastecimentoParaSalvar,
       };
 
       // Adicionar campos opcionais apenas se estiverem definidos
@@ -1537,6 +1549,18 @@ export class AbastecimentoService {
   async createFromSolicitacao(createDto: CreateAbastecimentoFromSolicitacaoDto, user: any) {
     const { solicitacaoId, data_abastecimento, status, odometro, orimetro, validadorId, abastecedorId, desconto, preco_anp, abastecido_por, nfe_link, ativo } = createDto;
 
+    // Normalizar e validar data de abastecimento (se informada)
+    // Segue o mesmo padrão de data_solicitacao em solicitacao-abastecimento
+    let dataAbastecimentoParaSalvar: Date;
+    if (data_abastecimento) {
+      dataAbastecimentoParaSalvar = this.ensureDate(
+        this.normalizeDateInput(data_abastecimento),
+        'data_abastecimento',
+      );
+    } else {
+      dataAbastecimentoParaSalvar = new Date();
+    }
+
     // Verificar se o usuário pertence a uma empresa (obrigatório para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
     if (!user?.empresa?.id) {
       throw new AbastecimentoUsuarioSemEmpresaException({
@@ -1706,7 +1730,7 @@ export class AbastecimentoService {
       tipo_abastecimento: tipoAbastecimento,
       quantidade: new Decimal(solicitacao.quantidade),
       valor_total: new Decimal(valorTotal),
-      data_abastecimento: this.normalizeDateInput(data_abastecimento) || new Date(),
+      data_abastecimento: dataAbastecimentoParaSalvar,
       status: statusAbastecimento,
       ativo: ativo !== undefined ? ativo : true,
       nfe_chave_acesso: solicitacao.nfe_chave_acesso || undefined,
@@ -2474,11 +2498,16 @@ export class AbastecimentoService {
       });
     }
 
-    // Normalizar e validar data de abastecimento
-    const dataAbastecimentoNormalizada = this.normalizeDateInput(createDto.data_abastecimento);
-    
-    // Validar data de abastecimento (não pode ser futura)
-    if (dataAbastecimentoNormalizada) {
+    // Normalizar e validar data de abastecimento (se informada)
+    // Segue o mesmo padrão de data_solicitacao em solicitacao-abastecimento
+    let dataAbastecimentoParaSalvar: Date;
+    if (createDto.data_abastecimento) {
+      const dataAbastecimentoNormalizada = this.ensureDate(
+        this.normalizeDateInput(createDto.data_abastecimento),
+        'data_abastecimento',
+      );
+      
+      // Validar data de abastecimento (não pode ser futura)
       const dataAtual = new Date();
       if (dataAbastecimentoNormalizada > dataAtual) {
         throw new AbastecimentoDataAbastecimentoFuturaException(dataAbastecimentoNormalizada, {
@@ -2486,6 +2515,10 @@ export class AbastecimentoService {
           payload: createDto,
         });
       }
+      
+      dataAbastecimentoParaSalvar = dataAbastecimentoNormalizada;
+    } else {
+      dataAbastecimentoParaSalvar = new Date();
     }
 
     // Validar chave de acesso NFE (se informada)
@@ -2556,7 +2589,7 @@ export class AbastecimentoService {
           preco_empresa: createDto.preco_empresa ? new Decimal(createDto.preco_empresa) : null,
           desconto: createDto.desconto ? new Decimal(createDto.desconto) : new Decimal(0),
           valor_total: new Decimal(valor_total),
-          data_abastecimento: dataAbastecimentoNormalizada || new Date(),
+          data_abastecimento: dataAbastecimentoParaSalvar,
           odometro: createDto.odometro || null,
           orimetro: createDto.orimetro || null,
           nfe_chave_acesso: createDto.nfe_chave_acesso || null,
