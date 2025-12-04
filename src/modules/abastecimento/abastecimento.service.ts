@@ -2313,7 +2313,12 @@ export class AbastecimentoService {
    * Atualiza CotaOrgao e Processo
    */
   async createFromQrCodeVeiculo(createDto: CreateAbastecimentoFromQrCodeVeiculoDto, user: any) {
-    const { solicitacaoQrCodeVeiculoId, combustivelId, quantidade, valor_total } = createDto;
+    const { codigo_qrcode, combustivelId, quantidade, valor_total } = createDto;
+
+    // Verificar se o código QR code foi informado
+    if (!codigo_qrcode || codigo_qrcode.trim() === '') {
+      throw new BadRequestException('Código QR code não informado');
+    }
 
     // Verificar se o usuário pertence à empresa (obrigatório para ADMIN_EMPRESA e COLABORADOR_EMPRESA)
     if (!user?.empresa?.id) {
@@ -2323,9 +2328,9 @@ export class AbastecimentoService {
       });
     }
 
-    // Buscar solicitação de QR Code veículo
-    const solicitacaoQrCode = await (this.prisma as any).solicitacoesQrCodeVeiculo.findUnique({
-      where: { id: solicitacaoQrCodeVeiculoId },
+    // Buscar solicitação de QR Code veículo pelo código
+    const solicitacaoQrCode = await (this.prisma as any).solicitacoesQrCodeVeiculo.findFirst({
+      where: { codigo_qrcode: codigo_qrcode.trim() },
       include: {
         veiculo: {
           include: {
@@ -2346,7 +2351,15 @@ export class AbastecimentoService {
     });
 
     if (!solicitacaoQrCode) {
-      throw new NotFoundException(`Solicitação de QR Code veículo com ID ${solicitacaoQrCodeVeiculoId} não encontrada`);
+      throw new NotFoundException(`Solicitação de QR Code veículo com código "${codigo_qrcode.trim()}" não encontrada`);
+    }
+
+    // Verificar se o QR code está ativo (status válidos para uso)
+    const statusValidos = ['Aprovado', 'Em_Producao', 'Integracao', 'Concluida'];
+    if (!statusValidos.includes(solicitacaoQrCode.status)) {
+      throw new NotFoundException(
+        `QR code não está ativo. Status atual: ${solicitacaoQrCode.status}. Apenas QR codes com status "Aprovado", "Em_Producao", "Integracao" ou "Concluida" podem ser utilizados.`
+      );
     }
 
     const veiculo = solicitacaoQrCode.veiculo;
@@ -2650,32 +2663,37 @@ export class AbastecimentoService {
     // Criar abastecimento e atualizar cota e processo em transação
     const abastecimento = await this.prisma.$transaction(async (tx) => {
       // Criar abastecimento com dados preenchidos automaticamente
+      const dataCreate: any = {
+        veiculoId,
+        motoristaId,
+        combustivelId,
+        empresaId,
+        solicitanteId: user.id,
+        abastecedorId: user.empresa.id,
+        validadorId: user.id,
+        tipo_abastecimento: createDto.tipo_abastecimento,
+        quantidade: new Decimal(quantidade),
+        preco_anp: createDto.preco_anp ? new Decimal(createDto.preco_anp) : null,
+        preco_empresa: createDto.preco_empresa ? new Decimal(createDto.preco_empresa) : null,
+        desconto: createDto.desconto ? new Decimal(createDto.desconto) : new Decimal(0),
+        valor_total: new Decimal(valor_total),
+        data_abastecimento: dataAbastecimentoParaSalvar,
+        odometro: createDto.odometro || null,
+        orimetro: createDto.orimetro || null,
+        nfe_chave_acesso: createDto.nfe_chave_acesso || null,
+        nfe_img_url: createDto.nfe_img_url || null,
+        nfe_link: createDto.nfe_link || null,
+        conta_faturamento_orgao_id: createDto.conta_faturamento_orgao_id || null,
+        cota_id: cotaOrgao.id,
+        status: StatusAbastecimento.Aguardando,
+      };
+      
+      if (createDto.observacao) {
+        dataCreate.observacao = createDto.observacao;
+      }
+
       const abastecimentoCriado = await tx.abastecimento.create({
-        data: {
-          veiculoId,
-          motoristaId,
-          combustivelId,
-          empresaId,
-          solicitanteId: user.id,
-          abastecedorId: user.empresa.id,
-          validadorId: user.id,
-          tipo_abastecimento: createDto.tipo_abastecimento,
-          quantidade: new Decimal(quantidade),
-          preco_anp: createDto.preco_anp ? new Decimal(createDto.preco_anp) : null,
-          preco_empresa: createDto.preco_empresa ? new Decimal(createDto.preco_empresa) : null,
-          desconto: createDto.desconto ? new Decimal(createDto.desconto) : new Decimal(0),
-          valor_total: new Decimal(valor_total),
-          data_abastecimento: dataAbastecimentoParaSalvar,
-          odometro: createDto.odometro || null,
-          orimetro: createDto.orimetro || null,
-          nfe_chave_acesso: createDto.nfe_chave_acesso || null,
-          nfe_img_url: createDto.nfe_img_url || null,
-          nfe_link: createDto.nfe_link || null,
-          observacao: createDto.observacao || null,
-          conta_faturamento_orgao_id: createDto.conta_faturamento_orgao_id || null,
-          cota_id: cotaOrgao.id,
-          status: StatusAbastecimento.Aguardando,
-        },
+        data: dataCreate,
         include: {
           veiculo: {
             select: {
@@ -2752,7 +2770,7 @@ export class AbastecimentoService {
         
         // Atualizar cota no objeto retornado
         if (cotaAtualizada) {
-          abastecimentoCriado.cota = cotaAtualizada;
+          (abastecimentoCriado as any).cota = cotaAtualizada;
         }
       } catch (error) {
         // Se for uma exceção conhecida, relançar

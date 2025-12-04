@@ -131,7 +131,7 @@ export class AbastecimentoController {
   @UseGuards(EmpresaGuard)
   @ApiOperation({ 
     summary: 'Criar abastecimento a partir de uma solicitação de QR Code de veículo',
-    description: 'Cria um abastecimento a partir de uma solicitação de QR Code de veículo. Esta rota é exclusiva para veículos com tipo_abastecimento LIVRE ou COM_AUTORIZACAO. Preenche automaticamente: veiculoId, motoristaId (se houver vinculado ao veículo), empresaId, solicitanteId, abastecedorId e validadorId (do usuário logado). Valida capacidade_tanque do veículo e CotaOrgao.restante. Atualiza automaticamente CotaOrgao e Processo após criar o abastecimento.'
+    description: 'Cria um abastecimento a partir de uma solicitação de QR Code de veículo usando o código QR code. Esta rota é exclusiva para veículos com tipo_abastecimento LIVRE ou COM_AUTORIZACAO. Preenche automaticamente: veiculoId, motoristaId (se houver vinculado ao veículo ou se informado no body), empresaId (do usuário logado ou se informado no body), solicitanteId, abastecedorId e validadorId (do usuário logado). Valida capacidade_tanque do veículo e CotaOrgao.restante. Atualiza automaticamente CotaOrgao e Processo após criar o abastecimento.'
   })
   @ApiResponse({ status: 201, description: 'Abastecimento criado com sucesso a partir da solicitação de QR Code veículo' })
   @ApiResponse({ status: 400, description: 'Dados inválidos, quantidade excede capacidade do tanque ou cota insuficiente' })
