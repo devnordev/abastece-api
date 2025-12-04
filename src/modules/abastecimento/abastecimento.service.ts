@@ -760,25 +760,18 @@ export class AbastecimentoService {
     const prefeituraId = veiculo.prefeituraId;
 
     // Definir valores padrão para campos que devem ser preenchidos automaticamente
-    // abastecedorId é sempre o ID da empresa do usuário logado (user.empresa.id), ignorando qualquer valor do DTO
+    // abastecedorId é sempre o ID do usuário logado (user.id), não o ID da empresa
+    // NOTA: Se o schema.prisma relacionar abastecedorId com Empresa, será necessário alterar o schema
     
-    // Validar que o usuário possui empresa vinculada
-    if (!user.empresa?.id) {
-      throw new AbastecimentoUsuarioSemEmpresaException({
-        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
-        payload: createAbastecimentoDto,
-      });
-    }
-
-    const abastecedorIdParaUsar = user.empresa.id; // ID da empresa do usuário logado que está fazendo o abastecimento
+    const abastecedorIdParaUsar = user.id; // ID do usuário logado que está fazendo o abastecimento
     
-    // Validar se a empresa abastecedora existe antes de criar o abastecimento
-    const empresaAbastecedora = await this.prisma.empresa.findUnique({
+    // Validar se o usuário existe (validação de segurança)
+    const usuarioAbastecedor = await this.prisma.usuario.findUnique({
       where: { id: abastecedorIdParaUsar },
-      select: { id: true, nome: true, cnpj: true, ativo: true },
+      select: { id: true, nome: true, email: true },
     });
 
-    if (!empresaAbastecedora) {
+    if (!usuarioAbastecedor) {
       throw new AbastecimentoAbastecedorNotFoundException(
         abastecedorIdParaUsar,
         {
@@ -786,7 +779,7 @@ export class AbastecimentoService {
           payload: createAbastecimentoDto,
         },
         {
-          userEmpresaId: user.empresa.id,
+          userEmpresaId: user.empresa?.id,
           empresaIdFromDto: empresaId,
           abastecedorIdFromDto: abastecedorId,
           method: 'create',
@@ -794,17 +787,10 @@ export class AbastecimentoService {
           combustivelId: combustivelId,
           empresaId: empresaId,
           payloadCompleto: createAbastecimentoDto,
-          consultaRealizada: `SELECT id, nome, cnpj, ativo FROM Empresa WHERE id = ${abastecedorIdParaUsar}`,
+          consultaRealizada: `SELECT id, nome, email FROM Usuario WHERE id = ${abastecedorIdParaUsar}`,
           timestamp: new Date().toISOString(),
         },
       );
-    }
-
-    if (!empresaAbastecedora.ativo) {
-      throw new AbastecimentoEmpresaInativaException(abastecedorIdParaUsar, {
-        user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
-        payload: createAbastecimentoDto,
-      });
     }
 
     const abastecidoPorParaUsar = String(user.id); // ID do usuário logado que está confirmando o abastecimento
@@ -1759,17 +1745,18 @@ export class AbastecimentoService {
       };
     }
 
-    // AbastecedorId: usar o informado no DTO, ou a empresa do usuário logado, ou a empresa da solicitação
-    const abastecedorIdParaUsar = abastecedorId || user?.empresa?.id || solicitacao.empresaId;
+    // AbastecedorId: usar o informado no DTO, ou o ID do usuário logado
+    // NOTA: abastecedorId é o ID do usuário, não da empresa
+    const abastecedorIdParaUsar = abastecedorId || user?.id;
     
-    // Validar se a empresa abastecedora existe antes de fazer o connect
+    // Validar se o usuário abastecedor existe antes de fazer o connect
     if (abastecedorIdParaUsar) {
-      const empresaAbastecedora = await this.prisma.empresa.findUnique({
+      const usuarioAbastecedor = await this.prisma.usuario.findUnique({
         where: { id: abastecedorIdParaUsar },
-        select: { id: true, nome: true, cnpj: true, ativo: true },
+        select: { id: true, nome: true, email: true },
       });
 
-      if (!empresaAbastecedora) {
+      if (!usuarioAbastecedor) {
         throw new AbastecimentoAbastecedorNotFoundException(
           abastecedorIdParaUsar,
           {
@@ -1785,17 +1772,10 @@ export class AbastecimentoService {
             combustivelId: solicitacao?.combustivelId,
             empresaId: solicitacao?.empresaId,
             payloadCompleto: createDto,
-            consultaRealizada: `SELECT id, nome, cnpj, ativo FROM Empresa WHERE id = ${abastecedorIdParaUsar}`,
+            consultaRealizada: `SELECT id, nome, email FROM Usuario WHERE id = ${abastecedorIdParaUsar}`,
             timestamp: new Date().toISOString(),
           },
         );
-      }
-
-      if (!empresaAbastecedora.ativo) {
-        throw new AbastecimentoEmpresaInativaException(abastecedorIdParaUsar, {
-          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
-          payload: createDto,
-        });
       }
 
       abastecimentoData.abastecedor = {
