@@ -12,13 +12,31 @@ export class CreateAbastecimentoFromSolicitacaoDto {
   solicitacaoId: number;
 
   @ApiPropertyOptional({
-    description: 'Data do abastecimento (opcional, usa data atual se não informado)',
+    description: 'Data do abastecimento (opcional). Se não for enviada, a API usará a data/hora atual do servidor.',
     example: '2024-01-15T10:30:00Z',
     required: false,
   })
   @IsOptional()
   @IsDateString({}, { message: 'Data do abastecimento deve ser uma data válida' })
   data_abastecimento?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID do motorista (opcional, sobrescreve o motorista da solicitação se informado)',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt({ message: 'ID do motorista deve ser um número inteiro' })
+  motoristaId?: number;
+
+  @ApiPropertyOptional({
+    description: 'Chave de acesso da NFE (44 dígitos, opcional)',
+    example: '12345678901234567890123456789012345678901234',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'Chave de acesso da NFE deve ser uma string' })
+  nfe_chave_acesso?: string;
 
   @ApiPropertyOptional({
     description: 'Status do abastecimento',

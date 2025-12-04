@@ -1572,7 +1572,22 @@ export class AbastecimentoService {
   }
 
   async createFromSolicitacao(createDto: CreateAbastecimentoFromSolicitacaoDto, user: any) {
-    const { solicitacaoId, data_abastecimento, status, odometro, orimetro, validadorId, abastecedorId, desconto, preco_anp, abastecido_por, nfe_link, ativo } = createDto;
+    const {
+      solicitacaoId,
+      data_abastecimento,
+      motoristaId,
+      nfe_chave_acesso,
+      status,
+      odometro,
+      orimetro,
+      validadorId,
+      abastecedorId,
+      desconto,
+      preco_anp,
+      abastecido_por,
+      nfe_link,
+      ativo,
+    } = createDto;
 
     // Normalizar e validar data de abastecimento (se informada)
     // Segue o mesmo padrão de data_solicitacao em solicitacao-abastecimento
@@ -1759,7 +1774,7 @@ export class AbastecimentoService {
       data_abastecimento: dataAbastecimentoParaSalvar,
       status: statusAbastecimento,
       ativo: ativo !== undefined ? ativo : true,
-      nfe_chave_acesso: solicitacao.nfe_chave_acesso || undefined,
+      nfe_chave_acesso: nfe_chave_acesso || solicitacao.nfe_chave_acesso || undefined,
       nfe_img_url: solicitacao.nfe_img_url || undefined,
       nfe_link: nfe_link || undefined,
       abastecido_por: abastecido_por || solicitacao.abastecido_por || 'Sistema',
@@ -1781,9 +1796,10 @@ export class AbastecimentoService {
     };
 
     // Adicionar relacionamentos opcionais
-    if (solicitacao.motoristaId) {
+    const motoristaIdFinal = motoristaId || solicitacao.motoristaId;
+    if (motoristaIdFinal) {
       abastecimentoData.motorista = {
-        connect: { id: solicitacao.motoristaId },
+        connect: { id: motoristaIdFinal },
       };
     }
 
