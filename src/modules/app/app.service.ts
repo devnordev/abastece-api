@@ -425,8 +425,8 @@ export class AppService {
       return {
         combustivelId: vc.combustivelId,
         combustivel: vc.combustivel,
-        qtd_disponivel_cota_orgao: cotaOrgao?.saldo_disponivel_cota
-          ? Number(cotaOrgao.saldo_disponivel_cota)
+        qtd_disponivel_cota_orgao: cotaOrgao?.quantidade
+          ? Number(cotaOrgao.quantidade)
           : 0,
         qtd_disponivel_cota_veiculo: qtdDisponivelCotaVeiculo,
         preco_atual: precoInfo?.preco_atual || null,
@@ -908,12 +908,12 @@ export class AppService {
       }
     }
 
-    // Criar mapa de saldos disponíveis da cota do órgão e IDs das cotas
-    const saldosCotaOrgaoMap = new Map<number, number>();
+    // Criar mapa de quantidades da cota do órgão e IDs das cotas
+    const quantidadesCotaOrgaoMap = new Map<number, number>();
     const cotasOrgaoMap = new Map<number, number>(); // Map combustivelId -> cotaId
     for (const cota of cotasOrgao) {
-      if (cota.saldo_disponivel_cota) {
-        saldosCotaOrgaoMap.set(cota.combustivelId, Number(cota.saldo_disponivel_cota));
+      if (cota.quantidade) {
+        quantidadesCotaOrgaoMap.set(cota.combustivelId, Number(cota.quantidade));
         cotasOrgaoMap.set(cota.combustivelId, cota.id);
       }
     }
@@ -923,7 +923,7 @@ export class AppService {
       .filter((vc) => precosMap.has(vc.combustivelId))
       .map((vc) => {
         const cotaOrgao = cotasOrgao.find((c) => c.combustivelId === vc.combustivelId);
-        const qtdDisponivelCotaOrgao = saldosCotaOrgaoMap.get(vc.combustivelId) || 0;
+        const qtdDisponivelCotaOrgao = quantidadesCotaOrgaoMap.get(vc.combustivelId) || 0;
         const precoAtual = precosMap.get(vc.combustivelId) || 0;
         const cotaId = cotasOrgaoMap.get(vc.combustivelId) || null;
 
