@@ -258,14 +258,14 @@ export class AbastecimentoAbastecedorNotFoundException extends CrudException {
       userEmpresaId?: number;
       empresaIdFromDto?: number;
       abastecedorIdFromDto?: number;
-      method?: string;
+      method?: AbastecimentoAction;
     },
   ) {
     const detailInfo = details || {};
     const userEmpresaId = detailInfo.userEmpresaId;
     const empresaIdFromDto = detailInfo.empresaIdFromDto;
     const abastecedorIdFromDto = detailInfo.abastecedorIdFromDto;
-    const method = detailInfo.method || 'create';
+    const method: AbastecimentoAction = detailInfo.method || 'create';
 
     super({
       message: `Empresa abastecedora não encontrada`,
