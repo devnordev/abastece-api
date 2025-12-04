@@ -2585,7 +2585,7 @@ export class SolicitacaoAbastecimentoService {
     const minutoAtual = parseInt(partsAtual.find(p => p.type === 'minute')!.value);
     const segundoAtual = parseInt(partsAtual.find(p => p.type === 'second')!.value);
     
-    // Obter componentes UTC de data_expiracao (tratando como horário local, sem conversão)
+    // Obter componentes UTC de data_expiracao (que está salva em UTC no banco)
     const anoExp = dataExpiracao.getUTCFullYear();
     const mesExp = dataExpiracao.getUTCMonth();
     const diaExp = dataExpiracao.getUTCDate();
@@ -2593,11 +2593,34 @@ export class SolicitacaoAbastecimentoService {
     const minutoExp = dataExpiracao.getUTCMinutes();
     const segundoExp = dataExpiracao.getUTCSeconds();
     
-    // Comparar diretamente os componentes (ano, mês, dia, hora, minuto, segundo)
-    const timestampAtual = new Date(anoAtual, mesAtual, diaAtual, horaAtual, minutoAtual, segundoAtual).getTime();
-    const timestampExp = new Date(anoExp, mesExp, diaExp, horaExp, minutoExp, segundoExp).getTime();
+    // Converter horário de Fortaleza para UTC (adicionar 3 horas)
+    // dataAtualServidorFormatada está em Fortaleza, precisa converter para UTC para comparar
+    let utcHoursAtual = horaAtual + 3;
+    let utcDayAtual = diaAtual;
+    let utcMonthAtual = mesAtual;
+    let utcYearAtual = anoAtual;
     
-    return timestampExp <= timestampAtual;
+    // Ajustar se passar de 23:59 (horas >= 24)
+    if (utcHoursAtual >= 24) {
+      utcHoursAtual -= 24;
+      utcDayAtual++;
+      // Verificar se passou do último dia do mês
+      const lastDayOfMonth = new Date(Date.UTC(utcYearAtual, utcMonthAtual + 1, 0)).getUTCDate();
+      if (utcDayAtual > lastDayOfMonth) {
+        utcDayAtual = 1;
+        utcMonthAtual++;
+        if (utcMonthAtual > 11) {
+          utcMonthAtual = 0;
+          utcYearAtual++;
+        }
+      }
+    }
+    
+    // Comparar ambos em UTC usando Date.UTC para garantir comparação correta
+    const timestampAtualUTC = Date.UTC(utcYearAtual, utcMonthAtual, utcDayAtual, utcHoursAtual, minutoAtual, segundoAtual);
+    const timestampExpUTC = Date.UTC(anoExp, mesExp, diaExp, horaExp, minutoExp, segundoExp);
+    
+    return timestampExpUTC <= timestampAtualUTC;
   }
 
   private async expirarSolicitacaoSeNecessario(
