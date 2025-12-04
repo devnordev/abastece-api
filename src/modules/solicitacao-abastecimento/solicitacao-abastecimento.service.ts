@@ -670,8 +670,6 @@ export class SolicitacaoAbastecimentoService {
             data_cadastro: true,
             ativo: true,
             requer_cupom_fiscal: true,
-            created_date: true,
-            modified_date: true,
           },
         },
         veiculo: {
@@ -695,8 +693,6 @@ export class SolicitacaoAbastecimentoService {
                 orgaoId: true,
                 nome: true,
                 descricao: true,
-                created_date: true,
-                modified_date: true,
               },
             },
           },
@@ -722,7 +718,7 @@ export class SolicitacaoAbastecimentoService {
     }
 
     // Buscar EmpresaPrecoCombustivel para o combustível da solicitação
-    const empresaPrecoCombustivel = await this.prisma.empresaPrecoCombustivel.findFirst({
+      const empresaPrecoCombustivel = await this.prisma.empresaPrecoCombustivel.findFirst({
       where: {
         empresa_id: solicitacao.empresaId,
         combustivel_id: solicitacao.combustivelId,
@@ -744,10 +740,10 @@ export class SolicitacaoAbastecimentoService {
         status: true,
         updated_at: true,
         updated_by: true,
-        created_date: true,
-        modified_date: true,
       },
     });
+
+    const solicitacaoAny = solicitacao as any;
 
     return {
       message: 'Solicitação de abastecimento encontrada com sucesso',
@@ -761,32 +757,30 @@ export class SolicitacaoAbastecimentoService {
       ativo: true,
       observacoes: solicitacao.observacoes,
       veiculo: {
-        orgaoId: solicitacao.veiculo.orgaoId,
-        contaFaturamentoOrgaoId: solicitacao.veiculo.contaFaturamentoOrgaoId,
-        placa: solicitacao.veiculo.placa,
-        nome: solicitacao.veiculo.nome,
-        tipo_abastecimento: solicitacao.veiculo.tipo_abastecimento,
+        orgaoId: solicitacaoAny.veiculo.orgaoId,
+        contaFaturamentoOrgaoId: solicitacaoAny.veiculo.contaFaturamentoOrgaoId,
+        placa: solicitacaoAny.veiculo.placa,
+        nome: solicitacaoAny.veiculo.nome,
+        tipo_abastecimento: solicitacaoAny.veiculo.tipo_abastecimento,
         orgao: {
-          id: solicitacao.veiculo.orgao?.id || null,
-          nome: solicitacao.veiculo.orgao?.nome || null,
+          id: solicitacaoAny.veiculo.orgao?.id || null,
+          nome: solicitacaoAny.veiculo.orgao?.nome || null,
         },
-        contaFaturamento: solicitacao.veiculo.contaFaturamento
+        contaFaturamento: solicitacaoAny.veiculo.contaFaturamento
           ? {
-              id: solicitacao.veiculo.contaFaturamento.id,
-              prefeituraId: solicitacao.veiculo.contaFaturamento.prefeituraId,
-              orgaoId: solicitacao.veiculo.contaFaturamento.orgaoId,
-              nome: solicitacao.veiculo.contaFaturamento.nome,
-              descricao: solicitacao.veiculo.contaFaturamento.descricao,
-              created_date: solicitacao.veiculo.contaFaturamento.created_date,
-              modified_date: solicitacao.veiculo.contaFaturamento.modified_date,
+              id: solicitacaoAny.veiculo.contaFaturamento.id,
+              prefeituraId: solicitacaoAny.veiculo.contaFaturamento.prefeituraId,
+              orgaoId: solicitacaoAny.veiculo.contaFaturamento.orgaoId,
+              nome: solicitacaoAny.veiculo.contaFaturamento.nome,
+              descricao: solicitacaoAny.veiculo.contaFaturamento.descricao,
             }
           : null,
       },
-      prefeitura: solicitacao.prefeitura,
-      combustivel: solicitacao.combustivel,
+      prefeitura: solicitacaoAny.prefeitura,
+      combustivel: solicitacaoAny.combustivel,
       empresa: {
-        id: solicitacao.empresa.id,
-        nome: solicitacao.empresa.nome,
+        id: solicitacaoAny.empresa.id,
+        nome: solicitacaoAny.empresa.nome,
         precoCombustivel: empresaPrecoCombustivel
           ? {
               id: empresaPrecoCombustivel.id,
@@ -801,8 +795,6 @@ export class SolicitacaoAbastecimentoService {
               status: empresaPrecoCombustivel.status,
               updated_at: empresaPrecoCombustivel.updated_at,
               updated_by: empresaPrecoCombustivel.updated_by,
-              created_date: empresaPrecoCombustivel.created_date,
-              modified_date: empresaPrecoCombustivel.modified_date,
             }
           : null,
       },

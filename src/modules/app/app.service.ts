@@ -322,8 +322,6 @@ export class AppService {
       restante: cota.restante ? Number(cota.restante) : null,
       saldo_disponivel_cota: cota.saldo_disponivel_cota ? Number(cota.saldo_disponivel_cota) : null,
       ativa: cota.ativa,
-      created_date: cota.created_date,
-      modified_date: cota.modified_date,
       combustivel: cota.combustivel,
       processo: cota.processo,
       orgao: cota.orgao,

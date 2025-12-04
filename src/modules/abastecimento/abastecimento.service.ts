@@ -764,40 +764,11 @@ export class AbastecimentoService {
     const prefeituraId = veiculo.prefeituraId;
 
     // Definir valores padrão para campos que devem ser preenchidos automaticamente
-    // abastecedorId é sempre o ID do usuário logado (user.id), não o ID da empresa
-    // NOTA: Se o schema.prisma relacionar abastecedorId com Empresa, será necessário alterar o schema
-    
-    const abastecedorIdParaUsar = user.id; // ID do usuário logado que está fazendo o abastecimento
-    
-    // Validar se o usuário existe (validação de segurança)
-    const usuarioAbastecedor = await this.prisma.usuario.findUnique({
-      where: { id: abastecedorIdParaUsar },
-      select: { id: true, nome: true, email: true },
-    });
+    // No schema, abastecedorId referencia Empresa; aqui usamos a mesma empresa do abastecimento
+    const abastecedorIdParaUsar = empresaId;
 
-    if (!usuarioAbastecedor) {
-      throw new AbastecimentoAbastecedorNotFoundException(
-        abastecedorIdParaUsar,
-        {
-          user: { id: user.id, tipo: user.tipo_usuario, email: user.email },
-          payload: createAbastecimentoDto,
-        },
-        {
-          userEmpresaId: user.empresa?.id,
-          empresaIdFromDto: empresaId,
-          abastecedorIdFromDto: abastecedorId,
-          method: 'create',
-          veiculoId: veiculoId,
-          combustivelId: combustivelId,
-          empresaId: empresaId,
-          payloadCompleto: createAbastecimentoDto,
-          consultaRealizada: `SELECT id, nome, email FROM Usuario WHERE id = ${abastecedorIdParaUsar}`,
-          timestamp: new Date().toISOString(),
-        },
-      );
-    }
-
-    const abastecidoPorParaUsar = String(user.id); // ID do usuário logado que está confirmando o abastecimento
+    // Informação textual de quem realizou o abastecimento (usuário logado)
+    const abastecidoPorParaUsar = user?.nome || user?.email || String(user.id);
     const statusParaUsar = StatusAbastecimento.Aprovado; // Status deve ir para APROVADO automaticamente
     const ativoParaUsar = true; // ativo fica como true ao abastecer
 
@@ -1201,8 +1172,6 @@ export class AbastecimentoService {
                 sigla: true,
                 ativo: true,
                 prefeituraId: true,
-                created_date: true,
-                modified_date: true,
               },
             },
           },
