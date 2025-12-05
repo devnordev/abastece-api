@@ -2710,6 +2710,8 @@ export class AbastecimentoService {
     // Criar abastecimento e atualizar cota e processo em transação
     const abastecimento = await this.prisma.$transaction(async (tx) => {
       // Criar abastecimento com dados preenchidos automaticamente
+      // Status já vem como Aprovado para abastecimentos criados via QR code
+      const dataAprovacao = new Date();
       const dataCreate: any = {
         veiculoId,
         motoristaId,
@@ -2732,7 +2734,10 @@ export class AbastecimentoService {
         nfe_link: createDto.nfe_link || null,
         conta_faturamento_orgao_id: createDto.conta_faturamento_orgao_id || null,
         cota_id: cotaOrgao.id,
-        status: StatusAbastecimento.Aguardando,
+        status: StatusAbastecimento.Aprovado,
+        data_aprovacao: dataAprovacao,
+        aprovado_por: user.nome || user.email || 'Sistema',
+        aprovado_por_email: user.email || null,
       };
       
       if (createDto.observacao) {
