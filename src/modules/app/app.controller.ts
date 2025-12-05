@@ -288,7 +288,7 @@ export class AppController {
   @ApiOperation({
     summary: 'Criar abastecimento a partir de dados fornecidos diretamente',
     description:
-      'Cria um abastecimento recebendo todos os dados diretamente no body, incluindo veiculoId. Busca automaticamente o código QR code do veículo e cria o abastecimento. Esta rota é exclusiva para veículos com tipo_abastecimento LIVRE ou COM_AUTORIZACAO. Preenche automaticamente: solicitanteId, abastecedorId e validadorId (do usuário logado). Valida capacidade_tanque do veículo e CotaOrgao.restante. Atualiza automaticamente CotaOrgao e Processo após criar o abastecimento.',
+      'Cria um abastecimento recebendo todos os dados diretamente no body, incluindo veiculoId. Busca automaticamente o código QR code do veículo e cria o abastecimento. Esta rota aceita veículos com tipo_abastecimento LIVRE, COM_AUTORIZACAO ou COM_COTA. Preenche automaticamente: solicitanteId, abastecedorId e validadorId (do usuário logado). Valida capacidade_tanque do veículo e CotaOrgao.restante. Atualiza automaticamente CotaOrgao e Processo após criar o abastecimento.',
   })
   @ApiResponse({
     status: 201,

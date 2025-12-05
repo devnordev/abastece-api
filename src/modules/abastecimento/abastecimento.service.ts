@@ -2353,7 +2353,7 @@ export class AbastecimentoService {
 
   /**
    * Cria abastecimento a partir de uma solicitação de QR Code de veículo
-   * Para tipo_abastecimento LIVRE e COM_AUTORIZACAO
+   * Para tipo_abastecimento LIVRE, COM_AUTORIZACAO e COM_COTA
    * Preenche automaticamente: veiculoId, motoristaId (se houver), empresaId, solicitanteId, abastecedorId, validadorId
    * Valida capacidade_tanque e CotaOrgao.restante
    * Atualiza CotaOrgao e Processo
@@ -2420,11 +2420,12 @@ export class AbastecimentoService {
       });
     }
 
-    // Verificar tipo_abastecimento do veículo (deve ser LIVRE ou COM_AUTORIZACAO)
+    // Verificar tipo_abastecimento do veículo (deve ser LIVRE, COM_AUTORIZACAO ou COM_COTA)
     if (veiculo.tipo_abastecimento !== TipoAbastecimentoVeiculo.LIVRE && 
-        veiculo.tipo_abastecimento !== TipoAbastecimentoVeiculo.COM_AUTORIZACAO) {
+        veiculo.tipo_abastecimento !== TipoAbastecimentoVeiculo.COM_AUTORIZACAO &&
+        veiculo.tipo_abastecimento !== TipoAbastecimentoVeiculo.COTA) {
       throw new BadRequestException(
-        `Esta rota é apenas para veículos com tipo_abastecimento LIVRE ou COM_AUTORIZACAO. Veículo possui tipo: ${veiculo.tipo_abastecimento}`
+        `Esta rota é apenas para veículos com tipo_abastecimento LIVRE, COM_AUTORIZACAO ou COM_COTA. Veículo possui tipo: ${veiculo.tipo_abastecimento}`
       );
     }
 
