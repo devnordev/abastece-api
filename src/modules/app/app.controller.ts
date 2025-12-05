@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Param, ParseIntPipe, Req } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Param, ParseIntPipe, Req, Post, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -7,6 +7,7 @@ import { EmpresaGuard } from '../auth/guards/empresa.guard';
 import { EmpresaPrecoCombustivelService } from '../empresa-preco-combustivel/empresa-preco-combustivel.service';
 import { GetPrecoEmpresaCombustivelDto } from '../empresa-preco-combustivel/dto/get-preco-empresa-combustivel.dto';
 import { AppService } from './app.service';
+import { CreateAbastecimentoFromQrCodeVeiculoAppDto } from './dto/create-abastecimento-from-qrcode-veiculo.dto';
 
 @ApiTags('App - Solicitações')
 @Controller('app')
@@ -280,6 +281,40 @@ export class AppController {
     @Req() req: Request & { user: any },
   ) {
     return this.appService.listarCombustiveisPermitidosParaVeiculoEmpresa(veiculoId, empresaId, req.user);
+  }
+
+  @Post('abastecimentos/from-qrcode-veiculo')
+  @UseGuards(EmpresaGuard)
+  @ApiOperation({
+    summary: 'Criar abastecimento a partir de dados fornecidos diretamente',
+    description:
+      'Cria um abastecimento recebendo todos os dados diretamente no body, incluindo veiculoId. Busca automaticamente o código QR code do veículo e cria o abastecimento. Esta rota é exclusiva para veículos com tipo_abastecimento LIVRE ou COM_AUTORIZACAO. Preenche automaticamente: solicitanteId, abastecedorId e validadorId (do usuário logado). Valida capacidade_tanque do veículo e CotaOrgao.restante. Atualiza automaticamente CotaOrgao e Processo após criar o abastecimento.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Abastecimento criado com sucesso',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados inválidos, quantidade excede capacidade do tanque ou cota insuficiente',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Veículo não encontrado ou QR code não encontrado para o veículo',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Não autorizado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Apenas ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem criar abastecimentos',
+  })
+  async createAbastecimentoFromQrCodeVeiculo(
+    @Body() createDto: CreateAbastecimentoFromQrCodeVeiculoAppDto,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.appService.createAbastecimentoFromQrCodeVeiculo(createDto, req.user);
   }
 }
 

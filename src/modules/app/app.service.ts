@@ -7,11 +7,18 @@ import {
   TipoAbastecimentoVeiculo,
   Periodicidade,
   AcaoLog,
+  StatusSolicitacaoQrCodeVeiculo,
 } from '@prisma/client';
+import { AbastecimentoService } from '../abastecimento/abastecimento.service';
+import { CreateAbastecimentoFromQrCodeVeiculoAppDto } from './dto/create-abastecimento-from-qrcode-veiculo.dto';
+import { CreateAbastecimentoFromQrCodeVeiculoDto } from '../abastecimento/dto/create-abastecimento-from-qrcode-veiculo.dto';
 
 @Injectable()
 export class AppService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly abastecimentoService: AbastecimentoService,
+  ) {}
 
   /**
    * Lista os combustíveis permitidos para solicitação de abastecimento de um veículo
@@ -1041,6 +1048,79 @@ export class AppService {
       motoristas: motoristasVinculados,
       combustiveisPermitidos,
     };
+  }
+
+  /**
+   * Cria abastecimento a partir de dados fornecidos diretamente (sem QR code)
+   * Esta rota recebe todos os dados do abastecimento diretamente no body
+   */
+  async createAbastecimentoFromQrCodeVeiculo(
+    createDto: CreateAbastecimentoFromQrCodeVeiculoAppDto,
+    user: any,
+  ) {
+    // Buscar veículo pelo ID para obter o código QR code
+    const veiculo = await this.prisma.veiculo.findUnique({
+      where: { id: createDto.veiculoId },
+      include: {
+        solicitacoesQrCode: {
+          where: {
+            status: {
+              in: [
+                StatusSolicitacaoQrCodeVeiculo.Aprovado,
+                StatusSolicitacaoQrCodeVeiculo.Em_Producao,
+                StatusSolicitacaoQrCodeVeiculo.Integracao,
+                StatusSolicitacaoQrCodeVeiculo.Concluida,
+              ],
+            },
+          },
+          take: 1,
+          orderBy: {
+            data_cadastro: 'desc',
+          },
+        },
+      },
+    });
+
+    if (!veiculo) {
+      throw new NotFoundException(`Veículo com ID ${createDto.veiculoId} não encontrado`);
+    }
+
+    if (!veiculo.ativo) {
+      throw new NotFoundException(`Veículo com ID ${createDto.veiculoId} está inativo`);
+    }
+
+    // Verificar se existe QR code válido para o veículo
+    if (!veiculo.solicitacoesQrCode || veiculo.solicitacoesQrCode.length === 0) {
+      throw new NotFoundException(
+        `Nenhum QR code válido encontrado para o veículo com ID ${createDto.veiculoId}`,
+      );
+    }
+
+    const codigoQrcode = veiculo.solicitacoesQrCode[0].codigo_qrcode;
+
+    // Converter DTO do app para DTO do abastecimento
+    const abastecimentoDto: CreateAbastecimentoFromQrCodeVeiculoDto = {
+      codigo_qrcode: codigoQrcode,
+      combustivelId: createDto.combustivelId,
+      tipo_abastecimento: createDto.tipo_abastecimento,
+      quantidade: createDto.quantidade,
+      preco_anp: createDto.preco_anp,
+      preco_empresa: createDto.preco_empresa,
+      desconto: createDto.desconto,
+      valor_total: createDto.valor_total,
+      odometro: createDto.odometro,
+      orimetro: createDto.orimetro,
+      nfe_chave_acesso: createDto.nfe_chave_acesso,
+      nfe_img_url: createDto.nfe_img_url,
+      nfe_link: createDto.nfe_link,
+      observacao: createDto.observacao,
+      conta_faturamento_orgao_id: createDto.conta_faturamento_orgao_id,
+      empresaId: createDto.empresaId,
+      motoristaId: createDto.motoristaId,
+    };
+
+    // Chamar o serviço de abastecimento
+    return this.abastecimentoService.createFromQrCodeVeiculo(abastecimentoDto, user);
   }
 }
 
