@@ -12,6 +12,8 @@ import {
 import { AbastecimentoService } from '../abastecimento/abastecimento.service';
 import { CreateAbastecimentoFromQrCodeVeiculoAppDto } from './dto/create-abastecimento-from-qrcode-veiculo.dto';
 import { CreateAbastecimentoFromQrCodeVeiculoDto } from '../abastecimento/dto/create-abastecimento-from-qrcode-veiculo.dto';
+import { CreateAbastecimentoFromSolicitacaoAppDto } from './dto/create-abastecimento-from-solicitacao.dto';
+import { CreateAbastecimentoFromSolicitacaoDto } from '../abastecimento/dto/create-abastecimento-from-solicitacao.dto';
 
 @Injectable()
 export class AppService {
@@ -1121,6 +1123,37 @@ export class AppService {
 
     // Chamar o serviço de abastecimento
     return this.abastecimentoService.createFromQrCodeVeiculo(abastecimentoDto, user);
+  }
+
+  /**
+   * Cria abastecimento a partir de uma solicitação de abastecimento
+   * Esta rota recebe o ID da solicitação e cria o abastecimento usando o serviço existente
+   */
+  async createAbastecimentoFromSolicitacao(
+    createDto: CreateAbastecimentoFromSolicitacaoAppDto,
+    user: any,
+  ) {
+    // Converter DTO do app para DTO do abastecimento
+    const abastecimentoDto: CreateAbastecimentoFromSolicitacaoDto = {
+      solicitacaoId: createDto.solicitacaoId,
+      data_abastecimento: createDto.data_abastecimento,
+      motoristaId: createDto.motoristaId,
+      nfe_chave_acesso: createDto.nfe_chave_acesso,
+      status: createDto.status,
+      odometro: createDto.odometro,
+      orimetro: createDto.orimetro,
+      validadorId: createDto.validadorId,
+      abastecedorId: createDto.abastecedorId,
+      desconto: createDto.desconto,
+      preco_anp: createDto.preco_anp,
+      abastecido_por: createDto.abastecido_por,
+      nfe_link: createDto.nfe_link,
+      observacao: createDto.observacao,
+      ativo: createDto.ativo,
+    };
+
+    // Chamar o serviço de abastecimento
+    return this.abastecimentoService.createFromSolicitacao(abastecimentoDto, user);
   }
 }
 

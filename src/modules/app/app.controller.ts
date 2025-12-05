@@ -8,6 +8,7 @@ import { EmpresaPrecoCombustivelService } from '../empresa-preco-combustivel/emp
 import { GetPrecoEmpresaCombustivelDto } from '../empresa-preco-combustivel/dto/get-preco-empresa-combustivel.dto';
 import { AppService } from './app.service';
 import { CreateAbastecimentoFromQrCodeVeiculoAppDto } from './dto/create-abastecimento-from-qrcode-veiculo.dto';
+import { CreateAbastecimentoFromSolicitacaoAppDto } from './dto/create-abastecimento-from-solicitacao.dto';
 
 @ApiTags('App - Solicitações')
 @Controller('app')
@@ -315,6 +316,44 @@ export class AppController {
     @Req() req: Request & { user: any },
   ) {
     return this.appService.createAbastecimentoFromQrCodeVeiculo(createDto, req.user);
+  }
+
+  @Post('abastecimentos/from-solicitacao')
+  @UseGuards(EmpresaGuard)
+  @ApiOperation({
+    summary: 'Criar abastecimento a partir de uma solicitação de abastecimento',
+    description:
+      'Cria um abastecimento a partir de uma solicitação. Se a solicitação estiver PENDENTE, será automaticamente aprovada antes de criar o abastecimento. Após criar o abastecimento, a solicitação permanecerá com status APROVADA e será vinculada ao abastecimento criado.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Abastecimento criado a partir da solicitação com sucesso. Se a solicitação estava PENDENTE, foi aprovada automaticamente.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados inválidos, solicitação expirada, rejeitada ou inativa',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Solicitação não encontrada',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Solicitação já possui abastecimento vinculado',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Não autorizado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Apenas ADMIN_EMPRESA ou COLABORADOR_EMPRESA podem criar abastecimentos',
+  })
+  async createAbastecimentoFromSolicitacao(
+    @Body() createDto: CreateAbastecimentoFromSolicitacaoAppDto,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.appService.createAbastecimentoFromSolicitacao(createDto, req.user);
   }
 }
 
