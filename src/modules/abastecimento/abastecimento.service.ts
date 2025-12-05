@@ -374,6 +374,72 @@ export class AbastecimentoService {
     await this.atualizarProcessoPorId(tx, processo.id, valorTotal);
   }
 
+  /**
+   * Atualiza VeiculoCotaPeriodo ao criar um abastecimento
+   * Incrementa quantidade_utilizada e decrementa quantidade_disponivel
+   * Similar à lógica usada em solicitações de abastecimento
+   */
+  private async atualizarVeiculoCotaPeriodo(
+    tx: Prisma.TransactionClient,
+    veiculoId: number,
+    periodicidade: Periodicidade,
+    dataAbastecimento: Date,
+    quantidade: number,
+  ): Promise<void> {
+    // Buscar a cota de período ativa que contém a data do abastecimento
+    const cotaPeriodo = await tx.veiculoCotaPeriodo.findFirst({
+      where: {
+        veiculoId,
+        periodicidade,
+        data_inicio_periodo: { lte: dataAbastecimento },
+        data_fim_periodo: { gte: dataAbastecimento },
+        ativo: true,
+      },
+      orderBy: {
+        data_inicio_periodo: 'desc',
+      },
+    });
+
+    if (!cotaPeriodo) {
+      // Se não encontrar período, não lançar erro (pode não existir para todos os veículos)
+      console.warn(
+        `Cota período não encontrada para veículo ${veiculoId}, periodicidade ${periodicidade}, data ${dataAbastecimento}`,
+      );
+      return;
+    }
+
+    const quantidadeUtilizadaAtual = this.validarEConverterValor(
+      cotaPeriodo.quantidade_utilizada,
+      'quantidade_utilizada',
+      false,
+    );
+    const quantidadeDisponivelAtual = this.validarEConverterValor(
+      cotaPeriodo.quantidade_disponivel,
+      'quantidade_disponivel',
+      false,
+    );
+    const quantidadeValidada = this.validarEConverterValor(quantidade, 'quantidade', true);
+
+    // Calcular novos valores
+    const novaQuantidadeUtilizada = this.arredondarDecimal(
+      quantidadeUtilizadaAtual + quantidadeValidada,
+      1,
+    );
+    const novaQuantidadeDisponivel = Math.max(
+      0,
+      this.arredondarDecimal(quantidadeDisponivelAtual - quantidadeValidada, 1),
+    );
+
+    // Atualizar VeiculoCotaPeriodo
+    await tx.veiculoCotaPeriodo.update({
+      where: { id: cotaPeriodo.id },
+      data: {
+        quantidade_utilizada: new Decimal(novaQuantidadeUtilizada),
+        quantidade_disponivel: new Decimal(novaQuantidadeDisponivel),
+      },
+    });
+  }
+
   async create(
     createAbastecimentoDto: CreateAbastecimentoDto,
     user: any,
@@ -2834,6 +2900,22 @@ export class AbastecimentoService {
         throw new Error(
           `Falha ao atualizar cota do órgão após abastecimento: ${error instanceof Error ? error.message : String(error)}`,
         );
+      }
+
+      // Atualizar VeiculoCotaPeriodo se o tipo_abastecimento for COTA
+      if (veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA && veiculo.periodicidade) {
+        try {
+          await this.atualizarVeiculoCotaPeriodo(
+            tx,
+            veiculoId,
+            veiculo.periodicidade,
+            dataAbastecimentoParaSalvar,
+            quantidade,
+          );
+        } catch (error) {
+          // Log do erro mas não falha a transação se não encontrar período
+          console.warn(`Erro ao atualizar VeiculoCotaPeriodo para veículo ${veiculoId}:`, error);
+        }
       }
 
       return abastecimentoCriado;
