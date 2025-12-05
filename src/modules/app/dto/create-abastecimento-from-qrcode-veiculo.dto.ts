@@ -154,11 +154,13 @@ export class CreateAbastecimentoFromQrCodeVeiculoAppDto {
   empresaId: number;
 
   @ApiProperty({
-    description: 'ID do motorista',
+    description: 'ID do motorista (opcional - se não informado, busca automaticamente do veículo)',
     example: 10,
+    required: false,
   })
+  @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'ID do motorista deve ser um número inteiro' })
-  motoristaId: number;
+  motoristaId?: number;
 }
 
