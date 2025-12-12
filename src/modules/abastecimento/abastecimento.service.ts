@@ -1841,7 +1841,7 @@ export class AbastecimentoService {
       status: statusAbastecimento,
       ativo: ativo !== undefined ? ativo : true,
       nfe_chave_acesso: nfe_chave_acesso || solicitacao.nfe_chave_acesso || undefined,
-      nfe_img_url: solicitacao.nfe_img_url || undefined,
+      nfe_img_url: createDto.nfe_img_url || solicitacao.nfe_img_url || undefined,
       nfe_link: nfe_link || undefined,
       abastecido_por: abastecido_por || solicitacao.abastecido_por || 'Sistema',
       preco_empresa: solicitacao.preco_empresa ? new Decimal(solicitacao.preco_empresa) : undefined,

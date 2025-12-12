@@ -112,6 +112,15 @@ export class CreateAbastecimentoFromSolicitacaoAppDto {
   abastecido_por?: string;
 
   @ApiPropertyOptional({
+    description: 'URL da imagem da NFE (opcional, será preenchida automaticamente se nfe_img for enviado)',
+    example: 'https://exemplo.com/nfe.jpg',
+    required: false,
+  })
+  @IsOptional()
+  @IsString({ message: 'URL da imagem da NFE deve ser uma string' })
+  nfe_img_url?: string;
+
+  @ApiPropertyOptional({
     description: 'Link da NFE (opcional)',
     example: 'https://exemplo.com/nfe',
     required: false,

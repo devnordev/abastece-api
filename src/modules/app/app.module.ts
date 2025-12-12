@@ -4,9 +4,10 @@ import { AppService } from './app.service';
 import { EmpresaPrecoCombustivelModule } from '../empresa-preco-combustivel/empresa-preco-combustivel.module';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { AbastecimentoModule } from '../abastecimento/abastecimento.module';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
-  imports: [EmpresaPrecoCombustivelModule, PrismaModule, AbastecimentoModule],
+  imports: [EmpresaPrecoCombustivelModule, PrismaModule, AbastecimentoModule, UploadModule],
   controllers: [AppController],
   providers: [AppService],
 })

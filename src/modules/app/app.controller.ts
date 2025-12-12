@@ -1,6 +1,8 @@
-import { Controller, Get, Query, UseGuards, Param, ParseIntPipe, Req, Post, Body } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam } from '@nestjs/swagger';
+import { Controller, Get, Query, UseGuards, Param, ParseIntPipe, Req, Post, Body, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { Request } from 'express';
+import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminPrefeituraEmpresaColaboradorGuard } from '../auth/guards/admin-prefeitura-empresa-colaborador.guard';
 import { EmpresaGuard } from '../auth/guards/empresa.guard';
@@ -320,10 +322,92 @@ export class AppController {
 
   @Post('abastecimentos/from-solicitacao')
   @UseGuards(EmpresaGuard)
+  @UseInterceptors(
+    FileInterceptor('nfe_img', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+    }),
+  )
   @ApiOperation({
     summary: 'Criar abastecimento a partir de uma solicitação de abastecimento',
     description:
-      'Cria um abastecimento a partir de uma solicitação. Se a solicitação estiver PENDENTE, será automaticamente aprovada antes de criar o abastecimento. Após criar o abastecimento, a solicitação permanecerá com status APROVADA e será vinculada ao abastecimento criado.',
+      'Cria um abastecimento a partir de uma solicitação. Se a solicitação estiver PENDENTE, será automaticamente aprovada antes de criar o abastecimento. Após criar o abastecimento, a solicitação permanecerá com status APROVADA e será vinculada ao abastecimento criado. Se uma imagem NFe for enviada, será feito upload para o Supabase Storage.',
+  })
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        solicitacaoId: {
+          type: 'number',
+          example: 1,
+        },
+        data_abastecimento: {
+          type: 'string',
+          format: 'date-time',
+          example: '2024-01-15T10:30:00Z',
+        },
+        motoristaId: {
+          type: 'number',
+          example: 1,
+        },
+        nfe_chave_acesso: {
+          type: 'string',
+          example: '12345678901234567890123456789012345678901234',
+        },
+        nfe_img: {
+          type: 'string',
+          format: 'binary',
+          description: 'Imagem da nota fiscal (opcional)',
+        },
+        nfe_link: {
+          type: 'string',
+          example: 'https://exemplo.com/nfe',
+        },
+        status: {
+          type: 'string',
+          enum: ['Aguardando', 'Aprovado', 'Rejeitado', 'Cancelado'],
+        },
+        odometro: {
+          type: 'number',
+          example: 50000,
+        },
+        orimetro: {
+          type: 'number',
+          example: 1000,
+        },
+        validadorId: {
+          type: 'number',
+          example: 1,
+        },
+        abastecedorId: {
+          type: 'number',
+          example: 1,
+        },
+        desconto: {
+          type: 'number',
+          example: 0.05,
+        },
+        preco_anp: {
+          type: 'number',
+          example: 5.50,
+        },
+        abastecido_por: {
+          type: 'string',
+          example: 'João Silva',
+        },
+        observacao: {
+          type: 'string',
+          example: 'Abastecimento realizado com sucesso',
+        },
+        ativo: {
+          type: 'boolean',
+          example: true,
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 201,
@@ -352,8 +436,9 @@ export class AppController {
   async createAbastecimentoFromSolicitacao(
     @Body() createDto: CreateAbastecimentoFromSolicitacaoAppDto,
     @Req() req: Request & { user: any },
+    @UploadedFile() nfeImgFile?: Express.Multer.File,
   ) {
-    return this.appService.createAbastecimentoFromSolicitacao(createDto, req.user);
+    return this.appService.createAbastecimentoFromSolicitacao(createDto, req.user, nfeImgFile);
   }
 }
 

@@ -10,6 +10,7 @@ import {
   StatusSolicitacaoQrCodeVeiculo,
 } from '@prisma/client';
 import { AbastecimentoService } from '../abastecimento/abastecimento.service';
+import { UploadService } from '../upload/upload.service';
 import { CreateAbastecimentoFromQrCodeVeiculoAppDto } from './dto/create-abastecimento-from-qrcode-veiculo.dto';
 import { CreateAbastecimentoFromQrCodeVeiculoDto } from '../abastecimento/dto/create-abastecimento-from-qrcode-veiculo.dto';
 import { CreateAbastecimentoFromSolicitacaoAppDto } from './dto/create-abastecimento-from-solicitacao.dto';
@@ -20,6 +21,7 @@ export class AppService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly abastecimentoService: AbastecimentoService,
+    private readonly uploadService: UploadService,
   ) {}
 
   /**
@@ -1128,17 +1130,35 @@ export class AppService {
   /**
    * Cria abastecimento a partir de uma solicitação de abastecimento
    * Esta rota recebe o ID da solicitação e cria o abastecimento usando o serviço existente
+   * Se uma imagem NFe for enviada, faz upload para o Supabase Storage antes de criar o abastecimento
    */
   async createAbastecimentoFromSolicitacao(
     createDto: CreateAbastecimentoFromSolicitacaoAppDto,
     user: any,
+    nfeImgFile?: Express.Multer.File,
   ) {
+    // Upload da imagem da NFE, se enviada
+    let nfe_img_url = createDto.nfe_img_url;
+    if (nfeImgFile) {
+      // Buscar o veiculoId da solicitação para usar no nome do arquivo
+      const solicitacao = await this.prisma.solicitacaoAbastecimento.findUnique({
+        where: { id: createDto.solicitacaoId },
+        select: { veiculoId: true },
+      });
+
+      const veiculoId = solicitacao?.veiculoId || 'unknown';
+      const uniqueFileName = `nfe-${veiculoId}-${Date.now()}`;
+      const uploadedUrl = await this.uploadService.uploadImage(nfeImgFile, 'abastecimentos/nfe', uniqueFileName);
+      nfe_img_url = uploadedUrl || undefined;
+    }
+
     // Converter DTO do app para DTO do abastecimento
     const abastecimentoDto: CreateAbastecimentoFromSolicitacaoDto = {
       solicitacaoId: createDto.solicitacaoId,
       data_abastecimento: createDto.data_abastecimento,
       motoristaId: createDto.motoristaId,
       nfe_chave_acesso: createDto.nfe_chave_acesso,
+      nfe_img_url: nfe_img_url,
       status: createDto.status,
       odometro: createDto.odometro,
       orimetro: createDto.orimetro,
