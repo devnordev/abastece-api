@@ -262,26 +262,27 @@ export class AbastecimentoService {
     });
 
     // Atualizar Processo usando o processoId da cota
+    // Usar quantidade em vez de valorTotal para atualizar valor_utilizado do processo
     if (cota.processoId) {
-      await this.atualizarProcessoPorId(tx, cota.processoId, valorTotalValidado);
+      await this.atualizarProcessoPorId(tx, cota.processoId, quantidadeValidada);
     }
   }
 
   /**
    * Atualiza o Processo após um abastecimento usando o processoId
-   * Incrementa valor_utilizado com o valor_total do abastecimento
+   * Incrementa valor_utilizado com a quantidade do abastecimento
    * Recalcula valor_disponivel = litros_desejados - valor_utilizado
    */
   private async atualizarProcessoPorId(
     tx: Prisma.TransactionClient,
     processoId: number,
-    valorTotal: number,
+    quantidade: number,
   ): Promise<void> {
-    // Validar valor de entrada
-    const valorTotalValidado = this.validarEConverterValor(valorTotal, 'valor_total', false);
+    // Validar quantidade de entrada
+    const quantidadeValidada = this.validarEConverterValor(quantidade, 'quantidade', false);
 
-    if (valorTotalValidado < 0) {
-      throw new Error(`Valor total não pode ser negativo: ${valorTotalValidado}`);
+    if (quantidadeValidada < 0) {
+      throw new Error(`Quantidade não pode ser negativa: ${quantidadeValidada}`);
     }
 
     // Buscar processo por ID
@@ -314,17 +315,17 @@ export class AbastecimentoService {
 
     // Calcular novos valores com arredondamento adequado
     // valor_utilizado e valor_disponivel: Decimal(10, 2) - 2 casas decimais
-    const novoValorUtilizado = this.arredondarDecimal(valorUtilizadoAtual + valorTotalValidado, 2);
+    // Usar quantidade em vez de valor_total
+    const novoValorUtilizado = this.arredondarDecimal(valorUtilizadoAtual + quantidadeValidada, 2);
 
     // valor_disponivel = litros_desejados - valor_utilizado
-    // Nota: litros_desejados está em litros, mas valor_utilizado está em reais
-    // O cálculo correto seria considerar o preço médio, mas seguindo a especificação:
+    // Nota: litros_desejados está em litros, mas valor_utilizado agora também está em litros (quantidade)
     const valorDisponivel = Math.max(
       0,
       this.arredondarDecimal(litrosDesejados - novoValorUtilizado, 2),
     );
 
-    // Validar que valor utilizado não excede litros desejados (considerando conversão)
+    // Validar que valor utilizado não excede litros desejados
     if (novoValorUtilizado > litrosDesejados && litrosDesejados > 0) {
       console.warn(
         `Aviso: Valor utilizado (${novoValorUtilizado}) excede litros desejados (${litrosDesejados}) no processo ${processoId}. Valor disponível será 0.`,
@@ -348,7 +349,7 @@ export class AbastecimentoService {
   private async atualizarProcesso(
     tx: Prisma.TransactionClient,
     prefeituraId: number,
-    valorTotal: number,
+    quantidade: number,
   ): Promise<void> {
     // Buscar processo ativo da prefeitura
     const processo = await tx.processo.findFirst({
@@ -370,8 +371,8 @@ export class AbastecimentoService {
       return;
     }
 
-    // Usar o método atualizarProcessoPorId
-    await this.atualizarProcessoPorId(tx, processo.id, valorTotal);
+    // Usar o método atualizarProcessoPorId com quantidade
+    await this.atualizarProcessoPorId(tx, processo.id, quantidade);
   }
 
   /**
@@ -1021,8 +1022,10 @@ export class AbastecimentoService {
         }
       } else {
         // Se não há cota, ainda tenta atualizar processo por prefeitura (método legado)
+        // Usar quantidade em vez de valor_total para atualizar valor_utilizado do processo
         try {
-          await this.atualizarProcesso(tx, prefeituraId, valor_total);
+          const quantidadeAbastecimento = this.validarEConverterValor(createAbastecimentoDto.quantidade, 'quantidade', false);
+          await this.atualizarProcesso(tx, prefeituraId, quantidadeAbastecimento);
         } catch (error) {
           // Log do erro mas não falha a transação se processo não for encontrado
           console.warn(`Erro ao atualizar Processo para prefeitura ${prefeituraId}:`, error);
@@ -2090,8 +2093,10 @@ export class AbastecimentoService {
       }
 
       // PASSO 6: Se não há cota, ainda tenta atualizar processo por prefeitura (método legado)
+      // Usar quantidade em vez de valorTotal para atualizar valor_utilizado do processo
       if (!cotaIdParaUsar) {
-        await this.atualizarProcesso(tx, prefeituraIdSolicitacao, valorTotal);
+        const quantidadeAbastecimento = Number(solicitacao.quantidade.toString());
+        await this.atualizarProcesso(tx, prefeituraIdSolicitacao, quantidadeAbastecimento);
       }
 
       return {
