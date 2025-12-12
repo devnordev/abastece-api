@@ -944,7 +944,7 @@ export class SolicitacaoAbastecimentoService {
       updateData.motivo_rejeicao = null;
     }
 
-    // Se o status for REJEITADA, preencher campos de rejeição
+    // Se o status for REJEITADA, preencher campos de rejeição e liberar litros da cota período
     if (updateStatusDto.status === StatusSolicitacao.REJEITADA) {
       updateData.data_rejeicao = new Date();
       updateData.rejeitado_por = updateStatusDto.rejeitado_por || user?.nome || undefined;
@@ -956,6 +956,16 @@ export class SolicitacaoAbastecimentoService {
       updateData.aprovado_por = null;
       updateData.aprovado_por_email = null;
       updateData.aprovado_por_empresa = null;
+      
+      // Verificar se precisa liberar litros (apenas se status anterior era PENDENTE)
+      const statusAnterior = solicitacao.status;
+      if (
+        statusAnterior === StatusSolicitacao.PENDENTE &&
+        solicitacao.veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA &&
+        solicitacao.veiculo.periodicidade
+      ) {
+        await this.liberarLitrosSolicitacaoCancelada(solicitacao);
+      }
     }
 
     // Se o status for EXPIRADA, liberar litros da cota período
@@ -967,7 +977,21 @@ export class SolicitacaoAbastecimentoService {
         solicitacao.veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA &&
         solicitacao.veiculo.periodicidade
       ) {
-        await this.liberarLitrosSolicitacaoExpirada(solicitacao);
+        // Usar o método genérico que também funciona para EXPIRADA
+        await this.liberarLitrosSolicitacaoCancelada(solicitacao);
+      }
+    }
+
+    // Se o status for CANCELADA, liberar litros da cota período
+    if (updateStatusDto.status === StatusSolicitacao.CANCELADA) {
+      // Verificar se precisa liberar litros (apenas se status anterior era PENDENTE)
+      const statusAnterior = solicitacao.status;
+      if (
+        statusAnterior === StatusSolicitacao.PENDENTE &&
+        solicitacao.veiculo.tipo_abastecimento === TipoAbastecimentoVeiculo.COTA &&
+        solicitacao.veiculo.periodicidade
+      ) {
+        await this.liberarLitrosSolicitacaoCancelada(solicitacao);
       }
     }
 
@@ -2388,11 +2412,12 @@ export class SolicitacaoAbastecimentoService {
   }
 
   /**
-   * Libera litros de uma solicitação expirada específica
-   * Quando uma solicitação expira, os litros devem voltar para a cota período
+   * Libera litros de uma solicitação cancelada, rejeitada ou expirada
+   * Quando uma solicitação é cancelada/rejeitada/expirada, os litros devem voltar para a cota período
    * Busca o período que estava ativo quando a solicitação foi criada
+   * Este método é usado para CANCELADA, REJEITADA e EXPIRADA
    */
-  private async liberarLitrosSolicitacaoExpirada(
+  private async liberarLitrosSolicitacaoCancelada(
     solicitacao: {
       id: number;
       veiculoId: number;
@@ -2416,7 +2441,6 @@ export class SolicitacaoAbastecimentoService {
       await this.prisma.$transaction(async (tx) => {
         // Buscar a cota de período que estava ativa quando a solicitação foi criada
         // Usar a data_solicitacao para encontrar o período correto
-        // Isso é importante porque o período pode ter mudado desde que a solicitação foi criada
         const dataSolicitacaoReal = this.getDateAdjustedToTimezone(solicitacao.data_solicitacao);
 
         const cotaPeriodo = await tx.veiculoCotaPeriodo.findFirst({
@@ -2435,16 +2459,9 @@ export class SolicitacaoAbastecimentoService {
         if (cotaPeriodo) {
           const quantidadeSolicitacao = Number(solicitacao.quantidade.toString());
           const quantidadeUtilizadaAtual = Number(cotaPeriodo.quantidade_utilizada.toString());
-          const quantidadeDisponivelAtual = Number(cotaPeriodo.quantidade_disponivel.toString());
           const quantidadePermitida = Number(cotaPeriodo.quantidade_permitida.toString());
 
-          // Liberar os litros: decrementar quantidade_utilizada e recalcular quantidade_disponivel
-          // Regras:
-          // - quantidade_utilizada: valores de 0 até quantidade_permitida (não pode ser negativo, não pode exceder quantidade_permitida)
-          // - quantidade_disponivel: valores de quantidade_permitida até 0 (não pode ser negativo, não pode exceder quantidade_permitida)
-          // - Relação: quantidade_utilizada + quantidade_disponivel = quantidade_permitida
-          
-          // Calcular nova quantidade_utilizada (subtrair a quantidade solicitada)
+          // Subtrair quantidade_utilizada pela quantidade da solicitação
           // Garantir que fique entre 0 e quantidade_permitida
           const novaQuantidadeUtilizada = Math.max(0, Math.min(quantidadePermitida, quantidadeUtilizadaAtual - quantidadeSolicitacao));
           
@@ -2706,7 +2723,8 @@ export class SolicitacaoAbastecimentoService {
           periodicidade: solicitacao.veiculo.periodicidade,
         },
       };
-      await this.liberarLitrosSolicitacaoExpirada(solicitacaoComVeiculoCota);
+      // Usar o método genérico que funciona para EXPIRADA, CANCELADA e REJEITADA
+      await this.liberarLitrosSolicitacaoCancelada(solicitacaoComVeiculoCota);
     }
 
     solicitacao.status = StatusSolicitacao.EXPIRADA;
@@ -2796,7 +2814,8 @@ export class SolicitacaoAbastecimentoService {
               periodicidade: veiculo.periodicidade,
             },
           };
-          await this.liberarLitrosSolicitacaoExpirada(solicitacaoComVeiculoCota);
+          // Usar o método genérico que funciona para EXPIRADA, CANCELADA e REJEITADA
+          await this.liberarLitrosSolicitacaoCancelada(solicitacaoComVeiculoCota);
           liberadas++;
         }
       } catch (error) {
@@ -2879,7 +2898,8 @@ export class SolicitacaoAbastecimentoService {
           periodicidade: solicitacao.veiculo.periodicidade,
         },
       };
-      await this.liberarLitrosSolicitacaoExpirada(solicitacaoComVeiculoCota);
+      // Usar o método genérico que funciona para EXPIRADA, CANCELADA e REJEITADA
+      await this.liberarLitrosSolicitacaoCancelada(solicitacaoComVeiculoCota);
     }
   }
 
