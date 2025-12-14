@@ -1803,12 +1803,20 @@ export class AbastecimentoService {
 
     // Calcular valor total se não informado no DTO
     // Prioridade: valor_total do DTO > valor_total da solicitação > cálculo automático
+    const precoEmpresaParaCalculo = createDto.preco_empresa !== undefined && createDto.preco_empresa !== null
+      ? createDto.preco_empresa
+      : solicitacao.preco_empresa
+        ? Number(solicitacao.preco_empresa)
+        : null;
+
+    const descontoValor = desconto !== undefined && desconto !== null ? desconto : 0;
+
     const valorTotal = createDto.valor_total !== undefined && createDto.valor_total !== null
       ? createDto.valor_total
       : solicitacao.valor_total 
         ? Number(solicitacao.valor_total) 
-        : solicitacao.preco_empresa 
-          ? Number(solicitacao.preco_empresa) * Number(solicitacao.quantidade) 
+        : precoEmpresaParaCalculo !== null
+          ? precoEmpresaParaCalculo * Number(solicitacao.quantidade) - descontoValor
           : 0;
 
     // Buscar cota do órgão se necessário (para tipo COM_COTA)
@@ -1850,7 +1858,11 @@ export class AbastecimentoService {
       nfe_img_url: createDto.nfe_img_url || solicitacao.nfe_img_url || undefined,
       nfe_link: nfe_link || undefined,
       abastecido_por: abastecido_por || solicitacao.abastecido_por || 'Sistema',
-      preco_empresa: solicitacao.preco_empresa ? new Decimal(solicitacao.preco_empresa) : undefined,
+      preco_empresa: createDto.preco_empresa !== undefined && createDto.preco_empresa !== null
+        ? new Decimal(createDto.preco_empresa)
+        : solicitacao.preco_empresa
+          ? new Decimal(solicitacao.preco_empresa)
+          : undefined,
       preco_anp: preco_anp ? new Decimal(preco_anp) : undefined,
       desconto: desconto ? new Decimal(desconto) : undefined,
       odometro: odometro || undefined,

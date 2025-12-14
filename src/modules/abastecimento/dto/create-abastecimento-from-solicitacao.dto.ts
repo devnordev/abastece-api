@@ -103,6 +103,16 @@ export class CreateAbastecimentoFromSolicitacaoDto {
   preco_anp?: number;
 
   @ApiPropertyOptional({
+    description: 'Preço da empresa (opcional). Se não informado, será usado o preço da solicitação.',
+    example: 5.45,
+    required: false,
+  })
+  @IsOptional()
+  @Transform(({ value }) => parseFloat(value))
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Preço da empresa deve ser um número decimal com no máximo 2 casas decimais' })
+  preco_empresa?: number;
+
+  @ApiPropertyOptional({
     description: 'Valor total (opcional). Se não informado, será calculado automaticamente a partir da solicitação.',
     example: 272.50,
     required: false,

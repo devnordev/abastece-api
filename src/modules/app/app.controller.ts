@@ -394,6 +394,11 @@ export class AppController {
           type: 'number',
           example: 5.50,
         },
+        preco_empresa: {
+          type: 'number',
+          example: 5.45,
+          description: 'Preço da empresa (opcional). Se não informado, será usado o preço da solicitação.',
+        },
         valor_total: {
           type: 'number',
           example: 272.50,
