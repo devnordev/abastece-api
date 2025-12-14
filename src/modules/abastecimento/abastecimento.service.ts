@@ -1801,12 +1801,15 @@ export class AbastecimentoService {
     // Se não informado, usar Aprovado (pois a solicitação será aprovada)
     let statusAbastecimento: StatusAbastecimento = status || StatusAbastecimento.Aprovado;
 
-    // Calcular valor total se não informado
-    const valorTotal = solicitacao.valor_total 
-      ? Number(solicitacao.valor_total) 
-      : solicitacao.preco_empresa 
-        ? Number(solicitacao.preco_empresa) * Number(solicitacao.quantidade) 
-        : 0;
+    // Calcular valor total se não informado no DTO
+    // Prioridade: valor_total do DTO > valor_total da solicitação > cálculo automático
+    const valorTotal = createDto.valor_total !== undefined && createDto.valor_total !== null
+      ? createDto.valor_total
+      : solicitacao.valor_total 
+        ? Number(solicitacao.valor_total) 
+        : solicitacao.preco_empresa 
+          ? Number(solicitacao.preco_empresa) * Number(solicitacao.quantidade) 
+          : 0;
 
     // Buscar cota do órgão se necessário (para tipo COM_COTA)
     let cotaId: number | undefined = undefined;

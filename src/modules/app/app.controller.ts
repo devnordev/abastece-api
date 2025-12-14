@@ -394,6 +394,11 @@ export class AppController {
           type: 'number',
           example: 5.50,
         },
+        valor_total: {
+          type: 'number',
+          example: 272.50,
+          description: 'Valor total (opcional). Se não informado, será calculado automaticamente a partir da solicitação.',
+        },
         abastecido_por: {
           type: 'string',
           example: 'João Silva',

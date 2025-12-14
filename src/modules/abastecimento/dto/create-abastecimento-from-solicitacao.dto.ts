@@ -1,7 +1,7 @@
-import { IsInt, IsOptional, IsEnum, IsDateString, IsString, IsBoolean } from 'class-validator';
+import { IsInt, IsOptional, IsEnum, IsDateString, IsString, IsBoolean, IsNumber } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { StatusAbastecimento } from '@prisma/client';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export class CreateAbastecimentoFromSolicitacaoDto {
   @ApiProperty({
@@ -101,6 +101,17 @@ export class CreateAbastecimentoFromSolicitacaoDto {
   @IsOptional()
   @Transform(({ value }) => parseFloat(value))
   preco_anp?: number;
+
+  @ApiPropertyOptional({
+    description: 'Valor total (opcional). Se não informado, será calculado automaticamente a partir da solicitação.',
+    example: 272.50,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @Transform(({ value }) => value !== undefined && value !== null ? (typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value) : value)
+  @IsNumber({}, { message: 'Valor total deve ser um número decimal' })
+  valor_total?: number;
 
   @ApiPropertyOptional({
     description: 'Quem abasteceu (opcional)',

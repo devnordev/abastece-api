@@ -1166,6 +1166,7 @@ export class AppService {
       abastecedorId: createDto.abastecedorId,
       desconto: createDto.desconto,
       preco_anp: createDto.preco_anp,
+      valor_total: createDto.valor_total,
       abastecido_por: createDto.abastecido_por,
       nfe_link: createDto.nfe_link,
       observacao: createDto.observacao,
