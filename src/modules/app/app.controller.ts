@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Param, ParseIntPipe, Req, Post, Body, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Param, ParseIntPipe, Req, Post, Body, UseInterceptors, UploadedFile, Patch } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -11,6 +11,7 @@ import { GetPrecoEmpresaCombustivelDto } from '../empresa-preco-combustivel/dto/
 import { AppService } from './app.service';
 import { CreateAbastecimentoFromQrCodeVeiculoAppDto } from './dto/create-abastecimento-from-qrcode-veiculo.dto';
 import { CreateAbastecimentoFromSolicitacaoAppDto } from './dto/create-abastecimento-from-solicitacao.dto';
+import { RedefinirSenhaDto } from './dto/redefinir-senha.dto';
 
 @ApiTags('App - Solicitações')
 @Controller('app')
@@ -449,6 +450,57 @@ export class AppController {
     @UploadedFile() nfeImgFile?: Express.Multer.File,
   ) {
     return this.appService.createAbastecimentoFromSolicitacao(createDto, req.user, nfeImgFile);
+  }
+
+  @Patch('perfil/redefinir-senha')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Redefinir senha do usuário logado',
+    description: 'Permite ao usuário logado redefinir sua própria senha. É necessário informar a senha atual, a nova senha e a confirmação da nova senha.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Senha redefinida com sucesso',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Senha redefinida com sucesso' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'A nova senha e a confirmação de senha não correspondem',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'string', example: 'A nova senha e a confirmação de senha não correspondem' },
+        error: { type: 'string', example: 'As senhas informadas não são iguais. Por favor, verifique se a nova senha e a confirmação de senha estão corretas.' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Senha atual incorreta',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Senha atual incorreta' },
+        error: { type: 'string', example: 'A senha atual informada está incorreta. Por favor, verifique e tente novamente.' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Usuário não encontrado',
+  })
+  async redefinirSenha(
+    @Body() redefinirSenhaDto: RedefinirSenhaDto,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.appService.redefinirSenha(redefinirSenhaDto, req.user);
   }
 }
 

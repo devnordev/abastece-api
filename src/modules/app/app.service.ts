@@ -1,5 +1,6 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import * as bcrypt from 'bcryptjs';
 import {
   StatusProcesso,
   TipoContrato,
@@ -15,6 +16,7 @@ import { CreateAbastecimentoFromQrCodeVeiculoAppDto } from './dto/create-abastec
 import { CreateAbastecimentoFromQrCodeVeiculoDto } from '../abastecimento/dto/create-abastecimento-from-qrcode-veiculo.dto';
 import { CreateAbastecimentoFromSolicitacaoAppDto } from './dto/create-abastecimento-from-solicitacao.dto';
 import { CreateAbastecimentoFromSolicitacaoDto } from '../abastecimento/dto/create-abastecimento-from-solicitacao.dto';
+import { RedefinirSenhaDto } from './dto/redefinir-senha.dto';
 
 @Injectable()
 export class AppService {
@@ -1176,6 +1178,62 @@ export class AppService {
 
     // Chamar o serviço de abastecimento
     return this.abastecimentoService.createFromSolicitacao(abastecimentoDto, user);
+  }
+
+  /**
+   * Redefine a senha do usuário logado
+   * Valida a senha atual, verifica se a nova senha e confirmação são iguais e atualiza a senha
+   */
+  async redefinirSenha(redefinirSenhaDto: RedefinirSenhaDto, user: any) {
+    const { senha_atual, nova_senha, confirmar_senha } = redefinirSenhaDto;
+
+    // Validar se nova senha e confirmar senha são iguais
+    if (nova_senha !== confirmar_senha) {
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'A nova senha e a confirmação de senha não correspondem',
+        error: 'As senhas informadas não são iguais. Por favor, verifique se a nova senha e a confirmação de senha estão corretas.',
+      });
+    }
+
+    // Buscar o usuário no banco de dados
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        senha: true,
+        email: true,
+      },
+    });
+
+    if (!usuario) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
+    // Verificar se a senha atual está correta
+    const isPasswordValid = await bcrypt.compare(senha_atual, usuario.senha);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        message: 'Senha atual incorreta',
+        error: 'A senha atual informada está incorreta. Por favor, verifique e tente novamente.',
+      });
+    }
+
+    // Hash da nova senha
+    const hashedPassword = await bcrypt.hash(nova_senha, 12);
+
+    // Atualizar a senha no banco de dados
+    await this.prisma.usuario.update({
+      where: { id: user.id },
+      data: {
+        senha: hashedPassword,
+      },
+    });
+
+    return {
+      message: 'Senha redefinida com sucesso',
+    };
   }
 }
 
