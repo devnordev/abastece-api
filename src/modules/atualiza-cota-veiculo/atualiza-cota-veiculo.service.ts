@@ -16,6 +16,14 @@ import {
   ArquivoPdfVazioException,
 } from '../../common/exceptions';
 
+// Polyfill para DOMMatrix necessário para pdf-parse 2.4.5 no Node.js
+if (typeof globalThis.DOMMatrix === 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { DOMMatrix, DOMPoint } = require('canvas');
+  globalThis.DOMMatrix = DOMMatrix;
+  globalThis.DOMPoint = DOMPoint;
+}
+
 interface LinhaPdf {
   orgao: string;
   placa: string;
@@ -38,52 +46,30 @@ export class AtualizaCotaVeiculoService {
 
   private async parsePdf(buffer: Buffer): Promise<{ text: string }> {
     try {
-      // Usar a versão específica para Node.js (/node) que evita problemas com APIs do navegador
+      // pdf-parse 2.4.5 exporta uma classe PDFParse que precisa ser instanciada
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const pdfParseModule = require('pdf-parse/node');
+      const pdfParseModule = require('pdf-parse');
       
-      // Obter a função - pode estar como default ou export direto
-      const pdfParseFn = pdfParseModule.default || pdfParseModule;
+      // Obter a classe PDFParse do módulo
+      const PDFParseClass = pdfParseModule.PDFParse;
       
-      if (typeof pdfParseFn !== 'function') {
-        throw new PdfInvalidoException(`pdfParse não é uma função. Tipo recebido: ${typeof pdfParseFn}`);
+      if (!PDFParseClass) {
+        throw new PdfInvalidoException('Classe PDFParse não encontrada no módulo pdf-parse');
       }
       
-      // Chamar a função pdfParse com o buffer
-      const data = await pdfParseFn(buffer);
+      // Criar instância da classe PDFParse com o buffer
+      const parser = new PDFParseClass({ data: buffer });
       
-      // Verificar o formato do retorno
+      // Obter o texto do PDF usando o método getText()
+      const data = await parser.getText();
+      
+      // Verificar o formato do retorno (getText retorna TextResult com propriedade text)
       if (data && typeof data.text === 'string') {
         return { text: data.text };
       }
       
-      if (typeof data === 'string') {
-        return { text: data };
-      }
-      
       throw new PdfInvalidoException('Formato de retorno do pdf-parse não reconhecido');
     } catch (error: any) {
-      // Se der erro MODULE_NOT_FOUND ao tentar /node, tentar sem o /node
-      if (error?.code === 'MODULE_NOT_FOUND' && error.message.includes('/node')) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const pdfParseModule = require('pdf-parse');
-          const pdfParseFn = pdfParseModule.default || pdfParseModule;
-          
-          if (typeof pdfParseFn === 'function') {
-            const data = await pdfParseFn(buffer);
-            if (data && typeof data.text === 'string') {
-              return { text: data.text };
-            }
-            if (typeof data === 'string') {
-              return { text: data };
-            }
-          }
-        } catch (requireError: any) {
-          throw new PdfInvalidoException(`Erro ao processar PDF: ${requireError?.message || error.message}`);
-        }
-      }
-      
       // Relançar erros conhecidos
       if (error instanceof PdfInvalidoException) {
         throw error;
