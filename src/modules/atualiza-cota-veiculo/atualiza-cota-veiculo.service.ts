@@ -3,7 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { Periodicidade } from '@prisma/client';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdfParse = require('pdf-parse');
+const pdfParseLib = require('pdf-parse');
 import {
   PdfInvalidoException,
   NomePrefeituraNaoEncontradoNoPdfException,
@@ -39,11 +39,39 @@ export class AtualizaCotaVeiculoService {
   constructor(private prisma: PrismaService) {}
 
   private async parsePdf(buffer: Buffer): Promise<{ text: string }> {
-    return new Promise((resolve, reject) => {
-      pdfParse(buffer)
-        .then((data: { text: string }) => resolve(data))
-        .catch((error: Error) => reject(error));
-    });
+    try {
+      // Obter a função pdfParse - pode estar em diferentes lugares dependendo da versão
+      let pdfParseFn: any = pdfParseLib;
+      
+      if (typeof pdfParseLib !== 'function') {
+        // Tentar default export
+        if (pdfParseLib && typeof pdfParseLib.default === 'function') {
+          pdfParseFn = pdfParseLib.default;
+        } 
+        // Tentar acessar diretamente se for um objeto com a função
+        else if (pdfParseLib && typeof pdfParseLib.pdfParse === 'function') {
+          pdfParseFn = pdfParseLib.pdfParse;
+        }
+        // Se for um objeto, pegar a primeira propriedade que for função
+        else if (pdfParseLib && typeof pdfParseLib === 'object') {
+          for (const key in pdfParseLib) {
+            if (typeof pdfParseLib[key] === 'function') {
+              pdfParseFn = pdfParseLib[key];
+              break;
+            }
+          }
+        }
+      }
+      
+      if (typeof pdfParseFn !== 'function') {
+        throw new Error(`pdfParse não é uma função. Tipo: ${typeof pdfParseLib}, Keys: ${pdfParseLib ? Object.keys(pdfParseLib).join(', ') : 'null'}`);
+      }
+      
+      const data = await pdfParseFn(buffer);
+      return { text: data.text || '' };
+    } catch (error) {
+      throw error;
+    }
   }
 
   async processarPdf(file: Express.Multer.File) {

@@ -17,11 +17,12 @@ import {
 } from '@nestjs/swagger';
 import { AtualizaCotaVeiculoService } from './atualiza-cota-veiculo.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SuperAdminPrefeituraGuard } from '../auth/guards/super-admin-prefeitura.guard';
 import { memoryStorage } from 'multer';
 
 @ApiTags('Atualiza Cota Veículo')
 @Controller('atualiza-cota-veiculo')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, SuperAdminPrefeituraGuard)
 @ApiBearerAuth()
 export class AtualizaCotaVeiculoController {
   constructor(
@@ -40,6 +41,7 @@ export class AtualizaCotaVeiculoController {
   })
   @ApiResponse({ status: 400, description: 'Arquivo inválido ou erro na importação' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado - apenas SUPER_ADMIN ou ADMIN_PREFEITURA' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
