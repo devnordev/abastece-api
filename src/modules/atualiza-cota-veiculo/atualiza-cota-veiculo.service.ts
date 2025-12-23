@@ -366,13 +366,30 @@ export class AtualizaCotaVeiculoService {
           }
 
           // A placa está na penúltima coluna antes dos números
-          // Garantir que temos pelo menos 3 colunas antes de acessar colunas.length - 3
+          // Mas placas podem ter espaços (ex: "JR POÇO", "THIEDE")
+          // Vamos tentar identificar se a placa precisa de mais de uma coluna
           if (colunas.length < 4) {
             continue;
           }
           
-          const placaIndex = colunas.length - 3;
-          const placa = colunas[placaIndex]?.trim().toUpperCase() || '';
+          let placaIndex = colunas.length - 3;
+          let placa = colunas[placaIndex]?.trim().toUpperCase() || '';
+          
+          // Se a placa parece incompleta (muito curta, só letras, não parece placa brasileira),
+          // tentar incluir a coluna anterior também
+          // Placass com espaços como "JR POÇO" precisam ser unidas
+          if (placaIndex > 0 && (
+            placa.length <= 3 || // Muito curta
+            /^[A-Z]+$/.test(placa) // Só letras (pode ser parte de uma placa maior)
+          )) {
+            // Tentar combinar com a coluna anterior
+            const placaCompleta = `${colunas[placaIndex - 1]} ${placa}`.trim().toUpperCase();
+            // Validar se faz sentido (não pode ser muito longa, deve parecer uma placa)
+            if (placaCompleta.length <= 15) {
+              placa = placaCompleta;
+              placaIndex = placaIndex - 1;
+            }
+          }
           
           // O órgão é tudo antes da placa (pode ter várias palavras)
           const orgao = colunas.slice(0, placaIndex).join(' ').trim();
