@@ -366,7 +366,7 @@ export class AtualizaCotaVeiculoService {
           }
 
           // A placa está na penúltima coluna antes dos números
-          // Mas placas podem ter espaços (ex: "JR POÇO", "THIEDE")
+          // Mas placas podem ter espaços (ex: "JR POÇO")
           // Vamos tentar identificar se a placa precisa de mais de uma coluna
           if (colunas.length < 4) {
             continue;
@@ -375,19 +375,21 @@ export class AtualizaCotaVeiculoService {
           let placaIndex = colunas.length - 3;
           let placa = colunas[placaIndex]?.trim().toUpperCase() || '';
           
-          // Se a placa parece incompleta (muito curta, só letras, não parece placa brasileira),
-          // tentar incluir a coluna anterior também
-          // Placass com espaços como "JR POÇO" precisam ser unidas
-          if (placaIndex > 0 && (
-            placa.length <= 3 || // Muito curta
-            /^[A-Z]+$/.test(placa) // Só letras (pode ser parte de uma placa maior)
-          )) {
-            // Tentar combinar com a coluna anterior
-            const placaCompleta = `${colunas[placaIndex - 1]} ${placa}`.trim().toUpperCase();
-            // Validar se faz sentido (não pode ser muito longa, deve parecer uma placa)
-            if (placaCompleta.length <= 15) {
-              placa = placaCompleta;
-              placaIndex = placaIndex - 1;
+          // Se a coluna anterior parece fazer parte da placa (é curta, 2-3 caracteres),
+          // combinar com a placa atual para formar placas compostas como "JR POÇO"
+          if (placaIndex > 0) {
+            const colunaAnterior = colunas[placaIndex - 1]?.trim().toUpperCase() || '';
+            
+            // Se a coluna anterior é curta (2-3 caracteres) e parece parte de uma placa
+            // E a placa atual também é curta ou só letras, combinar
+            if (colunaAnterior.length >= 2 && colunaAnterior.length <= 4 && 
+                (placa.length <= 5 || /^[A-Z]+$/.test(placa))) {
+              const placaCompleta = `${colunaAnterior} ${placa}`.trim().toUpperCase();
+              // Validar se faz sentido (não pode ser muito longa)
+              if (placaCompleta.length <= 15 && placaCompleta.length >= 3) {
+                placa = placaCompleta;
+                placaIndex = placaIndex - 1;
+              }
             }
           }
           
