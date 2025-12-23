@@ -327,60 +327,54 @@ export class AtualizaCotaVeiculoService {
       // Pular linhas que parecem ser cabeçalhos ou separadores
       const linhaLower = linha.toLowerCase();
       if (linhaLower.includes('órgão') || 
+          linhaLower.includes('orgao') ||
           linhaLower.includes('placa') || 
           linhaLower.match(/^[-=\s]+$/) ||
-          linhaLower.includes('total') && linhaLower.includes('geral')) {
+          (linhaLower.includes('total') && linhaLower.includes('geral')) ||
+          linhaLower.includes('gerado por:') ||
+          linhaLower.includes('--') ||
+          linhaLower.match(/\d+\s+de\s+\d+/)) { // Pular linhas como "1 de 2"
         continue;
       }
 
-      // Dividir a linha por espaços múltiplos ou tabs
+      // Dividir a linha por espaços múltiplos (2 ou mais) ou tabs
       const colunas = linha
         .split(/\s{2,}|\t/)
         .map((c) => c.trim())
         .filter((c) => c && c.length > 0);
 
       // Esperamos pelo menos: órgão, placa, cota_total, cota_utilizada
-      // Mas pode ter mais colunas no meio
       if (colunas.length >= 4) {
         try {
-          const orgao = colunas[0];
+          // Estratégia: assumir que as últimas duas colunas são sempre numéricas (cota_total e cota_utilizada)
+          // A penúltima coluna antes dos números é a placa
+          // Tudo antes da placa é o nome do órgão
+
+          const cotaTotalStr = colunas[colunas.length - 2];
+          const cotaUtilizadaStr = colunas[colunas.length - 1];
           
-          // Procurar pela placa (normalmente está na segunda coluna, mas pode variar)
-          let placaIndex = 1;
-          let placa = '';
-          for (let j = 1; j < Math.min(5, colunas.length); j++) {
-            const candidato = colunas[j].toUpperCase().replace(/[^A-Z0-9]/g, '');
-            // Placa brasileira tem formato ABC1234 ou ABC1D23
-            if (candidato.length >= 7 && candidato.length <= 8 && /^[A-Z]{3}\d/.test(candidato)) {
-              placa = candidato;
-              placaIndex = j;
-              break;
-            }
+          const cotaTotal = this.parseNumero(cotaTotalStr);
+          const cotaUtilizada = this.parseNumero(cotaUtilizadaStr);
+
+          // Validar que as últimas duas colunas são números válidos
+          if (isNaN(cotaTotal) || isNaN(cotaUtilizada) || cotaTotal < 0 || cotaUtilizada < 0) {
+            continue;
           }
 
-          if (!placa) {
-            // Se não encontrou formato padrão, pegar segunda coluna
-            placa = colunas[1].toUpperCase().replace(/[^A-Z0-9]/g, '');
-          }
+          // A placa está na penúltima coluna antes dos números
+          const placa = colunas[colunas.length - 3].trim().toUpperCase();
+          
+          // O órgão é tudo antes da placa
+          const orgao = colunas.slice(0, colunas.length - 3).join(' ').trim();
 
-          // Buscar cota_total e cota_utilizada (normalmente são as últimas duas colunas numéricas)
-          const numeros = colunas
-            .slice(placaIndex + 1)
-            .map((c) => this.parseNumero(c))
-            .filter((n) => !isNaN(n) && n > 0);
-
-          if (numeros.length >= 2) {
-            const cotaTotal = numeros[numeros.length - 2];
-            const cotaUtilizada = numeros[numeros.length - 1];
-
-            if (orgao && placa && placa.length >= 6 && !isNaN(cotaTotal) && !isNaN(cotaUtilizada)) {
-              linhas.push({
-                orgao,
-                placa,
-                cota_total: cotaTotal,
-                cota_utilizada: cotaUtilizada,
-              });
-            }
+          // Validar que temos todos os campos necessários
+          if (orgao && placa && placa.length >= 3) {
+            linhas.push({
+              orgao,
+              placa,
+              cota_total: cotaTotal,
+              cota_utilizada: cotaUtilizada,
+            });
           }
         } catch (error) {
           // Ignorar linhas com erro
