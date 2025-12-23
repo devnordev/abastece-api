@@ -16,13 +16,6 @@ import {
   ArquivoPdfVazioException,
 } from '../../common/exceptions';
 
-// Polyfill para DOMMatrix necessário para pdf-parse 2.4.5 no Node.js
-if (typeof globalThis.DOMMatrix === 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { DOMMatrix, DOMPoint } = require('canvas');
-  globalThis.DOMMatrix = DOMMatrix;
-  globalThis.DOMPoint = DOMPoint;
-}
 
 interface LinhaPdf {
   orgao: string;
@@ -46,6 +39,39 @@ export class AtualizaCotaVeiculoService {
 
   private async parsePdf(buffer: Buffer): Promise<{ text: string }> {
     try {
+      // Polyfill para DOMMatrix necessário para pdf-parse 2.4.5 no Node.js
+      // Aplicar apenas uma vez e apenas se necessário
+      if (typeof globalThis.DOMMatrix === 'undefined') {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { DOMMatrix, DOMPoint } = require('canvas');
+          globalThis.DOMMatrix = DOMMatrix;
+          globalThis.DOMPoint = DOMPoint;
+        } catch (canvasError) {
+          // Se canvas não estiver disponível, criar polyfill básico
+          globalThis.DOMMatrix = class DOMMatrix {
+            constructor(init?: any) {
+              if (typeof init === 'string') {
+                const values = init.match(/matrix\(([^)]+)\)/)?.[1]?.split(',').map(Number) || [];
+                this.a = values[0] || 1;
+                this.b = values[1] || 0;
+                this.c = values[2] || 0;
+                this.d = values[3] || 1;
+                this.e = values[4] || 0;
+                this.f = values[5] || 0;
+              } else {
+                this.a = init?.a ?? 1;
+                this.b = init?.b ?? 0;
+                this.c = init?.c ?? 0;
+                this.d = init?.d ?? 1;
+                this.e = init?.e ?? 0;
+                this.f = init?.f ?? 0;
+              }
+            }
+          } as any;
+        }
+      }
+
       // pdf-parse 2.4.5 exporta uma classe PDFParse que precisa ser instanciada
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const pdfParseModule = require('pdf-parse');
