@@ -40,36 +40,55 @@ export class AtualizaCotaVeiculoService {
   private async parsePdf(buffer: Buffer): Promise<{ text: string }> {
     try {
       // Polyfill para DOMMatrix necessário para pdf-parse 2.4.5 no Node.js
-      // Aplicar apenas uma vez e apenas se necessário
+      // pdf-parse usa @napi-rs/canvas que já inclui DOMMatrix, mas pode não estar disponível globalmente
+      // Criar polyfill básico apenas se necessário
       if (typeof globalThis.DOMMatrix === 'undefined') {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const { DOMMatrix, DOMPoint } = require('canvas');
-          globalThis.DOMMatrix = DOMMatrix;
-          globalThis.DOMPoint = DOMPoint;
-        } catch (canvasError) {
-          // Se canvas não estiver disponível, criar polyfill básico
-          globalThis.DOMMatrix = class DOMMatrix {
-            constructor(init?: any) {
-              if (typeof init === 'string') {
-                const values = init.match(/matrix\(([^)]+)\)/)?.[1]?.split(',').map(Number) || [];
-                this.a = values[0] || 1;
-                this.b = values[1] || 0;
-                this.c = values[2] || 0;
-                this.d = values[3] || 1;
-                this.e = values[4] || 0;
-                this.f = values[5] || 0;
-              } else {
-                this.a = init?.a ?? 1;
-                this.b = init?.b ?? 0;
-                this.c = init?.c ?? 0;
-                this.d = init?.d ?? 1;
-                this.e = init?.e ?? 0;
-                this.f = init?.f ?? 0;
-              }
+        globalThis.DOMMatrix = class DOMMatrix {
+          a: number;
+          b: number;
+          c: number;
+          d: number;
+          e: number;
+          f: number;
+
+          constructor(init?: any) {
+            if (typeof init === 'string') {
+              const values = init.match(/matrix\(([^)]+)\)/)?.[1]?.split(',').map(Number) || [];
+              this.a = values[0] || 1;
+              this.b = values[1] || 0;
+              this.c = values[2] || 0;
+              this.d = values[3] || 1;
+              this.e = values[4] || 0;
+              this.f = values[5] || 0;
+            } else {
+              this.a = init?.a ?? 1;
+              this.b = init?.b ?? 0;
+              this.c = init?.c ?? 0;
+              this.d = init?.d ?? 1;
+              this.e = init?.e ?? 0;
+              this.f = init?.f ?? 0;
             }
-          } as any;
-        }
+          }
+
+          multiply(other: DOMMatrix): DOMMatrix {
+            const result = new (globalThis.DOMMatrix as any)({});
+            result.a = this.a * other.a + this.c * other.b;
+            result.b = this.b * other.a + this.d * other.b;
+            result.c = this.a * other.c + this.c * other.d;
+            result.d = this.b * other.c + this.d * other.d;
+            result.e = this.a * other.e + this.c * other.f + this.e;
+            result.f = this.b * other.e + this.d * other.f + this.f;
+            return result;
+          }
+
+          translate(x: number, y: number): DOMMatrix {
+            return this.multiply(new (globalThis.DOMMatrix as any)({ e: x, f: y }));
+          }
+
+          scale(x: number, y?: number): DOMMatrix {
+            return this.multiply(new (globalThis.DOMMatrix as any)({ a: x, d: y ?? x }));
+          }
+        } as any;
       }
 
       // pdf-parse 2.4.5 exporta uma classe PDFParse que precisa ser instanciada
