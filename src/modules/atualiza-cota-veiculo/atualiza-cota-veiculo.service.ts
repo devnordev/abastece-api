@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { Periodicidade } from '@prisma/client';
-import pdfParse = require('pdf-parse');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const pdfParse = require('pdf-parse');
 import {
   PdfInvalidoException,
   NomePrefeituraNaoEncontradoNoPdfException,
@@ -37,6 +38,14 @@ export interface VeiculoAtualizado {
 export class AtualizaCotaVeiculoService {
   constructor(private prisma: PrismaService) {}
 
+  private async parsePdf(buffer: Buffer): Promise<{ text: string }> {
+    return new Promise((resolve, reject) => {
+      pdfParse(buffer)
+        .then((data: { text: string }) => resolve(data))
+        .catch((error: Error) => reject(error));
+    });
+  }
+
   async processarPdf(file: Express.Multer.File) {
     // Validar se o arquivo não está vazio
     if (!file || !file.buffer || file.buffer.length === 0) {
@@ -44,11 +53,11 @@ export class AtualizaCotaVeiculoService {
     }
 
     // Extrair texto do PDF
-    let pdfData;
+    let pdfData: { text: string };
     let textoCompleto: string;
     
     try {
-      pdfData = await pdfParse(file.buffer);
+      pdfData = await this.parsePdf(file.buffer);
       textoCompleto = pdfData.text;
       
       if (!textoCompleto || textoCompleto.trim().length === 0) {
