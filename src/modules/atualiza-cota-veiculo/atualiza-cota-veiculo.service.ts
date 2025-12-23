@@ -1,0 +1,471 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import * as pdfParse from 'pdf-parse';
+import { Decimal } from '@prisma/client/runtime/library';
+import { Periodicidade } from '@prisma/client';
+import {
+  PdfInvalidoException,
+  NomePrefeituraNaoEncontradoNoPdfException,
+  PrefeituraNaoEncontradaNoBancoException,
+  CabecalhoTabelaNaoEncontradoException,
+  NenhumaLinhaValidaEncontradaException,
+  OrgaoNaoEncontradoParaPrefeituraException,
+  VeiculoNaoEncontradoParaOrgaoException,
+  VeiculoSemPeriodicidadeException,
+  ErroAoProcessarLinhaPdfException,
+  DadosLinhaPdfInvalidosException,
+  ArquivoPdfVazioException,
+} from '../../common/exceptions';
+
+interface LinhaPdf {
+  orgao: string;
+  placa: string;
+  cota_total: number;
+  cota_utilizada: number;
+}
+
+interface VeiculoAtualizado {
+  placa: string;
+  veiculoId: number;
+  id: number;
+  quantidade_permitida: number;
+  quantidade_utilizada: number;
+  quantidade_disponivel: number;
+}
+
+@Injectable()
+export class AtualizaCotaVeiculoService {
+  constructor(private prisma: PrismaService) {}
+
+  async processarPdf(file: Express.Multer.File) {
+    // Validar se o arquivo não está vazio
+    if (!file || !file.buffer || file.buffer.length === 0) {
+      throw new ArquivoPdfVazioException();
+    }
+
+    // Extrair texto do PDF
+    let pdfData;
+    let textoCompleto: string;
+    
+    try {
+      pdfData = await pdfParse(file.buffer);
+      textoCompleto = pdfData.text;
+      
+      if (!textoCompleto || textoCompleto.trim().length === 0) {
+        throw new ArquivoPdfVazioException();
+      }
+    } catch (error) {
+      if (error instanceof ArquivoPdfVazioException) {
+        throw error;
+      }
+      throw new PdfInvalidoException(
+        error instanceof Error ? error.message : 'Erro ao processar o arquivo PDF',
+      );
+    }
+
+    // Extrair nome da prefeitura do PDF
+    const nomePrefeitura = this.extrairNomePrefeitura(textoCompleto);
+    if (!nomePrefeitura) {
+      throw new NomePrefeituraNaoEncontradoNoPdfException();
+    }
+
+    // Buscar prefeitura no banco de dados
+    const prefeitura = await this.buscarPrefeituraPorNome(nomePrefeitura);
+    if (!prefeitura) {
+      throw new PrefeituraNaoEncontradaNoBancoException(nomePrefeitura);
+    }
+
+    // Extrair linhas do PDF
+    const linhasPdf = this.extrairLinhasPdf(textoCompleto);
+
+    const placasNaoAtualizadas: string[] = [];
+    const veiculosAtualizados: VeiculoAtualizado[] = [];
+
+    // Processar cada linha do PDF
+    const linhaIndexMap = new Map<LinhaPdf, number>();
+    linhasPdf.forEach((linha, index) => linhaIndexMap.set(linha, index));
+
+    for (const linha of linhasPdf) {
+      const linhaIndex = linhaIndexMap.get(linha) || 0;
+      
+      try {
+        // Validar dados da linha
+        if (!linha.orgao || !linha.placa || isNaN(linha.cota_total) || isNaN(linha.cota_utilizada)) {
+          const camposFaltando: string[] = [];
+          if (!linha.orgao) camposFaltando.push('Órgão');
+          if (!linha.placa) camposFaltando.push('Placa');
+          if (isNaN(linha.cota_total)) camposFaltando.push('Cota Total');
+          if (isNaN(linha.cota_utilizada)) camposFaltando.push('Cota Utilizada');
+          
+          placasNaoAtualizadas.push(linha.placa || `Linha ${linhaIndex + 1}`);
+          continue;
+        }
+
+        // Buscar órgão por nome e prefeituraId
+        const orgao = await this.buscarOrgaoPorNomeEPrefeituraId(
+          linha.orgao,
+          prefeitura.id,
+        );
+
+        if (!orgao) {
+          placasNaoAtualizadas.push(linha.placa);
+          continue;
+        }
+
+        // Buscar veículo por placa e orgaoId
+        const veiculo = await this.buscarVeiculoPorPlacaEOrgaoId(
+          linha.placa,
+          orgao.id,
+        );
+
+        if (!veiculo) {
+          placasNaoAtualizadas.push(linha.placa);
+          continue;
+        }
+
+        // Verificar se veículo tem periodicidade
+        if (!veiculo.periodicidade) {
+          placasNaoAtualizadas.push(linha.placa);
+          continue;
+        }
+
+        // Atualizar cota do veículo
+        const cotaAtualizada = await this.atualizarCotaVeiculo(
+          veiculo.id,
+          linha.cota_total,
+          linha.cota_utilizada,
+          veiculo.periodicidade,
+        );
+
+        if (cotaAtualizada) {
+          veiculosAtualizados.push({
+            placa: linha.placa,
+            veiculoId: veiculo.id,
+            id: cotaAtualizada.id,
+            quantidade_permitida: Number(cotaAtualizada.quantidade_permitida),
+            quantidade_utilizada: Number(cotaAtualizada.quantidade_utilizada),
+            quantidade_disponivel: Number(cotaAtualizada.quantidade_disponivel),
+          });
+        } else {
+          placasNaoAtualizadas.push(linha.placa);
+        }
+      } catch (error) {
+        // Capturar erros específicos, mas não interromper o processamento das outras linhas
+        // Apenas adicionar à lista de não atualizadas
+        placasNaoAtualizadas.push(linha.placa);
+      }
+    }
+
+    return {
+      message: 'Processamento concluído com sucesso',
+      placas_nao_atualizadas: placasNaoAtualizadas,
+      veiculos_atualizados: veiculosAtualizados,
+      total_processado: linhasPdf.length,
+      total_atualizado: veiculosAtualizados.length,
+      total_nao_atualizado: placasNaoAtualizadas.length,
+    };
+  }
+
+  /**
+   * Extrai o nome da prefeitura do texto do PDF
+   * Busca no início do documento por padrões comuns
+   */
+  private extrairNomePrefeitura(texto: string): string | null {
+    // Normalizar o texto
+    const linhas = texto.split('\n').map((l) => l.trim()).filter((l) => l);
+
+    // Procurar por "Prefeitura" ou "Prefeitura Municipal" nas primeiras linhas
+    for (let i = 0; i < Math.min(30, linhas.length); i++) {
+      const linha = linhas[i];
+      const linhaLower = linha.toLowerCase();
+      
+      if (linhaLower.includes('prefeitura')) {
+        // Tentar extrair o nome após "Prefeitura"
+        const match = linha.match(/prefeitura\s+(?:municipal\s+de\s+)?(.+)/i);
+        if (match && match[1]) {
+          let nome = match[1].trim();
+          // Remover caracteres especiais no final
+          nome = nome.replace(/[.,;:\-]+$/, '').trim();
+          if (nome.length > 3) {
+            return nome;
+          }
+        }
+        
+        // Se a linha contém "Prefeitura" mas não o nome completo, tentar próxima linha
+        if (i + 1 < linhas.length && linhas[i + 1].trim().length > 3) {
+          const nome = linhas[i + 1].trim();
+          // Verificar se não é outra palavra-chave
+          if (!nome.toLowerCase().includes('municipal') && 
+              !nome.toLowerCase().includes('de') && 
+              nome.length > 3) {
+            return nome;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Extrai as linhas de dados do PDF
+   * Assumindo que o PDF tem uma tabela com colunas: órgão, placa, cota_total, cota_utilizada
+   */
+  private extrairLinhasPdf(texto: string): LinhaPdf[] {
+    const linhas: LinhaPdf[] = [];
+    const linhasTexto = texto.split('\n').map((l) => l.trim());
+
+    // Procurar pelo cabeçalho da tabela
+    let indiceInicio = -1;
+    for (let i = 0; i < linhasTexto.length; i++) {
+      const linha = linhasTexto[i].toLowerCase();
+      if (
+        (linha.includes('órgão') || linha.includes('orgao')) &&
+        linha.includes('placa') &&
+        (linha.includes('cota') || linha.includes('total') || linha.includes('utilizada'))
+      ) {
+        indiceInicio = i + 1;
+        break;
+      }
+    }
+
+    if (indiceInicio === -1) {
+      throw new CabecalhoTabelaNaoEncontradoException();
+    }
+
+    // Extrair dados das linhas seguintes
+    for (let i = indiceInicio; i < linhasTexto.length; i++) {
+      const linha = linhasTexto[i];
+      if (!linha || linha.length < 5) continue;
+
+      // Pular linhas que parecem ser cabeçalhos ou separadores
+      const linhaLower = linha.toLowerCase();
+      if (linhaLower.includes('órgão') || 
+          linhaLower.includes('placa') || 
+          linhaLower.match(/^[-=\s]+$/) ||
+          linhaLower.includes('total') && linhaLower.includes('geral')) {
+        continue;
+      }
+
+      // Dividir a linha por espaços múltiplos ou tabs
+      const colunas = linha
+        .split(/\s{2,}|\t/)
+        .map((c) => c.trim())
+        .filter((c) => c && c.length > 0);
+
+      // Esperamos pelo menos: órgão, placa, cota_total, cota_utilizada
+      // Mas pode ter mais colunas no meio
+      if (colunas.length >= 4) {
+        try {
+          const orgao = colunas[0];
+          
+          // Procurar pela placa (normalmente está na segunda coluna, mas pode variar)
+          let placaIndex = 1;
+          let placa = '';
+          for (let j = 1; j < Math.min(5, colunas.length); j++) {
+            const candidato = colunas[j].toUpperCase().replace(/[^A-Z0-9]/g, '');
+            // Placa brasileira tem formato ABC1234 ou ABC1D23
+            if (candidato.length >= 7 && candidato.length <= 8 && /^[A-Z]{3}\d/.test(candidato)) {
+              placa = candidato;
+              placaIndex = j;
+              break;
+            }
+          }
+
+          if (!placa) {
+            // Se não encontrou formato padrão, pegar segunda coluna
+            placa = colunas[1].toUpperCase().replace(/[^A-Z0-9]/g, '');
+          }
+
+          // Buscar cota_total e cota_utilizada (normalmente são as últimas duas colunas numéricas)
+          const numeros = colunas
+            .slice(placaIndex + 1)
+            .map((c) => this.parseNumero(c))
+            .filter((n) => !isNaN(n) && n > 0);
+
+          if (numeros.length >= 2) {
+            const cotaTotal = numeros[numeros.length - 2];
+            const cotaUtilizada = numeros[numeros.length - 1];
+
+            if (orgao && placa && placa.length >= 6 && !isNaN(cotaTotal) && !isNaN(cotaUtilizada)) {
+              linhas.push({
+                orgao,
+                placa,
+                cota_total: cotaTotal,
+                cota_utilizada: cotaUtilizada,
+              });
+            }
+          }
+        } catch (error) {
+          // Ignorar linhas com erro
+          continue;
+        }
+      }
+    }
+
+    if (linhas.length === 0) {
+      throw new NenhumaLinhaValidaEncontradaException(linhasTexto.length);
+    }
+
+    return linhas;
+  }
+
+  /**
+   * Converte string para número, removendo caracteres não numéricos exceto vírgula e ponto
+   */
+  private parseNumero(valor: string): number {
+    const limpo = valor.replace(/[^\d.,]/g, '').replace(',', '.');
+    return parseFloat(limpo) || 0;
+  }
+
+  /**
+   * Busca prefeitura por nome (case-insensitive)
+   */
+  private async buscarPrefeituraPorNome(nome: string) {
+    return this.prisma.prefeitura.findFirst({
+      where: {
+        nome: {
+          contains: nome,
+          mode: 'insensitive',
+        },
+      },
+    });
+  }
+
+  /**
+   * Busca órgão por nome e prefeituraId (case-insensitive)
+   */
+  private async buscarOrgaoPorNomeEPrefeituraId(nome: string, prefeituraId: number) {
+    return this.prisma.orgao.findFirst({
+      where: {
+        nome: {
+          contains: nome,
+          mode: 'insensitive',
+        },
+        prefeituraId,
+        ativo: true,
+      },
+    });
+  }
+
+  /**
+   * Busca veículo por placa e orgaoId
+   */
+  private async buscarVeiculoPorPlacaEOrgaoId(placa: string, orgaoId: number) {
+    return this.prisma.veiculo.findFirst({
+      where: {
+        placa: {
+          equals: placa,
+          mode: 'insensitive',
+        },
+        orgaoId,
+        ativo: true,
+      },
+      select: {
+        id: true,
+        placa: true,
+        periodicidade: true,
+      },
+    });
+  }
+
+  /**
+   * Atualiza a cota do veículo na tabela veiculo_cota_periodo
+   */
+  private async atualizarCotaVeiculo(
+    veiculoId: number,
+    quantidadePermitida: number,
+    quantidadeUtilizada: number,
+    periodicidade: Periodicidade | null,
+  ) {
+    if (!periodicidade) {
+      return null;
+    }
+
+    const dataAtual = new Date();
+    const { inicio, fim } = this.obterIntervaloPeriodo(dataAtual, periodicidade);
+
+    // Buscar cota período ativo
+    const cotaPeriodo = await this.prisma.veiculoCotaPeriodo.findFirst({
+      where: {
+        veiculoId,
+        periodicidade,
+        data_inicio_periodo: { lte: dataAtual },
+        data_fim_periodo: { gte: dataAtual },
+        ativo: true,
+      },
+    });
+
+    if (!cotaPeriodo) {
+      // Criar novo registro se não existir
+      const quantidadeDisponivel = Math.max(
+        quantidadePermitida - quantidadeUtilizada,
+        0,
+      );
+
+      return this.prisma.veiculoCotaPeriodo.create({
+        data: {
+          veiculoId,
+          periodicidade,
+          data_inicio_periodo: inicio,
+          data_fim_periodo: fim,
+          quantidade_permitida: new Decimal(quantidadePermitida),
+          quantidade_utilizada: new Decimal(quantidadeUtilizada),
+          quantidade_disponivel: new Decimal(quantidadeDisponivel),
+          ativo: true,
+        },
+      });
+    }
+
+    // Atualizar registro existente
+    const quantidadeDisponivel = Math.max(
+      quantidadePermitida - quantidadeUtilizada,
+      0,
+    );
+
+    return this.prisma.veiculoCotaPeriodo.update({
+      where: { id: cotaPeriodo.id },
+      data: {
+        quantidade_permitida: new Decimal(quantidadePermitida),
+        quantidade_utilizada: new Decimal(quantidadeUtilizada),
+        quantidade_disponivel: new Decimal(quantidadeDisponivel),
+      },
+    });
+  }
+
+  /**
+   * Calcula o intervalo de período baseado na periodicidade
+   */
+  private obterIntervaloPeriodo(data: Date, periodicidade: Periodicidade) {
+    const inicio = new Date(data);
+    inicio.setHours(0, 0, 0, 0);
+
+    const fim = new Date(data);
+    fim.setHours(23, 59, 59, 999);
+
+    if (periodicidade === Periodicidade.Diario) {
+      return { inicio, fim };
+    }
+
+    if (periodicidade === Periodicidade.Semanal) {
+      const diaSemana = inicio.getDay();
+      const diffParaSegunda = (diaSemana + 6) % 7;
+      inicio.setDate(inicio.getDate() - diffParaSegunda);
+
+      fim.setTime(inicio.getTime());
+      fim.setDate(inicio.getDate() + 6);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+
+    if (periodicidade === Periodicidade.Mensal) {
+      inicio.setDate(1);
+      fim.setMonth(inicio.getMonth() + 1, 0);
+      fim.setHours(23, 59, 59, 999);
+      return { inicio, fim };
+    }
+
+    return { inicio, fim };
+  }
+}
+

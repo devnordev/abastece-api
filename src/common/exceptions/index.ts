@@ -12,3 +12,4 @@ export * from './orgao/orgao.exceptions';
 export * from './empresa-preco-combustivel/empresa-preco-combustivel.exceptions';
 export * from './solicitacao-abastecimento/solicitacao-abastecimento.exceptions';
 export * from './cota-orgao/cota-orgao.exceptions';
+export * from './atualiza-cota-veiculo/atualiza-cota-veiculo.exceptions';

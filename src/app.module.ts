@@ -31,6 +31,7 @@ import { QrCodeMotoristaModule } from './modules/qrcode-motorista/qrcode-motoris
 import { DashboardsModule } from './modules/dashboards/dashboards.module';
 import { RelatoriosModule } from './modules/relatorios/relatorios.module';
 import { AppModule as AppRoutesModule } from './modules/app/app.module';
+import { AtualizaCotaVeiculoModule } from './modules/atualiza-cota-veiculo/atualiza-cota-veiculo.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { AppModule as AppRoutesModule } from './modules/app/app.module';
     DashboardsModule,
     RelatoriosModule,
     AppRoutesModule,
+    AtualizaCotaVeiculoModule,
   ],
 })
 export class AppModule {}
