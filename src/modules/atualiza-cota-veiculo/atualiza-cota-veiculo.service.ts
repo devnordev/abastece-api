@@ -337,16 +337,20 @@ export class AtualizaCotaVeiculoService {
         continue;
       }
 
-      // Dividir a linha por espaços múltiplos (2 ou mais) ou tabs
+      // Dividir a linha por espaços (simples ou múltiplos) ou tabs
+      // O PDF extraído pode ter espaços simples ou múltiplos entre colunas
       const colunas = linha
-        .split(/\s{2,}|\t/)
+        .split(/\s+|\t/)
         .map((c) => c.trim())
         .filter((c) => c && c.length > 0);
 
-      // Esperamos pelo menos: órgão, placa, cota_total, cota_utilizada
+      // Esperamos pelo menos: órgão (pode ter várias palavras), placa, cota_total, cota_utilizada
+      // Mínimo: 4 colunas (órgão de 1 palavra, placa, cota_total, cota_utilizada)
+      // Mas normalmente o órgão tem várias palavras, então esperamos mais colunas
       if (colunas.length >= 4) {
         try {
-          // Estratégia: assumir que as últimas duas colunas são sempre numéricas (cota_total e cota_utilizada)
+          // Estratégia: trabalhar de trás para frente
+          // As últimas duas colunas são sempre numéricas (cota_total e cota_utilizada)
           // A penúltima coluna antes dos números é a placa
           // Tudo antes da placa é o nome do órgão
 
@@ -370,10 +374,11 @@ export class AtualizaCotaVeiculoService {
           const placaIndex = colunas.length - 3;
           const placa = colunas[placaIndex]?.trim().toUpperCase() || '';
           
-          // O órgão é tudo antes da placa
+          // O órgão é tudo antes da placa (pode ter várias palavras)
           const orgao = colunas.slice(0, placaIndex).join(' ').trim();
 
           // Validar que temos todos os campos necessários
+          // Placa deve ter pelo menos 3 caracteres (aceita "000", "JR POÇO", etc)
           if (orgao && placa && placa.length >= 3) {
             linhas.push({
               orgao,
