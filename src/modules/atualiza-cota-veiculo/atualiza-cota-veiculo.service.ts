@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import * as pdfParse from 'pdf-parse';
 import { Decimal } from '@prisma/client/runtime/library';
 import { Periodicidade } from '@prisma/client';
+import pdfParse = require('pdf-parse');
 import {
   PdfInvalidoException,
   NomePrefeituraNaoEncontradoNoPdfException,
@@ -24,7 +24,7 @@ interface LinhaPdf {
   cota_utilizada: number;
 }
 
-interface VeiculoAtualizado {
+export interface VeiculoAtualizado {
   placa: string;
   veiculoId: number;
   id: number;
