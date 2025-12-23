@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { Periodicidade } from '@prisma/client';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdfParseLib = require('pdf-parse');
 import {
   PdfInvalidoException,
   NomePrefeituraNaoEncontradoNoPdfException,
@@ -40,37 +38,57 @@ export class AtualizaCotaVeiculoService {
 
   private async parsePdf(buffer: Buffer): Promise<{ text: string }> {
     try {
-      // Obter a função pdfParse - pode estar em diferentes lugares dependendo da versão
-      let pdfParseFn: any = pdfParseLib;
+      // Usar a versão específica para Node.js (/node) que evita problemas com APIs do navegador
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const pdfParseModule = require('pdf-parse/node');
       
-      if (typeof pdfParseLib !== 'function') {
-        // Tentar default export
-        if (pdfParseLib && typeof pdfParseLib.default === 'function') {
-          pdfParseFn = pdfParseLib.default;
-        } 
-        // Tentar acessar diretamente se for um objeto com a função
-        else if (pdfParseLib && typeof pdfParseLib.pdfParse === 'function') {
-          pdfParseFn = pdfParseLib.pdfParse;
-        }
-        // Se for um objeto, pegar a primeira propriedade que for função
-        else if (pdfParseLib && typeof pdfParseLib === 'object') {
-          for (const key in pdfParseLib) {
-            if (typeof pdfParseLib[key] === 'function') {
-              pdfParseFn = pdfParseLib[key];
-              break;
-            }
-          }
-        }
-      }
+      // Obter a função - pode estar como default ou export direto
+      const pdfParseFn = pdfParseModule.default || pdfParseModule;
       
       if (typeof pdfParseFn !== 'function') {
-        throw new Error(`pdfParse não é uma função. Tipo: ${typeof pdfParseLib}, Keys: ${pdfParseLib ? Object.keys(pdfParseLib).join(', ') : 'null'}`);
+        throw new PdfInvalidoException(`pdfParse não é uma função. Tipo recebido: ${typeof pdfParseFn}`);
       }
       
+      // Chamar a função pdfParse com o buffer
       const data = await pdfParseFn(buffer);
-      return { text: data.text || '' };
-    } catch (error) {
-      throw error;
+      
+      // Verificar o formato do retorno
+      if (data && typeof data.text === 'string') {
+        return { text: data.text };
+      }
+      
+      if (typeof data === 'string') {
+        return { text: data };
+      }
+      
+      throw new PdfInvalidoException('Formato de retorno do pdf-parse não reconhecido');
+    } catch (error: any) {
+      // Se der erro MODULE_NOT_FOUND ao tentar /node, tentar sem o /node
+      if (error?.code === 'MODULE_NOT_FOUND' && error.message.includes('/node')) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const pdfParseModule = require('pdf-parse');
+          const pdfParseFn = pdfParseModule.default || pdfParseModule;
+          
+          if (typeof pdfParseFn === 'function') {
+            const data = await pdfParseFn(buffer);
+            if (data && typeof data.text === 'string') {
+              return { text: data.text };
+            }
+            if (typeof data === 'string') {
+              return { text: data };
+            }
+          }
+        } catch (requireError: any) {
+          throw new PdfInvalidoException(`Erro ao processar PDF: ${requireError?.message || error.message}`);
+        }
+      }
+      
+      // Relançar erros conhecidos
+      if (error instanceof PdfInvalidoException) {
+        throw error;
+      }
+      throw new PdfInvalidoException(error?.message || String(error));
     }
   }
 
