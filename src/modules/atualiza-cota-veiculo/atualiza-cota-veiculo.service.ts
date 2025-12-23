@@ -362,10 +362,16 @@ export class AtualizaCotaVeiculoService {
           }
 
           // A placa está na penúltima coluna antes dos números
-          const placa = colunas[colunas.length - 3].trim().toUpperCase();
+          // Garantir que temos pelo menos 3 colunas antes de acessar colunas.length - 3
+          if (colunas.length < 4) {
+            continue;
+          }
+          
+          const placaIndex = colunas.length - 3;
+          const placa = colunas[placaIndex]?.trim().toUpperCase() || '';
           
           // O órgão é tudo antes da placa
-          const orgao = colunas.slice(0, colunas.length - 3).join(' ').trim();
+          const orgao = colunas.slice(0, placaIndex).join(' ').trim();
 
           // Validar que temos todos os campos necessários
           if (orgao && placa && placa.length >= 3) {
