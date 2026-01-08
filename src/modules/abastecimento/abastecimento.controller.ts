@@ -161,8 +161,11 @@ export class AbastecimentoController {
   @ApiQuery({ name: 'data_final', required: false, description: 'Data final para filtro' })
   @ApiQuery({ name: 'page', required: false, description: 'Página para paginação' })
   @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens por página' })
-  async findAll(@Query() findAbastecimentoDto: FindAbastecimentoDto) {
-    return this.abastecimentoService.findAll(findAbastecimentoDto);
+  async findAll(
+    @Query() findAbastecimentoDto: FindAbastecimentoDto,
+    @Request() req,
+  ) {
+    return this.abastecimentoService.findAll(findAbastecimentoDto, req.user);
   }
 
   @Get('veiculo/tipo/abastecimento/:veiculoId/:qntLitros')
@@ -253,8 +256,11 @@ export class AbastecimentoController {
   @ApiResponse({ status: 200, description: 'Abastecimento encontrado com sucesso' })
   @ApiResponse({ status: 404, description: 'Abastecimento não encontrado' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.abastecimentoService.findOne(id);
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req,
+  ) {
+    return this.abastecimentoService.findOne(id, req.user);
   }
 
   @Patch(':id')

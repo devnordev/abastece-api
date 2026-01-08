@@ -170,5 +170,10 @@ export class CreateSolicitacaoAbastecimentoDto {
   @IsOptional()
   @IsString({ message: 'observacoes deve ser uma string' })
   observacoes?: string;
+
+  @ApiPropertyOptional({ description: 'Comentário interno da prefeitura (não visível para empresa)', example: 'Comentário interno' })
+  @IsOptional()
+  @IsString({ message: 'comentario_prefeitura deve ser uma string' })
+  comentario_prefeitura?: string;
 }
 

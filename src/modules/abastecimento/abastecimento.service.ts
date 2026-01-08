@@ -1041,7 +1041,7 @@ export class AbastecimentoService {
     };
   }
 
-  async findAll(findAbastecimentoDto: FindAbastecimentoDto) {
+  async findAll(findAbastecimentoDto: FindAbastecimentoDto, user?: { tipo_usuario?: string }) {
     const {
       veiculoId,
       motoristaId,
@@ -1205,9 +1205,16 @@ export class AbastecimentoService {
       this.prisma.abastecimento.count({ where }),
     ]);
 
-    const abastecimentosComOrgao = abastecimentos.map((item) =>
-      this.adicionarInfoOrgaoAbastecimento(item),
-    );
+    const abastecimentosComOrgao = abastecimentos.map((item) => {
+      const abastecimentoComOrgao = this.adicionarInfoOrgaoAbastecimento(item);
+      // Filtrar comentario_prefeitura para usuários de empresa
+      if (user?.tipo_usuario === 'ADMIN_EMPRESA' || user?.tipo_usuario === 'COLABORADOR_EMPRESA') {
+        const filtered: any = { ...abastecimentoComOrgao };
+        delete filtered.comentario_prefeitura;
+        return filtered;
+      }
+      return abastecimentoComOrgao;
+    });
 
     return {
       message: 'Abastecimentos encontrados com sucesso',
@@ -1221,7 +1228,7 @@ export class AbastecimentoService {
     };
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, user?: { tipo_usuario?: string }) {
     const abastecimento = await this.prisma.abastecimento.findUnique({
       where: { id },
       include: {
@@ -1308,9 +1315,15 @@ export class AbastecimentoService {
       });
     }
 
+    // Filtrar comentario_prefeitura para usuários de empresa
+    const abastecimentoResponse: any = { ...abastecimento };
+    if (user?.tipo_usuario === 'ADMIN_EMPRESA' || user?.tipo_usuario === 'COLABORADOR_EMPRESA') {
+      delete abastecimentoResponse.comentario_prefeitura;
+    }
+
     return {
       message: 'Abastecimento encontrado com sucesso',
-      abastecimento,
+      abastecimento: abastecimentoResponse,
     };
   }
 
@@ -1858,6 +1871,7 @@ export class AbastecimentoService {
       nfe_img_url: createDto.nfe_img_url || solicitacao.nfe_img_url || undefined,
       nfe_link: nfe_link || undefined,
       abastecido_por: abastecido_por || solicitacao.abastecido_por || 'Sistema',
+      comentario_prefeitura: solicitacao.comentario_prefeitura || undefined,
       preco_empresa: createDto.preco_empresa !== undefined && createDto.preco_empresa !== null
         ? new Decimal(createDto.preco_empresa)
         : solicitacao.preco_empresa

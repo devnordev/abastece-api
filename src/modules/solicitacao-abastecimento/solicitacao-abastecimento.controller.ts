@@ -36,13 +36,16 @@ export class SolicitacaoAbastecimentoController {
   @UseGuards(AdminPrefeituraEmpresaGuard)
   @ApiOperation({ summary: 'Criar solicitação de abastecimento' })
   @ApiResponse({ status: 201, description: 'Solicitação criada com sucesso' })
-  async create(@Body() createDto: CreateSolicitacaoAbastecimentoDto) {
+  async create(
+    @Body() createDto: CreateSolicitacaoAbastecimentoDto,
+    @Req() req: Request & { user: any },
+  ) {
     console.log('[SolicitacaoAbastecimento] Recebida requisição de criação:', {
       data_solicitacao: createDto?.data_solicitacao,
       data_expiracao: createDto?.data_expiracao,
       payload: createDto,
     });
-    return this.solicitacaoService.create(createDto);
+    return this.solicitacaoService.create(createDto, req.user);
   }
 
   @Get()
@@ -189,8 +192,11 @@ export class SolicitacaoAbastecimentoController {
   @ApiOperation({ summary: 'Buscar solicitação de abastecimento por ID' })
   @ApiResponse({ status: 200, description: 'Solicitação encontrada com sucesso' })
   @ApiResponse({ status: 404, description: 'Solicitação não encontrada' })
-  async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.solicitacaoService.findOne(id);
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.solicitacaoService.findOne(id, req.user);
   }
 
   @Patch(':id')
@@ -201,8 +207,9 @@ export class SolicitacaoAbastecimentoController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateSolicitacaoAbastecimentoDto,
+    @Req() req: Request & { user: any },
   ) {
-    return this.solicitacaoService.update(id, updateDto);
+    return this.solicitacaoService.update(id, updateDto, req.user);
   }
 
   @Patch(':id/status')

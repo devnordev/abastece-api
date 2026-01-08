@@ -179,7 +179,7 @@ export class SolicitacaoAbastecimentoService {
     };
   }
 
-  async create(createDto: CreateSolicitacaoAbastecimentoDto) {
+  async create(createDto: CreateSolicitacaoAbastecimentoDto, user?: { tipo_usuario?: string }) {
     const dataSolicitacao = this.ensureDate(
       this.normalizeDateInput(createDto.data_solicitacao),
       'data_solicitacao',
@@ -378,6 +378,7 @@ export class SolicitacaoAbastecimentoService {
         abastecimento_id: createDto.abastecimento_id,
         ativo: createDto.ativo ?? true,
         observacoes: createDto.observacoes,
+        comentario_prefeitura: createDto.comentario_prefeitura,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -419,7 +420,7 @@ export class SolicitacaoAbastecimentoService {
 
     return {
       message: 'Solicitação de abastecimento criada com sucesso',
-      solicitacao: this.formatSolicitacaoResponse(solicitacaoComOrgao),
+      solicitacao: this.formatSolicitacaoResponse(solicitacaoComOrgao, user?.tipo_usuario),
     };
   }
 
@@ -578,7 +579,7 @@ export class SolicitacaoAbastecimentoService {
     await this.expirarSolicitacoesDaLista(solicitacoes as SolicitacaoBasicaComVeiculo[]);
 
     const solicitacoesComOrgao = solicitacoes.map((item) =>
-      this.formatSolicitacaoResponse(this.adicionarInfoOrgaoSolicitacao(item)),
+      this.formatSolicitacaoResponse(this.adicionarInfoOrgaoSolicitacao(item), user.tipo_usuario),
     );
 
     const response: any = {
@@ -631,7 +632,7 @@ export class SolicitacaoAbastecimentoService {
     return this.findAllByPrefeitura(user, mergedQuery);
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, user?: { tipo_usuario?: string }) {
     // Processar solicitações expiradas em background (não bloqueia a resposta)
     this.processarSolicitacoesExpiradas().catch((error) => {
       console.error('Erro ao processar solicitações expiradas em background:', error);
@@ -652,7 +653,7 @@ export class SolicitacaoAbastecimentoService {
 
     return {
       message: 'Solicitação de abastecimento encontrada com sucesso',
-      solicitacao: this.formatSolicitacaoResponse(solicitacaoComOrgao),
+      solicitacao: this.formatSolicitacaoResponse(solicitacaoComOrgao, user?.tipo_usuario),
     };
   }
 
@@ -801,7 +802,7 @@ export class SolicitacaoAbastecimentoService {
     };
   }
 
-  async update(id: number, updateDto: UpdateSolicitacaoAbastecimentoDto) {
+  async update(id: number, updateDto: UpdateSolicitacaoAbastecimentoDto, user?: { tipo_usuario?: string }) {
     const solicitacaoExistente = await this.prisma.solicitacaoAbastecimento.findUnique({
       where: { id },
       select: {
@@ -889,6 +890,7 @@ export class SolicitacaoAbastecimentoService {
       abastecimento_id: updateDto.abastecimento_id,
       ativo: updateDto.ativo,
       observacoes: updateDto.observacoes,
+      comentario_prefeitura: updateDto.comentario_prefeitura,
       updated_at: new Date(),
     };
 
@@ -902,7 +904,7 @@ export class SolicitacaoAbastecimentoService {
 
     return {
       message: 'Solicitação de abastecimento atualizada com sucesso',
-      solicitacao: this.formatSolicitacaoResponse(solicitacaoComOrgao),
+      solicitacao: this.formatSolicitacaoResponse(solicitacaoComOrgao, user?.tipo_usuario),
     };
   }
 
@@ -3079,8 +3081,8 @@ export class SolicitacaoAbastecimentoService {
   }
 
   private formatSolicitacaoResponse<
-    T extends { data_solicitacao?: Date | null; data_expiracao?: Date | null; data_aprovacao?: Date | null; data_rejeicao?: Date | null },
-  >(registro: T): T {
+    T extends { data_solicitacao?: Date | null; data_expiracao?: Date | null; data_aprovacao?: Date | null; data_rejeicao?: Date | null; comentario_prefeitura?: string | null },
+  >(registro: T, tipoUsuario?: string): T {
     if (!registro) {
       return registro;
     }
@@ -3091,6 +3093,11 @@ export class SolicitacaoAbastecimentoService {
     formatted.data_expiracao = this.formatDateAsStored(registro.data_expiracao);
     formatted.data_aprovacao = this.formatDateAsStored(registro.data_aprovacao);
     formatted.data_rejeicao = this.formatDateAsStored(registro.data_rejeicao);
+
+    // Ocultar comentario_prefeitura para usuários de empresa
+    if (tipoUsuario === 'ADMIN_EMPRESA' || tipoUsuario === 'COLABORADOR_EMPRESA') {
+      delete formatted.comentario_prefeitura;
+    }
 
     return formatted;
   }
