@@ -32,6 +32,7 @@ import { DashboardsModule } from './modules/dashboards/dashboards.module';
 import { RelatoriosModule } from './modules/relatorios/relatorios.module';
 import { AppModule as AppRoutesModule } from './modules/app/app.module';
 import { AtualizaCotaVeiculoModule } from './modules/atualiza-cota-veiculo/atualiza-cota-veiculo.module';
+import { ExportModelModule } from './modules/export-model/export-model.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { AtualizaCotaVeiculoModule } from './modules/atualiza-cota-veiculo/atual
     RelatoriosModule,
     AppRoutesModule,
     AtualizaCotaVeiculoModule,
+    ExportModelModule,
   ],
 })
 export class AppModule {}

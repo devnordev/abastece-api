@@ -230,6 +230,27 @@ enum StatusQrCodeMotorista {
   Cancelado
 }
 
+enum TipoEntidadeExportacao {
+  SOLICITACOES
+  ABASTECIMENTOS
+  VEICULOS
+  MOTORISTAS
+  USUARIOS
+  ORGAOS
+  PROCESSOS
+}
+
+enum FormatoExportacao {
+  PDF
+  CSV
+  XLSX
+}
+
+enum VisibilidadeModelo {
+  PUBLIC
+  PRIVATE
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -257,6 +278,7 @@ model Prefeitura {
   solicitacoesAbastecimento SolicitacaoAbastecimento[]
   solicitacoesQrCode    SolicitacoesQrCodeVeiculo[]
   solicitacoesQrCodeMotorista QrCodeMotorista[]
+  modelosExportacao    ModeloExportacao[]
   created_date          DateTime  @default(now())
   modified_date         DateTime  @updatedAt
 
@@ -287,6 +309,7 @@ model Usuario {
   solicitacoes            Abastecimento[]           @relation("Solicitante")
   validacoes              Abastecimento[]           @relation("Validador")
   orgaos                  UsuarioOrgao[]
+  modelosExportacao       ModeloExportacao[]
   created_date            DateTime  @default(now())
   modified_date           DateTime  @updatedAt
 
@@ -1099,5 +1122,23 @@ model QrCodeMotorista {
   @@index([prefeitura_id])
   @@index([status])
   @@map("qrcode_motorista")
+}
+
+model ModeloExportacao {
+  id                Int                    @id @default(autoincrement())
+  prefeituraId      Int
+  criadoPorId       Int
+  titulo            String
+  entityType        TipoEntidadeExportacao
+  format            FormatoExportacao
+  visibility        VisibilidadeModelo     @default(PRIVATE)
+  columns           String[]
+  created_at        DateTime               @default(now())
+  updated_at        DateTime               @updatedAt
+
+  prefeitura        Prefeitura             @relation(fields: [prefeituraId], references: [id])
+  criadoPor         Usuario                @relation(fields: [criadoPorId], references: [id])
+
+  @@map("modelo_exportacao")
 }
 
