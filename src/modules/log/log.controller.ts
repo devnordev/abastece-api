@@ -9,12 +9,12 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { LogService } from './log.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RoleBlockGuard } from '../auth/guards/role-block.guard';
+import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 import { AcaoLog } from '@prisma/client';
 
 @ApiTags('Logs')
 @Controller('logs')
-@UseGuards(JwtAuthGuard, new RoleBlockGuard(['SUPER_ADMIN']))
+@UseGuards(JwtAuthGuard, SuperAdminGuard)
 @ApiBearerAuth()
 export class LogController {
   constructor(private readonly logService: LogService) {}
@@ -29,6 +29,7 @@ export class LogController {
   @ApiQuery({ name: 'executadoPor', required: false, description: 'Filtrar por ID do usuário que executou' })
   @ApiQuery({ name: 'dataInicial', required: false, description: 'Data inicial para filtro (formato ISO)' })
   @ApiQuery({ name: 'dataFinal', required: false, description: 'Data final para filtro (formato ISO)' })
+  @ApiQuery({ name: 'prefeituraId', required: false, description: 'Filtrar por ID da prefeitura (através do usuário que executou)' })
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -37,6 +38,7 @@ export class LogController {
     @Query('executadoPor') executadoPor?: string,
     @Query('dataInicial') dataInicial?: string,
     @Query('dataFinal') dataFinal?: string,
+    @Query('prefeituraId') prefeituraId?: string,
   ) {
     return this.logService.findAll(
       page ? parseInt(page) : 1,
@@ -46,6 +48,7 @@ export class LogController {
       executadoPor ? parseInt(executadoPor) : undefined,
       dataInicial,
       dataFinal,
+      prefeituraId ? parseInt(prefeituraId) : undefined,
     );
   }
 

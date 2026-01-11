@@ -14,6 +14,7 @@ export class LogService {
     executadoPor?: number,
     dataInicial?: string,
     dataFinal?: string,
+    prefeituraId?: number,
   ) {
     const skip = (page - 1) * limit;
     const where: any = {};
@@ -41,6 +42,13 @@ export class LogService {
       if (dataFinal) {
         where.executado_em.lte = new Date(dataFinal);
       }
+    }
+
+    // Filtro por prefeitura: filtra através do usuário que executou a ação
+    if (prefeituraId) {
+      where.usuario = {
+        prefeituraId: prefeituraId,
+      };
     }
 
     const [logs, total] = await Promise.all([
