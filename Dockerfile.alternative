@@ -1,15 +1,16 @@
 # ============================
-# Build stage
+# Build stage - Versão alternativa usando node:20-slim (Debian)
+# Use este Dockerfile se o Alpine apresentar problemas com buildx
 # ============================
-FROM node:20-alpine AS builder
-
-# Garante que o shell está disponível
-RUN apk add --no-cache bash || true
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Dependências de sistema necessárias para Prisma (OpenSSL, libc) e shell
-RUN apk add --no-cache openssl libc6-compat bash
+# Dependências de sistema necessárias para Prisma (OpenSSL, libc)
+RUN apt-get update && apt-get install -y \
+    openssl \
+    libc6 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copia package.json e package-lock.json primeiro para aproveitar cache
 COPY package*.json ./
@@ -25,20 +26,19 @@ COPY prisma ./prisma
 # Gera Prisma Client
 # PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING ignora erro de checksum quando servidor Prisma está indisponível
 ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
-# Usa /bin/sh explicitamente (disponível no Alpine) ou fallback para execução direta
-RUN ["/bin/sh", "-c", "npm run prisma:generate"]
+RUN npm run prisma:generate
 
 # Builda a aplicação (gera dist/)
-RUN ["/bin/sh", "-c", "npm run build && ls -la dist"]
+RUN npm run build && ls -la dist
 
 # Remove dependências de dev, mantendo apenas prod e o Prisma Client gerado
-RUN ["/bin/sh", "-c", "npm prune --omit=dev && npm cache clean --force && ls -la node_modules/@prisma/client || true"]
+RUN npm prune --omit=dev && npm cache clean --force && ls -la node_modules/@prisma/client || true
 
 
 # ============================
 # Runtime stage (produção)
 # ============================
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
 
 WORKDIR /app
 
@@ -50,13 +50,17 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 
-# Dependências de sistema necessárias para Prisma Runtime + Timezone + shell
-RUN apk add --no-cache openssl libc6-compat tzdata bash \
-&& cp /usr/share/zoneinfo/America/Fortaleza /etc/localtime \
-&& echo "America/Fortaleza" > /etc/timezone
+# Dependências de sistema necessárias para Prisma Runtime + Timezone
+RUN apt-get update && apt-get install -y \
+    openssl \
+    libc6 \
+    tzdata \
+    && cp /usr/share/zoneinfo/America/Fortaleza /etc/localtime \
+    && echo "America/Fortaleza" > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
 
 # Instala Prisma CLI para poder executar migrations em produção (sem salvar no package.json)
-RUN ["/bin/sh", "-c", "npm install prisma@^6.18.0 --no-save"]
+RUN npm install prisma@^6.18.0 --no-save
 
 # Variáveis de ambiente padrão (podem ser sobrescritas em runtime)
 ENV NODE_ENV=production \
