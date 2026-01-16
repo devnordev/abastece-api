@@ -1677,23 +1677,26 @@ export class RelatoriosService {
     const faturamentoPorEmpresa = Object.values(porEmpresa)
       .map((item) => {
         // Ordenar combustíveis por valor descendente
+        // Sempre retornar array, mesmo que vazio (mas se há abastecimentos, sempre haverá combustíveis)
         const combustiveis = Object.values(item.combustiveis)
           .map((comb) => ({
-            combustivel_nome: comb.combustivel.nome,
-            abastecimentos_count: comb.abastecimentos,
-            litros: this.arredondar(comb.litros, 2),
-            valor: this.arredondar(comb.valor, 2),
+            combustivel_nome: comb.combustivel?.nome || 'Desconhecido',
+            abastecimentos_count: comb.abastecimentos || 0,
+            litros: this.arredondar(comb.litros || 0, 2),
+            valor: this.arredondar(comb.valor || 0, 2),
           }))
+          .filter((comb) => comb.combustivel_nome !== 'Desconhecido' && comb.litros > 0) // Filtrar inválidos
           .sort((a, b) => b.valor - a.valor);
         
         return {
-          empresa_nome: item.empresa.nome,
-          abastecimentos_count: item.abastecimentos,
-          litros: this.arredondar(item.litros, 2),
-          valor: this.arredondar(item.valor, 2),
-          combustiveis,
+          empresa_nome: item.empresa?.nome || 'Empresa Desconhecida',
+          abastecimentos_count: item.abastecimentos || 0,
+          litros: this.arredondar(item.litros || 0, 2),
+          valor: this.arredondar(item.valor || 0, 2),
+          combustiveis: combustiveis.length > 0 ? combustiveis : [], // Sempre retornar array
         };
       })
+      .filter((item) => item.abastecimentos_count > 0) // Filtrar empresas sem abastecimentos
       .sort((a, b) => b.valor - a.valor);
 
     // Agrupar por combustível
