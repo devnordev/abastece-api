@@ -1620,7 +1620,7 @@ export class RelatoriosService {
     const quantidadeAbastecimentos = abastecimentos.length;
     const ticketMedio = quantidadeAbastecimentos > 0 ? valorGasto / quantidadeAbastecimentos : 0;
 
-    // Agrupar por empresa
+    // Agrupar por empresa e combustível
     const porEmpresa: Record<
       number,
       {
@@ -1628,31 +1628,72 @@ export class RelatoriosService {
         abastecimentos: number;
         litros: number;
         valor: number;
+        combustiveis: Record<
+          number,
+          {
+            combustivel: { id: number; nome: string; sigla: string };
+            abastecimentos: number;
+            litros: number;
+            valor: number;
+          }
+        >;
       }
     > = {};
 
     for (const abastecimento of abastecimentos) {
       const empresaId = abastecimento.empresa.id;
+      const combustivelId = abastecimento.combustivel.id;
+      
       if (!porEmpresa[empresaId]) {
         porEmpresa[empresaId] = {
           empresa: abastecimento.empresa,
           abastecimentos: 0,
           litros: 0,
           valor: 0,
+          combustiveis: {},
         };
       }
+      
+      // Atualizar totais da empresa
       porEmpresa[empresaId].abastecimentos++;
       porEmpresa[empresaId].litros += this.toNumber(abastecimento.quantidade);
       porEmpresa[empresaId].valor += this.toNumber(abastecimento.valor_total);
+      
+      // Atualizar dados por combustível
+      if (!porEmpresa[empresaId].combustiveis[combustivelId]) {
+        porEmpresa[empresaId].combustiveis[combustivelId] = {
+          combustivel: abastecimento.combustivel,
+          abastecimentos: 0,
+          litros: 0,
+          valor: 0,
+        };
+      }
+      
+      porEmpresa[empresaId].combustiveis[combustivelId].abastecimentos++;
+      porEmpresa[empresaId].combustiveis[combustivelId].litros += this.toNumber(abastecimento.quantidade);
+      porEmpresa[empresaId].combustiveis[combustivelId].valor += this.toNumber(abastecimento.valor_total);
     }
 
     const faturamentoPorEmpresa = Object.values(porEmpresa)
-      .map((item) => ({
-        empresa_nome: item.empresa.nome,
-        abastecimentos_count: item.abastecimentos,
-        litros: this.arredondar(item.litros, 2),
-        valor: this.arredondar(item.valor, 2),
-      }))
+      .map((item) => {
+        // Ordenar combustíveis por valor descendente
+        const combustiveis = Object.values(item.combustiveis)
+          .map((comb) => ({
+            combustivel_nome: comb.combustivel.nome,
+            abastecimentos_count: comb.abastecimentos,
+            litros: this.arredondar(comb.litros, 2),
+            valor: this.arredondar(comb.valor, 2),
+          }))
+          .sort((a, b) => b.valor - a.valor);
+        
+        return {
+          empresa_nome: item.empresa.nome,
+          abastecimentos_count: item.abastecimentos,
+          litros: this.arredondar(item.litros, 2),
+          valor: this.arredondar(item.valor, 2),
+          combustiveis,
+        };
+      })
       .sort((a, b) => b.valor - a.valor);
 
     // Agrupar por combustível
