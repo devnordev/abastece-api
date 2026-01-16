@@ -653,7 +653,7 @@ export class VeiculoService {
           },
         },
         orderBy: {
-          nome: 'asc',
+          placa: 'asc',
         },
       }),
       this.prisma.veiculo.count({ where }),
