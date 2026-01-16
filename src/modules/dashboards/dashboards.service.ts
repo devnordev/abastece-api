@@ -26,6 +26,7 @@ export class DashboardsService {
       abastecimentos,
       cotasOrgaoRaw,
       veiculosGroup,
+      abastecimentosAprovados,
     ] = await Promise.all([
       this.prisma.veiculo.count({ where: { prefeituraId } }),
       this.prisma.motorista.count({ where: { prefeituraId } }),
@@ -93,6 +94,7 @@ export class DashboardsService {
         },
         select: {
           orgaoId: true,
+          quantidade: true,
           quantidade_utilizada: true,
           orgao: {
             select: {
@@ -113,6 +115,27 @@ export class DashboardsService {
         _sum: {
           quantidade: true,
           valor_total: true,
+        },
+      }),
+      this.prisma.abastecimento.findMany({
+        where: {
+          status: StatusAbastecimento.Aprovado,
+          veiculo: {
+            prefeituraId,
+          },
+        },
+        include: {
+          veiculo: {
+            select: {
+              orgaoId: true,
+              orgao: {
+                select: {
+                  id: true,
+                  nome: true,
+                },
+              },
+            },
+          },
         },
       }),
     ]);
@@ -209,6 +232,84 @@ export class DashboardsService {
       status: abastecimento.status,
     }));
 
+    // Calcular meta vs consumo por órgão
+    // Meta: soma das quantidades das cotas dos órgãos
+    const metaPorOrgaoMap = new Map<
+      number,
+      {
+        orgaoId: number;
+        orgaoNome: string;
+        meta: number;
+      }
+    >();
+
+    cotasOrgaoRaw.forEach((cota) => {
+      const quantidadeMeta = Number(cota.quantidade?.toString() ?? 0);
+      const existing = metaPorOrgaoMap.get(cota.orgaoId);
+      if (existing) {
+        existing.meta += quantidadeMeta;
+      } else {
+        metaPorOrgaoMap.set(cota.orgaoId, {
+          orgaoId: cota.orgao.id,
+          orgaoNome: cota.orgao.nome,
+          meta: quantidadeMeta,
+        });
+      }
+    });
+
+    // Consumo: soma das quantidades (litros) dos abastecimentos aprovados por órgão
+    const consumoPorOrgaoMap = new Map<
+      number,
+      {
+        orgaoId: number;
+        orgaoNome: string;
+        consumo: number;
+      }
+    >();
+
+    abastecimentosAprovados.forEach((abastecimento: any) => {
+      const orgaoId = abastecimento.veiculo?.orgaoId;
+      if (!orgaoId) return;
+
+      const quantidade = Number(abastecimento.quantidade?.toString() ?? 0);
+      const existing = consumoPorOrgaoMap.get(orgaoId);
+      if (existing) {
+        existing.consumo += quantidade;
+      } else {
+        consumoPorOrgaoMap.set(orgaoId, {
+          orgaoId,
+          orgaoNome: abastecimento.veiculo?.orgao?.nome ?? 'Sem órgão',
+          consumo: quantidade,
+        });
+      }
+    });
+
+    // Combinar meta e consumo
+    const metaGastosPorOrgao = Array.from(metaPorOrgaoMap.values()).map((metaItem) => {
+      const consumoItem = consumoPorOrgaoMap.get(metaItem.orgaoId);
+      return {
+        orgaoId: metaItem.orgaoId,
+        órgao: metaItem.orgaoNome,
+        meta: Math.round(metaItem.meta * 100) / 100, // Arredondar para 2 casas decimais
+        consumo: Math.round((consumoItem?.consumo ?? 0) * 100) / 100,
+      };
+    });
+
+    // Adicionar órgãos que têm consumo mas não têm meta
+    consumoPorOrgaoMap.forEach((consumoItem, orgaoId) => {
+      if (!metaPorOrgaoMap.has(orgaoId)) {
+        metaGastosPorOrgao.push({
+          orgaoId,
+          órgao: consumoItem.orgaoNome,
+          meta: 0,
+          consumo: Math.round(consumoItem.consumo * 100) / 100,
+        });
+      }
+    });
+
+    // Ordenar por consumo descendente
+    metaGastosPorOrgao.sort((a, b) => b.consumo - a.consumo);
+
     return {
       prefeituraId,
       usuario: {
@@ -230,6 +331,7 @@ export class DashboardsService {
       },
       cotasPorOrgao,
       veiculosComAbastecimentosAprovados: veiculosComAbastecimentoAprovado,
+      metaGastosPorOrgao,
     };
   }
 
