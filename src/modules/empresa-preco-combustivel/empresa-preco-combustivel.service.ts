@@ -65,19 +65,35 @@ export class EmpresaPrecoCombustivelService {
 
     const dadosAnp = await this.buscarTetoVigenteAnp(empresaId, data.combustivel_id);
 
-    this.validarPrecoDentroDaFaixa(data.preco_atual, dadosAnp.anpPreco);
+    // Validar apenas se o preço é negativo (permitir preços acima do teto)
+    const precoDecimal = new Decimal(data.preco_atual);
+    if (precoDecimal.lt(0)) {
+      throw new EmpresaPrecoCombustivelPrecoNegativoException(Number(precoDecimal.toString()));
+    }
 
     if (!dadosAnp.anpPreco.margem_aplicada) {
       throw new EmpresaPrecoCombustivelMargemAnpAusenteException();
     }
 
     const anpBaseValor = this.obterValorBaseAnp(dadosAnp.anpPreco);
-    const precoDecimal = new Decimal(data.preco_atual);
+    
+    // Determinar status: se preço está acima do teto, definir como INACTIVE_MANUAL
+    // Caso contrário, usar o status informado ou ACTIVE por padrão
+    const tetoDecimal = dadosAnp.anpPreco.teto_calculado;
     const statusInformado = data.status;
+    
+    let status: StatusPreco;
     if (statusInformado && !(Object.values(StatusPreco) as StatusPreco[]).includes(statusInformado)) {
       throw new EmpresaPrecoCombustivelStatusInvalidoException(statusInformado);
     }
-    const status: StatusPreco = statusInformado ?? StatusPreco.ACTIVE;
+    
+    // Se o preço está acima do teto, definir como INACTIVE_MANUAL (salvo acima do teto)
+    if (precoDecimal.gt(tetoDecimal)) {
+      status = StatusPreco.INACTIVE_MANUAL;
+    } else {
+      // Se está dentro do teto, usar o status informado ou ACTIVE por padrão
+      status = statusInformado ?? StatusPreco.ACTIVE;
+    }
 
     const preco = await this.prisma.empresaPrecoCombustivel.create({
       data: {
@@ -115,6 +131,99 @@ export class EmpresaPrecoCombustivelService {
       message: 'Preço de combustível criado com sucesso',
       preco,
     };
+  }
+
+  /**
+   * Função auxiliar para atualizar automaticamente preços que estão acima do teto
+   * Se o preço está acima do teto e o status é ACTIVE, atualiza para INACTIVE_AUTO
+   * Também atualiza o teto_vigente para o valor atual da ANP
+   */
+  private async atualizarPrecosAcimaDoTeto(
+    precos: any[],
+  ): Promise<any[]> {
+    return Promise.all(
+      precos.map(async (preco) => {
+        const precoAtual = Number(preco.preco_atual);
+        const tetoVigenteBanco = Number(preco.teto_vigente);
+        let tetoVigenteAtual = tetoVigenteBanco;
+        let dadosAnp: { teto_vigente: Decimal; anpPreco: any } | null = null;
+
+        // Tentar buscar teto vigente atual da ANP
+        try {
+          dadosAnp = await this.buscarTetoVigenteAnp(
+            preco.empresa_id,
+            preco.combustivel_id,
+            undefined,
+            'update'
+          );
+          tetoVigenteAtual = Number(dadosAnp.teto_vigente);
+        } catch (error) {
+          // Se não conseguir buscar da ANP, usar o teto do banco
+          console.warn(`Não foi possível buscar teto ANP para preço ${preco.id}, usando teto do banco:`, error);
+        }
+
+        // Atualizar dados se necessário
+        const updateData: any = {};
+        let precisaAtualizar = false;
+
+        // Se conseguiu buscar dados ANP e o teto vigente mudou, atualizar
+        if (dadosAnp && Math.abs(tetoVigenteAtual - tetoVigenteBanco) > 0.01) {
+          updateData.teto_vigente = dadosAnp.teto_vigente;
+          updateData.anp_base = dadosAnp.anpPreco.base_utilizada;
+          updateData.anp_base_valor = this.obterValorBaseAnp(dadosAnp.anpPreco);
+          updateData.margem_app_pct = dadosAnp.anpPreco.margem_aplicada;
+          precisaAtualizar = true;
+        }
+
+        // Se está acima do teto (atual ou do banco) e é ACTIVE, atualizar para INACTIVE_AUTO
+        // Usar comparação com margem de erro para evitar problemas de precisão decimal
+        const diferenca = precoAtual - tetoVigenteAtual;
+        if (
+          preco.status === StatusPreco.ACTIVE &&
+          tetoVigenteAtual > 0 &&
+          diferenca > 0.001 // Margem de erro para comparação decimal
+        ) {
+          updateData.status = StatusPreco.INACTIVE_AUTO;
+          updateData.updated_at = new Date();
+          precisaAtualizar = true;
+          console.log(
+            `[atualizarPrecosAcimaDoTeto] Preço ${preco.id}: R$ ${precoAtual} > R$ ${tetoVigenteAtual} (teto). Atualizando para INACTIVE_AUTO.`
+          );
+        }
+
+        // Se precisa atualizar, fazer o update
+        if (precisaAtualizar) {
+          try {
+            const precoAtualizado = await this.prisma.empresaPrecoCombustivel.update({
+              where: { id: preco.id },
+              data: updateData,
+              include: {
+                empresa: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    cnpj: true,
+                  },
+                },
+                combustivel: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    sigla: true,
+                  },
+                },
+              },
+            });
+            return precoAtualizado;
+          } catch (updateError) {
+            console.error(`Erro ao atualizar preço ${preco.id}:`, updateError);
+            return preco;
+          }
+        }
+        
+        return preco;
+      })
+    );
   }
 
   async findAll(filters: FindEmpresaPrecoCombustivelDto, empresaId: number) {
@@ -164,9 +273,12 @@ export class EmpresaPrecoCombustivelService {
       this.prisma.empresaPrecoCombustivel.count({ where }),
     ]);
 
+    // Atualizar automaticamente preços que estão acima do teto
+    const precosAtualizados = await this.atualizarPrecosAcimaDoTeto(precos);
+
     return {
       message: 'Preços de combustível encontrados com sucesso',
-      precos,
+      precos: precosAtualizados,
       pagination: {
         page,
         limit,
@@ -214,6 +326,17 @@ export class EmpresaPrecoCombustivelService {
       orderBy: { updated_at: 'desc' },
     });
 
+    // Atualizar automaticamente preços que estão acima do teto
+    const precosAtualizados = await this.atualizarPrecosAcimaDoTeto(precos);
+
+    // Log para debug (pode remover depois)
+    const precosAcimaDoTeto = precosAtualizados.filter(
+      (p) => p.status === StatusPreco.INACTIVE_AUTO || p.status === StatusPreco.INACTIVE_MANUAL
+    );
+    if (precosAcimaDoTeto.length > 0) {
+      console.log(`[findByEmpresaId] ${precosAcimaDoTeto.length} preços acima do teto encontrados e atualizados`);
+    }
+
     return {
       message: 'Preços de combustível encontrados com sucesso',
       empresa: {
@@ -221,7 +344,7 @@ export class EmpresaPrecoCombustivelService {
         nome: empresa.nome,
         cnpj: empresa.cnpj,
       },
-      precos,
+      precos: precosAtualizados,
     };
   }
 
@@ -323,13 +446,20 @@ export class EmpresaPrecoCombustivelService {
     const precoParaValidacao =
       data.preco_atual !== undefined ? data.preco_atual : existingPreco.preco_atual;
 
-    this.validarPrecoDentroDaFaixa(precoParaValidacao, dadosAnp.anpPreco);
+    // Validar apenas se o preço é negativo (permitir preços acima do teto)
+    const precoDecimal = typeof precoParaValidacao === 'number' 
+      ? new Decimal(precoParaValidacao) 
+      : precoParaValidacao;
+    if (precoDecimal.lt(0)) {
+      throw new EmpresaPrecoCombustivelPrecoNegativoException(Number(precoDecimal.toString()));
+    }
 
     if (!dadosAnp.anpPreco.margem_aplicada) {
       throw new EmpresaPrecoCombustivelMargemAnpAusenteException();
     }
 
     const anpBaseValor = this.obterValorBaseAnp(dadosAnp.anpPreco);
+    const tetoDecimal = dadosAnp.anpPreco.teto_calculado;
 
     const updateData: Prisma.EmpresaPrecoCombustivelUpdateInput = {
       updated_at: new Date(),
@@ -342,6 +472,12 @@ export class EmpresaPrecoCombustivelService {
 
     if (data.preco_atual !== undefined) {
       updateData.preco_atual = new Decimal(data.preco_atual);
+      
+      // Se o novo preço está acima do teto, definir status como INACTIVE_MANUAL
+      // Se não foi informado status explicitamente
+      if (data.status === undefined && precoDecimal.gt(tetoDecimal)) {
+        updateData.status = StatusPreco.INACTIVE_MANUAL;
+      }
     }
 
     if (data.status !== undefined) {
@@ -349,6 +485,18 @@ export class EmpresaPrecoCombustivelService {
         throw new EmpresaPrecoCombustivelStatusInvalidoException(data.status);
       }
       updateData.status = data.status;
+    } else if (data.preco_atual === undefined) {
+      // Se não está alterando preço nem status, verificar se precisa atualizar status
+      // Se o preço atual está acima do teto e é ACTIVE, atualizar para INACTIVE_AUTO
+      const precoAtualExistente = Number(existingPreco.preco_atual);
+      const tetoVigenteExistente = Number(existingPreco.teto_vigente);
+      if (
+        existingPreco.status === StatusPreco.ACTIVE &&
+        tetoVigenteExistente > 0 &&
+        precoAtualExistente > tetoVigenteExistente
+      ) {
+        updateData.status = StatusPreco.INACTIVE_AUTO;
+      }
     }
 
     if (data.updated_by !== undefined) {
@@ -679,13 +827,23 @@ export class EmpresaPrecoCombustivelService {
       throw new EmpresaPrecoCombustivelPrecoAnpSemBaseUtilizadaException();
     }
 
-    this.validarPrecoDentroDaFaixa(data.preco_atual, anpPreco);
+    // Validar apenas se o preço é negativo (permitir preços acima do teto)
+    const precoDecimal = new Decimal(data.preco_atual);
+    if (precoDecimal.lt(0)) {
+      throw new EmpresaPrecoCombustivelPrecoNegativoException(Number(precoDecimal.toString()));
+    }
 
     if (!anpPreco.margem_aplicada) {
       throw new EmpresaPrecoCombustivelMargemAnpAusenteException();
     }
 
     const anpBaseValor = this.obterValorBaseAnp(anpPreco);
+    const tetoDecimal = anpPreco.teto_calculado;
+
+    // Determinar status: se preço está acima do teto, definir como INACTIVE_MANUAL
+    const status = precoDecimal.gt(tetoDecimal) 
+      ? StatusPreco.INACTIVE_MANUAL 
+      : StatusPreco.ACTIVE;
 
     // Verificar se já existe um preço para esta empresa e combustível
     const existingPreco = await this.prisma.empresaPrecoCombustivel.findFirst({
@@ -707,7 +865,7 @@ export class EmpresaPrecoCombustivelService {
           anp_base_valor: anpBaseValor,
           margem_app_pct: anpPreco.margem_aplicada,
           uf_referencia: empresa.uf,
-          status: StatusPreco.ACTIVE,
+          status,
           updated_at: new Date(),
           updated_by: userName,
         },
@@ -745,7 +903,7 @@ export class EmpresaPrecoCombustivelService {
           anp_base_valor: anpBaseValor,
           margem_app_pct: anpPreco.margem_aplicada,
           uf_referencia: empresa.uf,
-          status: StatusPreco.ACTIVE,
+          status,
           updated_at: new Date(),
           updated_by: userName,
         },
