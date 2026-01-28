@@ -264,11 +264,6 @@ model Prefeitura {
   data_cadastro         DateTime?
   ativo                 Boolean   @default(true)
   requer_cupom_fiscal   Boolean?
-  
-  // Telemetria
-  telemetria_organizacao_id String?
-  telemetria_api_key        String?
-  telemetria_api_key_id     String?
 
   // Relacionamentos
   usuarios              Usuario[]

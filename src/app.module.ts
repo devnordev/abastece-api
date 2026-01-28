@@ -33,7 +33,6 @@ import { RelatoriosModule } from './modules/relatorios/relatorios.module';
 import { AppModule as AppRoutesModule } from './modules/app/app.module';
 import { AtualizaCotaVeiculoModule } from './modules/atualiza-cota-veiculo/atualiza-cota-veiculo.module';
 import { ExportModelModule } from './modules/export-model/export-model.module';
-import { TelemetriaModule } from './modules/telemetria/telemetria.module';
 
 @Module({
   imports: [
@@ -79,7 +78,6 @@ import { TelemetriaModule } from './modules/telemetria/telemetria.module';
     AppRoutesModule,
     AtualizaCotaVeiculoModule,
     ExportModelModule,
-    TelemetriaModule,
   ],
 })
 export class AppModule {}
