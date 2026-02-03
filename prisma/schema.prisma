@@ -310,6 +310,7 @@ model Usuario {
   validacoes              Abastecimento[]           @relation("Validador")
   orgaos                  UsuarioOrgao[]
   modelosExportacao       ModeloExportacao[]
+  termosAceite            TermoAceite[]
   created_date            DateTime  @default(now())
   modified_date           DateTime  @updatedAt
 
@@ -1140,4 +1141,25 @@ model ModeloExportacao {
   criadoPor         Usuario                @relation(fields: [criadoPorId], references: [id])
 
   @@map("modelo_exportacao")
+}
+
+model TermoAceite {
+  id                Int       @id @default(autoincrement())
+  usuarioId         Int
+  versao            String    @default("1.0")
+  aceito            Boolean   @default(false)
+  ip_address        String?
+  user_agent        String?
+  plataforma        String?   // "web" ou "app"
+  data_aceite       DateTime?
+  created_date      DateTime  @default(now())
+  modified_date     DateTime  @updatedAt
+
+  // Relacionamentos
+  usuario           Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, versao])
+  @@index([usuarioId])
+  @@index([versao])
+  @@map("termo_aceite")
 }

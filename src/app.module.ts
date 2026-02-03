@@ -33,6 +33,7 @@ import { RelatoriosModule } from './modules/relatorios/relatorios.module';
 import { AppModule as AppRoutesModule } from './modules/app/app.module';
 import { AtualizaCotaVeiculoModule } from './modules/atualiza-cota-veiculo/atualiza-cota-veiculo.module';
 import { ExportModelModule } from './modules/export-model/export-model.module';
+import { TermoAceiteModule } from './modules/termo-aceite/termo-aceite.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { ExportModelModule } from './modules/export-model/export-model.module';
     AppRoutesModule,
     AtualizaCotaVeiculoModule,
     ExportModelModule,
+    TermoAceiteModule,
   ],
 })
 export class AppModule {}
