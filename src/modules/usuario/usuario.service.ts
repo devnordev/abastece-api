@@ -677,21 +677,24 @@ export class UsuarioService {
     }
 
     // Extrair orgaoIds do DTO
-    const { orgaoIds, ...restUpdateDto } = updateUsuarioDto;
+    const { orgaoIds, tipo_usuario, ...restUpdateDto } = updateUsuarioDto;
+
+    // Determinar o tipo de usuário final (novo tipo se estiver sendo atualizado, senão o tipo atual)
+    const tipoUsuarioFinal = tipo_usuario || existingUsuario.tipo_usuario;
 
     // Validar e processar órgãos se fornecido
     // IMPORTANTE: orgaoIds pode ser undefined (não alterar), [] (remover todos) ou [1,2,3] (atualizar)
     if (orgaoIds !== undefined) {
       if (orgaoIds.length === 0) {
-        // Array vazio - apenas validar se é COLABORADOR_PREFEITURA
+        // Array vazio - apenas validar se é COLABORADOR_PREFEITURA (usando o tipo final)
         // A validação e remoção serão feitas após atualizar o usuário
-        if (existingUsuario.tipo_usuario !== TipoUsuario.COLABORADOR_PREFEITURA) {
+        if (tipoUsuarioFinal !== TipoUsuario.COLABORADOR_PREFEITURA) {
           throw new BadRequestException('Apenas usuários do tipo COLABORADOR_PREFEITURA podem ter órgãos vinculados');
         }
       } else {
-        // Array com IDs - validar
+        // Array com IDs - validar usando o tipo final (novo tipo se estiver sendo atualizado)
         // Apenas COLABORADOR_PREFEITURA pode ter múltiplos órgãos
-        if (existingUsuario.tipo_usuario !== TipoUsuario.COLABORADOR_PREFEITURA) {
+        if (tipoUsuarioFinal !== TipoUsuario.COLABORADOR_PREFEITURA) {
           throw new BadRequestException('Apenas usuários do tipo COLABORADOR_PREFEITURA podem ser vinculados a órgãos');
         }
 
@@ -751,10 +754,12 @@ export class UsuarioService {
 
     // Atualizar relacionamentos de órgãos se fornecido
     // IMPORTANTE: orgaoIds pode ser undefined (não alterar), [] (remover todos) ou [1,2,3] (atualizar)
+    // Usar tipoUsuarioFinal para determinar se deve processar órgãos
     if (orgaoIds !== undefined) {
       if (orgaoIds.length === 0) {
         // Array vazio - remover todos os relacionamentos de órgãos
-        if (existingUsuario.tipo_usuario === TipoUsuario.COLABORADOR_PREFEITURA) {
+        // Verificar o tipo final (novo tipo se estiver sendo atualizado)
+        if (tipoUsuarioFinal === TipoUsuario.COLABORADOR_PREFEITURA) {
           await this.prisma.usuarioOrgao.deleteMany({
             where: { usuarioId: id },
           });
