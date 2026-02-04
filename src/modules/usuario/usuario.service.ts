@@ -747,6 +747,11 @@ export class UsuarioService {
       ...restUpdateData,
     };
 
+    // IMPORTANTE: Incluir tipo_usuario no updateData se estiver sendo atualizado
+    if (tipo_usuario !== undefined) {
+      updateData.tipo_usuario = tipo_usuario;
+    }
+
     // Só atualiza imagem_perfil se tiver nova URL ou se foi explicitamente enviado como null
     if (imagemUrl !== undefined) {
       updateData.imagem_perfil = imagemUrl;
