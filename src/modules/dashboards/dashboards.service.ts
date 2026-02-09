@@ -196,7 +196,7 @@ export class DashboardsService {
         })
       : [];
 
-    const veiculosDetalhesMap = new Map(
+    const veiculosDetalhesMap = new Map<number, typeof veiculosDetalhes[0]>(
       veiculosDetalhes.map((veiculo) => [veiculo.id, veiculo]),
     );
 
@@ -549,7 +549,7 @@ export class DashboardsService {
         })
       : [];
 
-    const veiculosDetalhesMap = new Map(
+    const veiculosDetalhesMap = new Map<number, typeof veiculosDetalhes[0]>(
       veiculosDetalhes.map((veiculo) => [veiculo.id, veiculo]),
     );
 
@@ -562,7 +562,7 @@ export class DashboardsService {
         })
       : [];
 
-    const combustiveisDetalhesMap = new Map(
+    const combustiveisDetalhesMap = new Map<number, typeof combustiveisDetalhes[0]>(
       combustiveisDetalhes.map((comb) => [comb.id, comb]),
     );
 

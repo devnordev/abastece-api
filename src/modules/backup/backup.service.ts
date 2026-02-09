@@ -553,10 +553,7 @@ export class BackupService {
       const escapedTableName = tableName.replace(/'/g, "''");
       
       // Buscar informações sobre colunas enum do banco de dados
-      const result = await this.prisma.$queryRawUnsafe<Array<{
-        column_name: string;
-        udt_name: string;
-      }>>(`
+      const result = await this.prisma.$queryRawUnsafe(`
         SELECT 
           c.column_name,
           c.udt_name
@@ -565,7 +562,10 @@ export class BackupService {
         WHERE c.table_schema = 'public'
           AND c.table_name = '${escapedTableName}'
           AND t.typtype = 'e'
-      `);
+      `) as Array<{
+        column_name: string;
+        udt_name: string;
+      }>;
 
       const enumMap = new Map<string, string>();
       result.forEach((row) => {
@@ -954,13 +954,13 @@ export class BackupService {
       const escapedTable = table.replace(/"/g, '""');
       
       // Verificar quais colunas de data existem na tabela
-      const columnsResult = await this.prisma.$queryRawUnsafe<Array<{ column_name: string }>>(`
+      const columnsResult = await this.prisma.$queryRawUnsafe(`
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_schema = 'public' 
           AND table_name = '${escapedTable}' 
           AND column_name IN ('modified_date', 'created_date', 'data_cadastro')
-      `);
+      `) as Array<{ column_name: string }>;
 
       if (!columnsResult || columnsResult.length === 0) {
         // Se não tiver coluna de data, considerar que tem registros atualizados
@@ -972,12 +972,12 @@ export class BackupService {
       const conditions = existingColumns.map(col => `"${col}" IS NOT NULL`).join(' OR ');
 
       // Verificar se há registros com alguma das colunas de data não nula
-      const result = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(`
+      const result = await this.prisma.$queryRawUnsafe(`
         SELECT COUNT(*) as count
         FROM "${escapedTable}"
         WHERE ${conditions}
         LIMIT 1
-      `);
+      `) as Array<{ count: bigint }>;
 
       const count = Number(result[0]?.count || 0);
       return count > 0;
