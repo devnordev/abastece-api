@@ -34,6 +34,9 @@ import { AppModule as AppRoutesModule } from './modules/app/app.module';
 import { AtualizaCotaVeiculoModule } from './modules/atualiza-cota-veiculo/atualiza-cota-veiculo.module';
 import { ExportModelModule } from './modules/export-model/export-model.module';
 import { TermoAceiteModule } from './modules/termo-aceite/termo-aceite.module';
+import { RegraAlertaModule } from './modules/regra-alerta/regra-alerta.module';
+import { ConfiguracaoAlertaModule } from './modules/configuracao-alerta/configuracao-alerta.module';
+import { AlertaModule } from './modules/alerta/alerta.module';
 
 @Module({
   imports: [
@@ -80,6 +83,9 @@ import { TermoAceiteModule } from './modules/termo-aceite/termo-aceite.module';
     AtualizaCotaVeiculoModule,
     ExportModelModule,
     TermoAceiteModule,
+    RegraAlertaModule,
+    ConfiguracaoAlertaModule,
+    AlertaModule,
   ],
 })
 export class AppModule {}

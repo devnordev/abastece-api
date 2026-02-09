@@ -279,6 +279,8 @@ model Prefeitura {
   solicitacoesQrCode    SolicitacoesQrCodeVeiculo[]
   solicitacoesQrCodeMotorista QrCodeMotorista[]
   modelosExportacao    ModeloExportacao[]
+  configuracoesAlerta   ConfiguracaoAlerta[]
+  alertas               Alerta[]
   created_date          DateTime  @default(now())
   modified_date         DateTime  @updatedAt
 
@@ -311,6 +313,7 @@ model Usuario {
   orgaos                  UsuarioOrgao[]
   modelosExportacao       ModeloExportacao[]
   termosAceite            TermoAceite[]
+  alertasResolvidos       Alerta[]           @relation("AlertaResolvidoPor")
   created_date            DateTime  @default(now())
   modified_date           DateTime  @updatedAt
 
@@ -510,6 +513,7 @@ model Veiculo {
   cotasPeriodo              VeiculoCotaPeriodo[]
   solicitacoes              SolicitacaoAbastecimento[]
   solicitacoesQrCode        SolicitacoesQrCodeVeiculo[]
+  alertas                   Alerta[]
   created_date              DateTime  @default(now())
   modified_date             DateTime  @updatedAt
 
@@ -1162,4 +1166,85 @@ model TermoAceite {
   @@index([usuarioId])
   @@index([versao])
   @@map("termo_aceite")
+}
+
+enum TipoRegraAlerta {
+  MULTIPLOS_ABASTECIMENTOS_DIA
+  QUANTIDADE_LITROS_ACIMA_MEDIA
+  VALOR_ACIMA_MEDIA
+  AUMENTO_PERCENTUAL_GASTO
+  ABASTECIMENTO_FORA_PADRAO
+}
+
+enum StatusAlerta {
+  ATIVO
+  RESOLVIDO
+  IGNORADO
+}
+
+model RegraAlerta {
+  id                Int               @id @default(autoincrement())
+  nome              String
+  descricao         String?           @db.Text
+  tipo              TipoRegraAlerta
+  ativo             Boolean           @default(true)
+  created_date      DateTime          @default(now())
+  modified_date     DateTime          @updatedAt
+
+  // Relacionamentos
+  configuracoes      ConfiguracaoAlerta[]
+  alertas           Alerta[]
+
+  @@map("regra_alerta")
+}
+
+model ConfiguracaoAlerta {
+  id                Int               @id @default(autoincrement())
+  prefeituraId      Int
+  regraAlertaId     Int
+  valorLimite       Decimal?          @db.Decimal(10, 2)  // Ex: 3 abastecimentos, 160% de aumento
+  percentualLimite  Decimal?          @db.Decimal(5, 2)   // Ex: 160% de aumento
+  periodoDias       Int?              @default(7)         // Período para análise (dias)
+  ativo             Boolean           @default(true)
+  observacoes       String?           @db.Text
+  created_date      DateTime          @default(now())
+  modified_date     DateTime          @updatedAt
+
+  // Relacionamentos
+  prefeitura        Prefeitura        @relation(fields: [prefeituraId], references: [id])
+  regraAlerta       RegraAlerta       @relation(fields: [regraAlertaId], references: [id])
+  alertas           Alerta[]
+
+  @@unique([prefeituraId, regraAlertaId])
+  @@map("configuracao_alerta")
+}
+
+model Alerta {
+  id                    Int               @id @default(autoincrement())
+  prefeituraId          Int
+  configuracaoAlertaId  Int?
+  regraAlertaId         Int
+  veiculoId             Int?
+  titulo                String
+  mensagem              String            @db.Text
+  status                StatusAlerta      @default(ATIVO)
+  dadosContexto         Json?             // Dados adicionais do alerta (ex: quantidade, percentual, etc)
+  dataOcorrencia        DateTime
+  dataResolucao         DateTime?
+  resolvidoPor          Int?
+  created_date          DateTime          @default(now())
+  modified_date         DateTime          @updatedAt
+
+  // Relacionamentos
+  prefeitura            Prefeitura        @relation(fields: [prefeituraId], references: [id])
+  configuracaoAlerta     ConfiguracaoAlerta? @relation(fields: [configuracaoAlertaId], references: [id])
+  regraAlerta           RegraAlerta       @relation(fields: [regraAlertaId], references: [id])
+  veiculo               Veiculo?          @relation(fields: [veiculoId], references: [id])
+  resolvidoPorUsuario   Usuario?         @relation("AlertaResolvidoPor", fields: [resolvidoPor], references: [id])
+
+  @@index([prefeituraId])
+  @@index([status])
+  @@index([dataOcorrencia])
+  @@index([veiculoId])
+  @@map("alerta")
 }
