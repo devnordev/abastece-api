@@ -9,11 +9,12 @@ import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 @ApiTags('Regras de Alerta')
 @ApiBearerAuth()
 @Controller('regras-alerta')
-@UseGuards(JwtAuthGuard, SuperAdminGuard)
+@UseGuards(JwtAuthGuard)
 export class RegraAlertaController {
   constructor(private readonly regraAlertaService: RegraAlertaService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
   @ApiOperation({ summary: 'Criar uma nova regra de alerta (apenas SUPER_ADMIN)' })
   create(@Body() createRegraAlertaDto: CreateRegraAlertaDto) {
     return this.regraAlertaService.create(createRegraAlertaDto);
@@ -27,18 +28,21 @@ export class RegraAlertaController {
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
   @ApiOperation({ summary: 'Buscar uma regra de alerta por ID' })
   findOne(@Param('id') id: string) {
     return this.regraAlertaService.findOne(+id);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
   @ApiOperation({ summary: 'Atualizar uma regra de alerta' })
   update(@Param('id') id: string, @Body() updateRegraAlertaDto: UpdateRegraAlertaDto) {
     return this.regraAlertaService.update(+id, updateRegraAlertaDto);
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
   @ApiOperation({ summary: 'Excluir uma regra de alerta' })
   remove(@Param('id') id: string) {
     return this.regraAlertaService.remove(+id);
