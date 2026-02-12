@@ -504,11 +504,20 @@ export class VeiculoService {
     } = findVeiculoDto;
 
     const skip = (page - 1) * limit;
+    
+    // Variável para armazenar os IDs dos órgãos permitidos (para COLABORADOR_PREFEITURA)
+    let orgaosPermitidos: number[] | null = null;
 
     // Aplicar filtros de autorização se houver usuário logado
     if (currentUserId) {
       const currentUser = await this.prisma.usuario.findUnique({
         where: { id: currentUserId },
+        include: {
+          orgaos: {
+            where: { ativo: true },
+            select: { orgaoId: true },
+          },
+        },
       });
 
       if (currentUser) {
@@ -533,6 +542,45 @@ export class VeiculoService {
             if (!orgao) {
               throw new ForbiddenException('Órgão não pertence à sua prefeitura');
             }
+          }
+        }
+        
+        // COLABORADOR_PREFEITURA só pode ver veículos dos órgãos aos quais está vinculado
+        if (currentUser.tipo_usuario === 'COLABORADOR_PREFEITURA') {
+          if (!currentUser.prefeituraId) {
+            throw new ForbiddenException('Colaborador sem prefeitura vinculada');
+          }
+          
+          // Filtrar apenas veículos da prefeitura do colaborador
+          prefeituraId = currentUser.prefeituraId;
+          
+          // Buscar os IDs dos órgãos vinculados ao colaborador
+          const orgaosVinculados = currentUser.orgaos?.map(uo => uo.orgaoId) || [];
+          
+          if (orgaosVinculados.length === 0) {
+            // Se não há órgãos vinculados, não retornar nenhum veículo
+            // Retornar lista vazia ao invés de erro para melhor UX
+            return {
+              veiculos: [],
+              pagination: {
+                page,
+                limit,
+                total: 0,
+                totalPages: 0,
+              },
+            };
+          }
+          
+          // Se especificar um órgão na query, verificar se o colaborador tem acesso a ele
+          if (orgaoId) {
+            if (!orgaosVinculados.includes(orgaoId)) {
+              throw new ForbiddenException('Você não tem acesso a este órgão');
+            }
+            // Se o órgão está na lista, usar o filtro normal de orgaoId
+          } else {
+            // Se não especificar órgão, usar filtro IN com todos os órgãos vinculados
+            orgaosPermitidos = orgaosVinculados;
+            orgaoId = undefined; // Limpar para usar filtro IN
           }
         }
       }
@@ -586,7 +634,10 @@ export class VeiculoService {
       where.prefeituraId = prefeituraId;
     }
 
-    if (orgaoId) {
+    // Aplicar filtro de órgão: se orgaosPermitidos está definido, usar IN, senão usar orgaoId específico
+    if (orgaosPermitidos !== null && orgaosPermitidos.length > 0) {
+      where.orgaoId = { in: orgaosPermitidos };
+    } else if (orgaoId) {
       where.orgaoId = orgaoId;
     }
 
