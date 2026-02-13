@@ -7,6 +7,7 @@ import { AdminPrefeituraGuard } from '../auth/guards/admin-prefeitura.guard';
 import { ColaboradorPrefeituraGuard } from '../auth/guards/colaborador-prefeitura.guard';
 import { AdminEmpresaGuard } from '../auth/guards/admin-empresa.guard';
 import { ColaboradorEmpresaGuard } from '../auth/guards/colaborador-empresa.guard';
+import { PrefeituraAccessGuard } from '../auth/guards/prefeitura-access.guard';
 
 @ApiTags('Relatórios')
 @ApiBearerAuth()
@@ -93,6 +94,13 @@ export class RelatoriosController {
     @Query() filter: FilterRelatorioDto,
   ) {
     return this.relatoriosService.getPainelFaturamentoColaboradorEmpresa(req.user, filter);
+  }
+
+  @UseGuards(PrefeituraAccessGuard)
+  @Get('relatorio-mensal-semestral')
+  @ApiOperation({ summary: 'Relatório mensal/semestral (mes=YYYY-MM)' })
+  async getRelatorioMensalSemestral(@Request() req, @Query('mes') mes: string) {
+    return this.relatoriosService.getRelatorioMensalSemestral(req.user, mes);
   }
 }
 

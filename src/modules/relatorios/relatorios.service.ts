@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { FilterRelatorioDto } from './dto/filter-relatorio.dto';
 import {
@@ -1839,6 +1839,244 @@ export class RelatoriosService {
       faturamento_por_combustivel: faturamentoPorCombustivel,
       faturamento_por_orgao: faturamentoPorOrgao,
       faturamento_por_conta: faturamentoPorConta,
+    };
+  }
+
+  /**
+   * Relatório mensal/semestral solicitado (mes_referencia YYYY-MM)
+   */
+  async getRelatorioMensalSemestral(user: any, mesReferencia: string) {
+    const prefeituraId = this.obterPrefeituraId(user);
+
+    if (!mesReferencia || !/^\d{4}-\d{2}$/.test(mesReferencia)) {
+      throw new BadRequestException('Parâmetro mes_referencia inválido. Use YYYY-MM');
+    }
+
+    const [yearStr, monthStr] = mesReferencia.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr); // 1-12
+
+    const dataInicio = new Date(year, month - 1, 1, 0, 0, 0, 0);
+    const dataFim = new Date(year, month, 0, 23, 59, 59, 999);
+
+    const whereBase: any = {
+      ativo: true,
+      status: StatusAbastecimento.Aprovado,
+      veiculo: { prefeituraId },
+      data_abastecimento: { gte: dataInicio, lte: dataFim },
+    };
+
+    // Dados do mês de referência
+    const atualCount = await this.prisma.abastecimento.count({ where: whereBase });
+    if (atualCount === 0) {
+      return { message: 'Não existem abastecimentos no mês informado' };
+    }
+
+    const atualAgg = await this.prisma.abastecimento.aggregate({
+      _sum: { valor_total: true, quantidade: true },
+      where: whereBase,
+    });
+
+    // mês anterior
+    const prevStart = new Date(year, month - 2, 1, 0, 0, 0, 0);
+    const prevEnd = new Date(year, month - 1, 0, 23, 59, 59, 999);
+    const wherePrev: any = {
+      ativo: true,
+      status: StatusAbastecimento.Aprovado,
+      veiculo: { prefeituraId },
+      data_abastecimento: { gte: prevStart, lte: prevEnd },
+    };
+    const prevCount = await this.prisma.abastecimento.count({ where: wherePrev });
+    const prevAgg = await this.prisma.abastecimento.aggregate({
+      _sum: { valor_total: true, quantidade: true },
+      where: wherePrev,
+    });
+
+    const stats = {
+      abastecimentos: {
+        atual: atualCount,
+        anterior: prevCount || 0,
+        tendencia: prevCount > 0 ? this.arredondar(atualCount / prevCount, 2) : 0,
+      },
+      financeiro: {
+        atual: this.arredondar(this.toNumber(atualAgg._sum.valor_total), 2),
+        anterior: this.arredondar(this.toNumber(prevAgg._sum.valor_total), 2),
+        tendencia:
+          this.toNumber(prevAgg._sum.valor_total) > 0
+            ? this.arredondar(this.toNumber(atualAgg._sum.valor_total) / this.toNumber(prevAgg._sum.valor_total), 2)
+            : 0,
+      },
+      consumo: {
+        atual: this.arredondar(this.toNumber(atualAgg._sum.quantidade), 2),
+        anterior: this.arredondar(this.toNumber(prevAgg._sum.quantidade), 2),
+        tendencia:
+          this.toNumber(prevAgg._sum.quantidade) > 0
+            ? this.arredondar(this.toNumber(atualAgg._sum.quantidade) / this.toNumber(prevAgg._sum.quantidade), 2)
+            : 0,
+      },
+    };
+
+    // janela de histórico: mesReferencia + 6 meses anteriores (total 7 meses)
+    const historico: any[] = [];
+    const mesesDisponiveis: string[] = [];
+    for (let i = 0; i <= 6; i++) {
+      const d = new Date(year, month - 1 - i, 1, 0, 0, 0, 0);
+      const inicio = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+      const fim = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+      const mesKey = `${inicio.getFullYear().toString().padStart(4, '0')}-${(inicio.getMonth() + 1)
+        .toString()
+        .padStart(2, '0')}`;
+
+      const count = await this.prisma.abastecimento.count({
+        where: {
+          ativo: true,
+          status: StatusAbastecimento.Aprovado,
+          veiculo: { prefeituraId },
+          data_abastecimento: { gte: inicio, lte: fim },
+        },
+      });
+
+      if (count > 0) {
+        mesesDisponiveis.push(mesKey);
+        const agg = await this.prisma.abastecimento.aggregate({
+          _sum: { valor_total: true, quantidade: true },
+          where: {
+            ativo: true,
+            status: StatusAbastecimento.Aprovado,
+            veiculo: { prefeituraId },
+            data_abastecimento: { gte: inicio, lte: fim },
+          },
+        });
+        historico.push({
+          mes: mesKey,
+          abastecimentos: count,
+          valor: this.arredondar(this.toNumber(agg._sum.valor_total), 2),
+          consumo: this.arredondar(this.toNumber(agg._sum.quantidade), 2),
+        });
+      }
+    }
+
+    // buscar abastecimentos do mês de referência para demais agrupamentos
+    const abastecimentosMes = await this.prisma.abastecimento.findMany({
+      where: whereBase,
+      include: {
+        combustivel: { select: { id: true, nome: true } },
+        veiculo: { select: { id: true, nome: true, placa: true, situacao_veiculo: true, orgao: { select: { id: true, nome: true } } } },
+        motorista: { select: { id: true, nome: true, telefone: true, imagem_perfil: true } },
+        empresa: { select: { id: true, nome: true } },
+      },
+      orderBy: { data_abastecimento: 'asc' },
+    });
+
+    // distribuicao combustiveis
+    const combustiveisMap: Record<string, any> = {};
+    const situacaoMap: Record<string, any> = {};
+    const empresasMap: Map<number, string> = new Map();
+    const veiculosMap: Map<number, any> = new Map();
+    const motoristasMap: Map<number, any> = new Map();
+    const combustiveisSet: Map<number, any> = new Map();
+    const tiposSet: Map<string, any> = new Map();
+    const abastecimentosList: any[] = [];
+
+    for (const a of abastecimentosMes) {
+      const valor = this.toNumber(a.valor_total);
+      const consumo = this.toNumber(a.quantidade);
+
+      // combustivel
+      const nomeComb = a.combustivel?.nome || 'Desconhecido';
+      if (!combustiveisMap[nomeComb]) {
+        combustiveisMap[nomeComb] = { nome: nomeComb, valor: 0, consumo: 0, abastecimentos: 0 };
+      }
+      combustiveisMap[nomeComb].valor += valor;
+      combustiveisMap[nomeComb].consumo += consumo;
+      combustiveisMap[nomeComb].abastecimentos++;
+
+      // situacao veiculo
+      const situ = a.veiculo?.situacao_veiculo || 'Desconhecido';
+      if (!situacaoMap[situ]) {
+        situacaoMap[situ] = { nome: situ, valor: 0, consumo: 0, abastecimentos: 0 };
+      }
+      situacaoMap[situ].valor += valor;
+      situacaoMap[situ].consumo += consumo;
+      situacaoMap[situ].abastecimentos++;
+
+      // empresas
+      if (a.empresa) empresasMap.set(a.empresa.id, a.empresa.nome);
+
+      // veiculos
+      if (a.veiculo) {
+        veiculosMap.set(a.veiculo.id, {
+          id: a.veiculo.id,
+          nome: a.veiculo.nome,
+          placa: a.veiculo.placa,
+          orgao: a.veiculo.orgao?.nome || null,
+          situacao: a.veiculo.situacao_veiculo || null,
+        });
+      }
+
+      // motoristas
+      if (a.motorista) {
+        motoristasMap.set(a.motorista.id, {
+          id: a.motorista.id,
+          nome: a.motorista.nome,
+          contato: (a.motorista as any).telefone || null,
+          imagem: (a.motorista as any).imagem_perfil || null,
+        });
+      }
+
+      // combustiveis set
+      if (a.combustivel) combustiveisSet.set(a.combustivel.id, { id: a.combustivel.id, nome: a.combustivel.nome });
+
+      // tipos_abastecimento: id = veiculoId, nome = tipo_abastecimento
+      const tipoKey = `${a.veiculoId}-${a.tipo_abastecimento}`;
+      if (!tiposSet.has(tipoKey)) {
+        tiposSet.set(tipoKey, { id: a.veiculoId, nome: a.tipo_abastecimento });
+      }
+
+      abastecimentosList.push({
+        id: a.id,
+        data: a.data_abastecimento ? a.data_abastecimento.toISOString().split('T')[0] : null,
+        valor: this.arredondar(valor, 2),
+        quantidade: this.arredondar(consumo, 2),
+        veiculo: a.veiculoId,
+        empresa: a.empresaId,
+        tipo_abastecimento: a.tipo_abastecimento,
+      });
+    }
+
+    const distribuicao = {
+      combustiveis: Object.values(combustiveisMap).map((c: any) => ({
+        nome: c.nome,
+        valor: this.arredondar(c.valor, 2),
+        consumo: this.arredondar(c.consumo, 2),
+        abastecimentos: c.abastecimentos,
+      })),
+      situacao_veiculos: Object.values(situacaoMap).map((s: any) => ({
+        nome: s.nome,
+        valor: this.arredondar(s.valor, 2),
+        consumo: this.arredondar(s.consumo, 2),
+        abastecimentos: s.abastecimentos,
+      })),
+    };
+
+    const data = {
+      empresas: Array.from(empresasMap.entries()).map(([id, nome]) => ({ id, nome })),
+      veiculos: Array.from(veiculosMap.values()),
+      motoristas: Array.from(motoristasMap.values()),
+      combustiveis: Array.from(combustiveisSet.values()),
+      tipos_abastecimento: Array.from(tiposSet.values()),
+      abastecimentos: abastecimentosList,
+    };
+
+    return {
+      meta: {
+        mes_referencia: mesReferencia,
+        meses_disponiveis: mesesDisponiveis,
+      },
+      stats,
+      historico,
+      distribuicao,
+      data,
     };
   }
 

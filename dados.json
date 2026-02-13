@@ -1,0 +1,90 @@
+{
+    "meta": {
+        "mes_referencia": "2026-02",
+        "meses_disponiveis": [
+            "2026-01",
+            "2025-12",
+            "2025-11",
+            "2025-10",
+            "2025-09",
+            "2025-08"
+        ]
+    },
+    "stats": {
+        "abastecimentos": { "atual": 50, "anterior": 40, "tendencia": 2.5 },
+        "financeiro": { "atual": 10000, "anterior": 8000, "tendencia": 2.5 },
+        "consumo": { "atual": 1000, "anterior": 800, "tendencia": 2.5 }
+    },
+    "historico": [
+        {"mes": "2026-02", "abastecimentos": 50, "valor": 10000, "consumo": 1000},
+        {"mes": "2026-01", "abastecimentos": 40, "valor": 8000, "consumo": 800},
+        {"mes": "2025-12", "abastecimentos": 30, "valor": 6000, "consumo": 600},
+        {"mes": "2025-11", "abastecimentos": 20, "valor": 4000, "consumo": 400},
+        {"mes": "2025-10", "abastecimentos": 10, "valor": 2000, "consumo": 200},
+        {"mes": "2025-09", "abastecimentos": 5, "valor": 1000, "consumo": 100},
+        {"mes": "2025-08", "abastecimentos": 2, "valor": 500, "consumo": 50}
+    ],
+    "distribuicao": {
+        "combustiveis": [
+            {"nome": "Gasolina Comum", "valor": 10000, "consumo": 1000, "abastecimentos": 1000},
+            {"nome": "Gasolina Aditivada", "valor": 8000, "consumo": 800, "abastecimentos": 800},
+            {"nome": "Etanol", "valor": 6000, "consumo": 800, "abastecimentos": 800},
+            {"nome": "Diesel", "valor": 4000, "consumo": 600, "abastecimentos": 600},
+            {"nome": "Diesel S10", "valor": 2000, "consumo": 400, "abastecimentos": 400}
+        ],
+        "situacao_veiculos": [
+            {"nome": "Proprio", "valor": 50000, "consumo": 50000, "abastecimentos": 50},
+            {"nome": "Locado", "valor": 30000, "consumo": 30000, "abastecimentos": 30},
+            {"nome": "particular a serviço", "valor": 20000, "consumo": 20000, "abastecimentos": 20}
+        ]
+    },
+    "data": {
+        "empresas": [
+            {"id": 1, "nome": "Empresa 1"},
+            {"id": 2, "nome": "Empresa 2"},
+            {"id": 3, "nome": "Empresa 3"}
+        ],
+        "veiculos": [
+            {"id": 1, "nome": "Hilux", "placa": "ABC-1234", "orgao": "Saúde", "situacao": "Próprio"},
+            {"id": 2, "nome": "Fiorino", "placa": "DEF-5678", "orgao": "Saúde", "situacao": "Locado"},
+            {"id": 3, "nome": "Moto", "placa": "GHI-9012", "orgao": "Saúde", "situacao": "Particular a serviço"}
+        ],
+        "motoristas": [
+            {"id": 1, "nome": "João da Silva", "contato": "(82) 99999-9999", "imagem": "https://via.placeholder.com/150"},
+            {"id": 2, "nome": "Maria Oliveira", "contato": "(82) 99999-9999", "imagem": "https://via.placeholder.com/150"},
+            {"id": 3, "nome": "Pedro Santos", "contato": "(82) 99999-9999", "imagem": "https://via.placeholder.com/150"}
+        ],
+        "combustiveis": [
+            {"id": 1, "nome": "Gasolina Comum"},
+            {"id": 2, "nome": "Gasolina Aditivada"},
+            {"id": 3, "nome": "Etanol"},
+            {"id": 4, "nome": "Diesel"},
+            {"id": 5, "nome": "Diesel S10"}
+        ],
+        "tipos_abastecimento": [
+            {"id": 1, "nome": "Livre"},
+            {"id": 2, "nome": "Com cota"},
+            {"id": 3, "nome": "Com autorização"}
+        ],  
+        "abastecimentos": [
+            {"id": 1, "data": "2026-02-12", "valor": 1000, "quantidade": 100, "veiculo": 1, "empresa": 1, "tipo_abastecimento": 1},
+            {"id": 2, "data": "2026-02-13", "valor": 1500, "quantidade": 150, "veiculo": 2, "empresa": 2, "tipo_abastecimento": 2},
+            {"id": 3, "data": "2026-02-14", "valor": 2000, "quantidade": 200, "veiculo": 3, "empresa": 3, "tipo_abastecimento": 3},
+            {"id": 4, "data": "2026-02-15", "valor": 2500, "quantidade": 250, "veiculo": 4, "empresa": 4, "tipo_abastecimento": 1},
+            {"id": 5, "data": "2026-02-16", "valor": 3000, "quantidade": 300, "veiculo": 5, "empresa": 5, "tipo_abastecimento": 2},
+            {"id": 6, "data": "2026-02-17", "valor": 3500, "quantidade": 350, "veiculo": 6, "empresa": 6, "tipo_abastecimento": 3},
+            {"id": 7, "data": "2026-02-18", "valor": 4000, "quantidade": 400, "veiculo": 7, "empresa": 7, "tipo_abastecimento": 1},
+            {"id": 8, "data": "2026-02-19", "valor": 4500, "quantidade": 450, "veiculo": 8, "empresa": 8, "tipo_abastecimento": 2},
+            {"id": 9, "data": "2026-02-20", "valor": 5000, "quantidade": 500, "veiculo": 9, "empresa": 9, "tipo_abastecimento": 3},
+            {"id": 10, "data": "2026-02-21", "valor": 5500, "quantidade": 550, "veiculo": 10, "empresa": 10, "tipo_abastecimento": 1},
+            {"id": 11, "data": "2026-02-22", "valor": 6000, "quantidade": 600, "veiculo": 11, "empresa": 11, "tipo_abastecimento": 2},
+            {"id": 12, "data": "2026-02-23", "valor": 6500, "quantidade": 650, "veiculo": 12, "empresa": 12, "tipo_abastecimento": 3},
+            {"id": 13, "data": "2026-02-24", "valor": 7000, "quantidade": 700, "veiculo": 13, "empresa": 13, "tipo_abastecimento": 1},
+            {"id": 14, "data": "2026-02-25", "valor": 7500, "quantidade": 750, "veiculo": 14, "empresa": 14, "tipo_abastecimento": 2},
+            {"id": 15, "data": "2026-02-26", "valor": 8000, "quantidade": 800, "veiculo": 15, "empresa": 15, "tipo_abastecimento": 3},
+            {"id": 16, "data": "2026-02-27", "valor": 8500, "quantidade": 850, "veiculo": 16, "empresa": 16, "tipo_abastecimento": 1},
+            {"id": 17, "data": "2026-02-28", "valor": 9000, "quantidade": 900, "veiculo": 17, "empresa": 17, "tipo_abastecimento": 2},
+            {"id": 18, "data": "2026-02-29", "valor": 9500, "quantidade": 950, "veiculo": 18, "empresa": 18, "tipo_abastecimento": 3}
+        ]
+    }
+}
