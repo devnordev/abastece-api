@@ -63,7 +63,7 @@ export class EmpresaService {
     };
   }
 
-  async findAll(findEmpresaDto: FindEmpresaDto) {
+  async findAll(findEmpresaDto: FindEmpresaDto, currentUser?: any) {
     const {
       nome,
       cnpj,
@@ -72,6 +72,7 @@ export class EmpresaService {
       ativo,
       isPublic,
       bandeira,
+      isTeste,
       page = 1,
       limit = 10,
     } = findEmpresaDto;
@@ -115,6 +116,30 @@ export class EmpresaService {
         contains: bandeira,
         mode: 'insensitive',
       };
+    }
+
+    // Aplicar filtro de teste baseado no usuário logado
+    if (currentUser) {
+      // Se usuário é de uma prefeitura, aplicar filtro de teste
+      if (currentUser.prefeituraId) {
+        const prefeitura = await this.prisma.prefeitura.findUnique({
+          where: { id: currentUser.prefeituraId },
+        });
+        
+        if (prefeitura) {
+          // Prefeitura teste só vê empresas teste
+          // Prefeitura não-teste não vê empresas teste
+          if (isTeste === undefined) {
+            where.isTeste = prefeitura.isTeste;
+          }
+        }
+      }
+      // Se usuário é de uma empresa, não aplicar filtro aqui (será aplicado na listagem de prefeituras)
+    }
+
+    // Se isTeste foi explicitamente passado, usar esse valor
+    if (isTeste !== undefined) {
+      where.isTeste = isTeste;
     }
 
     // Buscar empresas

@@ -264,6 +264,7 @@ model Prefeitura {
   data_cadastro         DateTime?
   ativo                 Boolean   @default(true)
   requer_cupom_fiscal   Boolean?
+  isTeste               Boolean   @default(false) @map("is_teste")
 
   // Relacionamentos
   usuarios              Usuario[]
@@ -331,6 +332,7 @@ model Empresa {
   ativo                   Boolean
   imagem_perfil           String?
   isPublic                Boolean
+  isTeste                 Boolean   @default(false) @map("is_teste")
   tipo_empresa            TipoEmpresa?  @default(POSTO_GASOLINA)
   latitude                Decimal?      @db.Decimal(10, 8)
   longitude               Decimal?      @db.Decimal(11, 8)

@@ -201,4 +201,13 @@ export class CreateEmpresaDto {
   @IsOptional()
   @IsInt({ message: 'Total de avaliações deve ser um número inteiro' })
   total_avaliacoes?: number;
+
+  @ApiProperty({
+    description: 'Se a empresa é de teste',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'IsTeste deve ser um valor booleano' })
+  isTeste?: boolean;
 }

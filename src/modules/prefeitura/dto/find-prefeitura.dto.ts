@@ -40,6 +40,15 @@ export class FindPrefeituraDto {
   ativo?: boolean;
 
   @ApiProperty({
+    description: 'Filtrar por prefeituras de teste',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'IsTeste deve ser um valor booleano' })
+  isTeste?: boolean;
+
+  @ApiProperty({
     description: 'Página para paginação',
     example: 1,
     required: false,

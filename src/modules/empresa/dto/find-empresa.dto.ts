@@ -68,6 +68,15 @@ export class FindEmpresaDto {
   bandeira?: string;
 
   @ApiProperty({
+    description: 'Filtrar por empresas de teste',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'IsTeste deve ser um valor booleano' })
+  isTeste?: boolean;
+
+  @ApiProperty({
     description: 'Página para paginação',
     example: 1,
     required: false,

@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -112,10 +113,11 @@ export class EmpresaController {
   @ApiQuery({ name: 'ativo', required: false, description: 'Filtrar por status ativo' })
   @ApiQuery({ name: 'isPublic', required: false, description: 'Filtrar por empresas públicas' })
   @ApiQuery({ name: 'bandeira', required: false, description: 'Filtrar por bandeira' })
+  @ApiQuery({ name: 'isTeste', required: false, description: 'Filtrar por empresas de teste' })
   @ApiQuery({ name: 'page', required: false, description: 'Página para paginação' })
   @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens por página' })
-  async findAll(@Query() findEmpresaDto: FindEmpresaDto) {
-    return this.empresaService.findAll(findEmpresaDto);
+  async findAll(@Query() findEmpresaDto: FindEmpresaDto, @Request() req) {
+    return this.empresaService.findAll(findEmpresaDto, req.user);
   }
 
   @Get('nearby')

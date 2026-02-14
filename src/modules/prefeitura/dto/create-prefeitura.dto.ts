@@ -50,4 +50,13 @@ export class CreatePrefeituraDto {
   @IsOptional()
   @IsBoolean({ message: 'Ativo deve ser um valor booleano' })
   ativo?: boolean;
+
+  @ApiProperty({
+    description: 'Se a prefeitura é de teste',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'IsTeste deve ser um valor booleano' })
+  isTeste?: boolean;
 }

@@ -11,6 +11,7 @@ import {
   ParseIntPipe,
   UseInterceptors,
   UploadedFile,
+  Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -89,10 +90,11 @@ export class PrefeituraController {
   @ApiQuery({ name: 'cnpj', required: false, description: 'Filtrar por CNPJ' })
   @ApiQuery({ name: 'email_administrativo', required: false, description: 'Filtrar por email administrativo' })
   @ApiQuery({ name: 'ativo', required: false, description: 'Filtrar por status ativo' })
+  @ApiQuery({ name: 'isTeste', required: false, description: 'Filtrar por prefeituras de teste' })
   @ApiQuery({ name: 'page', required: false, description: 'Página para paginação' })
   @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens por página' })
-  async findAll(@Query() findPrefeituraDto: FindPrefeituraDto) {
-    return this.prefeituraService.findAll(findPrefeituraDto);
+  async findAll(@Query() findPrefeituraDto: FindPrefeituraDto, @Request() req) {
+    return this.prefeituraService.findAll(findPrefeituraDto, req.user);
   }
 
   @Get(':id')
