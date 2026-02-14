@@ -1497,6 +1497,21 @@ export class RelatoriosService {
     return Math.round(valor * multiplicador) / multiplicador;
   }
 
+  /**
+   * Formata Date/ISO para "YYYY-MM-DD HH:MM:SS" (UTC)
+   */
+  private formatDateTime(date?: Date | string | null): string | null {
+    if (!date) return null;
+    const d = new Date(date);
+    const Y = d.getUTCFullYear();
+    const M = (d.getUTCMonth() + 1).toString().padStart(2, '0');
+    const D = d.getUTCDate().toString().padStart(2, '0');
+    const h = d.getUTCHours().toString().padStart(2, '0');
+    const m = d.getUTCMinutes().toString().padStart(2, '0');
+    const s = d.getUTCSeconds().toString().padStart(2, '0');
+    return `${Y}-${M}-${D} ${h}:${m}:${s}`;
+  }
+
   // Métodos para outros tipos de usuários (serão implementados depois)
   async getColaboradorPrefeituraRelatorio(user: any, filter?: FilterRelatorioDto) {
     // Mesma lógica do admin, mas com filtros adicionais baseados no usuário
@@ -2035,7 +2050,7 @@ export class RelatoriosService {
 
       abastecimentosList.push({
         id: a.id,
-        data: a.data_abastecimento ? a.data_abastecimento.toISOString().split('T')[0] : null,
+        data: this.formatDateTime(a.data_abastecimento),
         valor: this.arredondar(valor, 2),
         quantidade: this.arredondar(consumo, 2),
         veiculo: a.veiculoId,
