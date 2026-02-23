@@ -220,6 +220,12 @@ enum StatusSolicitacaoQrCodeVeiculo {
   Cancelado
 }
 
+enum StatusSolicitacaoRastreamento {
+  PENDENTE
+  APROVADA
+  REJEITADA
+}
+
 enum StatusQrCodeMotorista {
   Solicitado
   Aprovado
@@ -282,6 +288,7 @@ model Prefeitura {
   modelosExportacao    ModeloExportacao[]
   configuracoesAlerta   ConfiguracaoAlerta[]
   alertas               Alerta[]
+  solicitacoesRastreamento SolicitacaoRastreamento[]
   created_date          DateTime  @default(now())
   modified_date         DateTime  @updatedAt
 
@@ -315,6 +322,8 @@ model Usuario {
   modelosExportacao       ModeloExportacao[]
   termosAceite            TermoAceite[]
   alertasResolvidos       Alerta[]           @relation("AlertaResolvidoPor")
+  solicitacoesRastreamentoSolicitadas SolicitacaoRastreamento[] @relation("SolicitacaoRastreamentoSolicitadoPor")
+  solicitacoesRastreamentoAprovadas SolicitacaoRastreamento[] @relation("SolicitacaoRastreamentoAprovadoPor")
   created_date            DateTime  @default(now())
   modified_date           DateTime  @updatedAt
 
@@ -515,6 +524,7 @@ model Veiculo {
   cotasPeriodo              VeiculoCotaPeriodo[]
   solicitacoes              SolicitacaoAbastecimento[]
   solicitacoesQrCode        SolicitacoesQrCodeVeiculo[]
+  solicitacoesRastreamento  SolicitacaoRastreamento[]
   alertas                   Alerta[]
   created_date              DateTime  @default(now())
   modified_date             DateTime  @updatedAt
@@ -1249,4 +1259,31 @@ model Alerta {
   @@index([dataOcorrencia])
   @@index([veiculoId])
   @@map("alerta")
+}
+
+model SolicitacaoRastreamento {
+  id                    Int                           @id @default(autoincrement())
+  veiculoId             Int
+  prefeituraId          Int
+  solicitadoPor         Int                           // ID do usuário que solicitou
+  status                StatusSolicitacaoRastreamento  @default(PENDENTE)
+  motivo                String?                        @db.Text
+  observacoes           String?                        @db.Text
+  aprovadoPor           Int?                           // ID do superadmin que aprovou/rejeitou
+  dataAprovacao         DateTime?
+  dataSolicitacao       DateTime                       @default(now())
+  created_date          DateTime                       @default(now())
+  modified_date         DateTime                       @updatedAt
+
+  // Relacionamentos
+  veiculo               Veiculo                        @relation(fields: [veiculoId], references: [id])
+  prefeitura            Prefeitura                     @relation(fields: [prefeituraId], references: [id])
+  solicitadoPorUsuario Usuario                        @relation("SolicitacaoRastreamentoSolicitadoPor", fields: [solicitadoPor], references: [id])
+  aprovadoPorUsuario    Usuario?                       @relation("SolicitacaoRastreamentoAprovadoPor", fields: [aprovadoPor], references: [id])
+
+  @@index([veiculoId])
+  @@index([prefeituraId])
+  @@index([status])
+  @@index([dataSolicitacao])
+  @@map("solicitacao_rastreamento")
 }

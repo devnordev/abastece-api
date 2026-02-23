@@ -37,6 +37,7 @@ import { TermoAceiteModule } from './modules/termo-aceite/termo-aceite.module';
 import { RegraAlertaModule } from './modules/regra-alerta/regra-alerta.module';
 import { ConfiguracaoAlertaModule } from './modules/configuracao-alerta/configuracao-alerta.module';
 import { AlertaModule } from './modules/alerta/alerta.module';
+import { SolicitacaoRastreamentoModule } from './modules/solicitacao-rastreamento/solicitacao-rastreamento.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { AlertaModule } from './modules/alerta/alerta.module';
     RegraAlertaModule,
     ConfiguracaoAlertaModule,
     AlertaModule,
+    SolicitacaoRastreamentoModule,
   ],
 })
 export class AppModule {}
