@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateSolicitacaoRastreamentoDto } from './dto/create-solicitacao-rastreamento.dto';
 import { UpdateStatusSolicitacaoRastreamentoDto } from './dto/update-status-solicitacao-rastreamento.dto';
@@ -80,82 +80,95 @@ export class SolicitacaoRastreamentoService {
   }
 
   async findAll(dto: FindSolicitacaoRastreamentoDto, userId?: number, isSuperAdmin: boolean = false) {
-    const page = dto.page || 1;
-    const perPage = dto.perPage || 20;
-    const skip = (page - 1) * perPage;
+    try {
+      const page = dto.page || 1;
+      const perPage = dto.perPage || 20;
+      const skip = (page - 1) * perPage;
 
-    // Se não for superadmin, filtrar pela prefeitura do usuário
-    let prefeituraIdFilter = dto.prefeituraId;
-    if (!isSuperAdmin && userId) {
-      const usuario = await this.prisma.usuario.findUnique({
-        where: { id: userId },
-        select: { prefeituraId: true },
-      });
-      if (usuario?.prefeituraId) {
-        prefeituraIdFilter = usuario.prefeituraId;
+      // Se não for superadmin, filtrar pela prefeitura do usuário
+      let prefeituraIdFilter = dto.prefeituraId;
+      if (!isSuperAdmin && userId) {
+        const usuario = await this.prisma.usuario.findUnique({
+          where: { id: userId },
+          select: { prefeituraId: true },
+        });
+        if (usuario?.prefeituraId) {
+          prefeituraIdFilter = usuario.prefeituraId;
+        }
       }
-    }
 
-    const where: any = {};
-    if (prefeituraIdFilter) {
-      where.prefeituraId = prefeituraIdFilter;
-    }
-    if (dto.veiculoId) {
-      where.veiculoId = dto.veiculoId;
-    }
-    if (dto.status) {
-      where.status = dto.status;
-    }
+      const where: any = {};
+      if (prefeituraIdFilter) {
+        where.prefeituraId = prefeituraIdFilter;
+      }
+      if (dto.veiculoId) {
+        where.veiculoId = dto.veiculoId;
+      }
+      if (dto.status) {
+        where.status = dto.status;
+      }
 
-    const [solicitacoes, total] = await Promise.all([
-      this.prisma.solicitacaoRastreamento.findMany({
-        where,
-        skip,
-        take: perPage,
-        orderBy: { dataSolicitacao: 'desc' },
-        include: {
-          veiculo: {
-            select: {
-              id: true,
-              placa: true,
-              nome: true,
-              modelo: true,
+      const [solicitacoes, total] = await Promise.all([
+        this.prisma.solicitacaoRastreamento.findMany({
+          where,
+          skip,
+          take: perPage,
+          orderBy: { dataSolicitacao: 'desc' },
+          include: {
+            veiculo: {
+              select: {
+                id: true,
+                placa: true,
+                nome: true,
+                modelo: true,
+              },
+            },
+            prefeitura: {
+              select: {
+                id: true,
+                nome: true,
+              },
+            },
+            solicitadoPorUsuario: {
+              select: {
+                id: true,
+                nome: true,
+                email: true,
+              },
+            },
+            aprovadoPorUsuario: {
+              select: {
+                id: true,
+                nome: true,
+                email: true,
+              },
             },
           },
-          prefeitura: {
-            select: {
-              id: true,
-              nome: true,
-            },
-          },
-          solicitadoPorUsuario: {
-            select: {
-              id: true,
-              nome: true,
-              email: true,
-            },
-          },
-          aprovadoPorUsuario: {
-            select: {
-              id: true,
-              nome: true,
-              email: true,
-            },
-          },
+        }),
+        this.prisma.solicitacaoRastreamento.count({ where }),
+      ]);
+
+      return {
+        data: solicitacoes,
+        meta: {
+          total,
+          page,
+          perPage,
+          totalPages: Math.ceil(total / perPage),
         },
-      }),
-      this.prisma.solicitacaoRastreamento.count({ where }),
-    ]);
-
-    return {
-      data: solicitacoes,
-      meta: {
-        total,
-        page,
-        perPage,
-        totalPages: Math.ceil(total / perPage),
-      },
-    };
+      };
+    } catch (error: any) {
+      console.error('[SolicitacaoRastreamentoService.findAll] Erro:', error);
+      // Se o erro for relacionado ao Prisma Client não ter o modelo, dar uma mensagem mais clara
+      if (error?.message?.includes('solicitacaoRastreamento') || error?.code === 'P2001') {
+        throw new InternalServerErrorException(
+          'Erro ao acessar banco de dados. Verifique se o Prisma Client foi regenerado e as migrations foram aplicadas.'
+        );
+      }
+      throw new InternalServerErrorException(
+        `Erro ao listar solicitações: ${error?.message || 'Erro desconhecido'}`
+      );
+    }
   }
 
   async findOne(id: number, userId?: number, isSuperAdmin: boolean = false) {
