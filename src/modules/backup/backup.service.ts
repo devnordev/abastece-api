@@ -1212,5 +1212,237 @@ FIM DO ÍNDICE
     sql += '\n';
     return sql;
   }
+
+  async exportCsvCacimbinhas(prefeituraId: number): Promise<string> {
+    if (!prefeituraId) {
+      throw new BadRequestException('prefeituraId é obrigatório');
+    }
+
+    const prefeitura = await this.prisma.prefeitura.findUnique({
+      where: { id: prefeituraId },
+    });
+
+    if (!prefeitura) {
+      throw new NotFoundException('Prefeitura não encontrada');
+    }
+
+    const startDate = new Date(2026, 0, 1, 0, 0, 0, 0);
+    const now = new Date();
+    const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    const [
+      orgaos,
+      motoristas,
+      usuarios,
+      processos,
+      contasFaturamento,
+      veiculos,
+      solicitacoesAbastecimento,
+      solicitacoesQrCodeVeiculo,
+      qrCodeMotoristas,
+    ] = await Promise.all([
+      this.prisma.orgao.findMany({ where: { prefeituraId } }),
+      this.prisma.motorista.findMany({ where: { prefeituraId } }),
+      this.prisma.usuario.findMany({ where: { prefeituraId } }),
+      this.prisma.processo.findMany({ where: { prefeituraId } }),
+      this.prisma.contaFaturamentoOrgao.findMany({ where: { prefeituraId } }),
+      this.prisma.veiculo.findMany({ where: { prefeituraId } }),
+      this.prisma.solicitacaoAbastecimento.findMany({
+        where: {
+          prefeituraId,
+          data_solicitacao: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+      }),
+      this.prisma.solicitacoesQrCodeVeiculo.findMany({
+        where: {
+          prefeitura_id: prefeituraId,
+        },
+      }),
+      this.prisma.qrCodeMotorista.findMany({
+        where: {
+          prefeitura_id: prefeituraId,
+        },
+      }),
+    ]);
+
+    const veiculoIds = veiculos.map((v) => v.id);
+    const orgaoIds = orgaos.map((o) => o.id);
+    const processoIds = processos.map((p) => p.id);
+    const usuarioIds = usuarios.map((u) => u.id);
+
+    let veiculoCategorias: any[] = [];
+    let veiculoCombustiveis: any[] = [];
+    let veiculoMotoristas: any[] = [];
+    let veiculoCotasPeriodo: any[] = [];
+    let abastecimentos: any[] = [];
+    let cotasOrgao: any[] = [];
+    let usuarioOrgaos: any[] = [];
+
+    if (veiculoIds.length > 0) {
+      [
+        veiculoCategorias,
+        veiculoCombustiveis,
+        veiculoMotoristas,
+        veiculoCotasPeriodo,
+        abastecimentos,
+      ] = await Promise.all([
+        this.prisma.veiculoCategoria.findMany({
+          where: { veiculoId: { in: veiculoIds } },
+        }),
+        this.prisma.veiculoCombustivel.findMany({
+          where: { veiculoId: { in: veiculoIds } },
+        }),
+        this.prisma.veiculoMotorista.findMany({
+          where: { veiculoId: { in: veiculoIds } },
+        }),
+        this.prisma.veiculoCotaPeriodo.findMany({
+          where: { veiculoId: { in: veiculoIds } },
+        }),
+        this.prisma.abastecimento.findMany({
+          where: {
+            veiculoId: { in: veiculoIds },
+            data_abastecimento: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+        }),
+      ]);
+    }
+
+    if (orgaoIds.length > 0 || processoIds.length > 0) {
+      const orConditions: any[] = [];
+      if (orgaoIds.length > 0) {
+        orConditions.push({ orgaoId: { in: orgaoIds } });
+      }
+      if (processoIds.length > 0) {
+        orConditions.push({ processoId: { in: processoIds } });
+      }
+
+      if (orConditions.length > 0) {
+        cotasOrgao = await this.prisma.cotaOrgao.findMany({
+          where: {
+            OR: orConditions,
+          },
+        });
+      }
+    }
+
+    if (orgaoIds.length > 0 || usuarioIds.length > 0) {
+      const orUsuarioOrgao: any[] = [];
+      if (orgaoIds.length > 0) {
+        orUsuarioOrgao.push({ orgaoId: { in: orgaoIds } });
+      }
+      if (usuarioIds.length > 0) {
+        orUsuarioOrgao.push({ usuarioId: { in: usuarioIds } });
+      }
+
+      if (orUsuarioOrgao.length > 0) {
+        usuarioOrgaos = await this.prisma.usuarioOrgao.findMany({
+          where: {
+            OR: orUsuarioOrgao,
+          },
+        });
+      }
+    }
+
+    const sections: string[] = [];
+
+    sections.push(this.buildCsvSection('prefeitura', [prefeitura]));
+    sections.push(this.buildCsvSection('orgao', orgaos));
+    sections.push(this.buildCsvSection('conta_faturamento_orgao', contasFaturamento));
+    sections.push(this.buildCsvSection('processo', processos));
+    sections.push(this.buildCsvSection('cota_orgao', cotasOrgao));
+    sections.push(this.buildCsvSection('veiculo', veiculos));
+    sections.push(this.buildCsvSection('veiculo_categoria', veiculoCategorias));
+    sections.push(this.buildCsvSection('veiculo_combustivel', veiculoCombustiveis));
+    sections.push(this.buildCsvSection('veiculo_motorista', veiculoMotoristas));
+    sections.push(this.buildCsvSection('veiculo_cota_periodo', veiculoCotasPeriodo));
+    sections.push(this.buildCsvSection('motorista', motoristas));
+    sections.push(this.buildCsvSection('solicitacoes_qrcode_veiculo', solicitacoesQrCodeVeiculo));
+    sections.push(this.buildCsvSection('qrcode_motorista', qrCodeMotoristas));
+    sections.push(this.buildCsvSection('usuario', usuarios));
+    sections.push(this.buildCsvSection('usuario_orgao', usuarioOrgaos));
+    sections.push(this.buildCsvSection('solicitacoes_abastecimento', solicitacoesAbastecimento));
+    sections.push(this.buildCsvSection('abastecimento', abastecimentos));
+
+    const nonEmptySections = sections.filter((s) => s && s.trim().length > 0);
+
+    if (nonEmptySections.length === 0) {
+      throw new NotFoundException('Nenhum dado encontrado para a prefeitura e período informados');
+    }
+
+    return nonEmptySections.join('\n');
+  }
+
+  private buildCsvSection(tableName: string, records: any[]): string {
+    if (!records || records.length === 0) {
+      return '';
+    }
+
+    const columnSet = new Set<string>();
+    for (const record of records) {
+      Object.keys(record).forEach((key) => columnSet.add(key));
+    }
+
+    let columns = Array.from(columnSet);
+    columns.sort();
+
+    if (columns.includes('id')) {
+      columns = ['id', ...columns.filter((c) => c !== 'id')];
+    }
+
+    const lines: string[] = [];
+    lines.push(`# TABELA: ${tableName}`);
+    lines.push(columns.join(';'));
+
+    for (const record of records) {
+      const row = columns.map((column) =>
+        this.escapeCsvValue(this.formatCsvValue((record as any)[column])),
+      );
+      lines.push(row.join(';'));
+    }
+
+    return lines.join('\n') + '\n';
+  }
+
+  private formatCsvValue(value: any): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    if (typeof value === 'boolean') {
+      return value ? 'true' : 'false';
+    }
+
+    if (typeof value === 'number') {
+      return value.toString();
+    }
+
+    if (typeof value === 'object' && typeof value.toString === 'function') {
+      return value.toString();
+    }
+
+    return String(value);
+  }
+
+  private escapeCsvValue(value: string): string {
+    if (value === '') {
+      return '';
+    }
+
+    if (/[;"\n\r]/.test(value)) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+
+    return value;
+  }
 }
 

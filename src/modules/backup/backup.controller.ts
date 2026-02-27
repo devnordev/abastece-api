@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Post,
@@ -8,6 +9,7 @@ import {
   Res,
   NotFoundException,
   Query,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
@@ -181,6 +183,30 @@ export class BackupController {
     return {
       message: 'Backup excluído com sucesso',
     };
+  }
+
+  @Post('csv_cacimbinhas')
+  @ApiOperation({
+    summary: 'Gerar backup CSV da prefeitura de Cacimbinhas',
+    description:
+      'Gera um CSV contendo dados da prefeitura (órgãos, processos, veículos, motoristas, usuários, cotas, contas de faturamento, QR Codes, abastecimentos e solicitações de abastecimento) vinculados à prefeitura informada, considerando o período de 01/01/2026 00:00:00 até o dia atual às 23:59:59.',
+  })
+  @ApiResponse({ status: 200, description: 'CSV gerado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Parâmetros inválidos' })
+  @ApiResponse({ status: 404, description: 'Dados não encontrados para a prefeitura/período' })
+  async exportCsvCacimbinhas(
+    @Body('prefeituraId', ParseIntPipe) prefeituraId: number,
+    @Res() res: Response,
+  ) {
+    const csv = await this.backupService.exportCsvCacimbinhas(prefeituraId);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="backup_cacimbinhas_${prefeituraId}.csv"`,
+    );
+
+    res.send(csv);
   }
 }
 
