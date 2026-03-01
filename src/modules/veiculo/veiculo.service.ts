@@ -724,6 +724,85 @@ export class VeiculoService {
     };
   }
 
+  async findAllCotasPeriodo(prefeituraId?: number, limit: number = 10000) {
+    const where: any = {};
+    
+    if (prefeituraId) {
+      // Buscar veículos da prefeitura e depois buscar suas cotas
+      const veiculos = await this.prisma.veiculo.findMany({
+        where: { prefeituraId },
+        select: { id: true },
+      });
+      
+      const veiculoIds = veiculos.map(v => v.id);
+      if (veiculoIds.length === 0) {
+        return {
+          message: 'Nenhuma cota encontrada',
+          cotas: [],
+        };
+      }
+      
+      where.veiculoId = { in: veiculoIds };
+    }
+
+    const cotas = await this.prisma.veiculoCotaPeriodo.findMany({
+      where,
+      include: {
+        veiculo: {
+          select: {
+            id: true,
+            nome: true,
+            placa: true,
+            prefeituraId: true,
+            prefeitura: {
+              select: {
+                id: true,
+                nome: true,
+              },
+            },
+            orgao: {
+              select: {
+                id: true,
+                nome: true,
+                sigla: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        data_inicio_periodo: 'desc',
+      },
+      take: limit,
+    });
+
+    const cotasFormatadas = cotas.map((cota) => ({
+      id: cota.id,
+      veiculoId: cota.veiculoId,
+      veiculoNome: cota.veiculo.nome,
+      veiculoPlaca: cota.veiculo.placa,
+      prefeituraId: cota.veiculo.prefeituraId,
+      prefeituraNome: cota.veiculo.prefeitura.nome,
+      orgaoId: cota.veiculo.orgao?.id || null,
+      orgaoNome: cota.veiculo.orgao?.nome || null,
+      orgaoSigla: cota.veiculo.orgao?.sigla || null,
+      data_inicio_periodo: cota.data_inicio_periodo,
+      data_fim_periodo: cota.data_fim_periodo,
+      quantidade_permitida: Number(cota.quantidade_permitida),
+      quantidade_utilizada: Number(cota.quantidade_utilizada),
+      quantidade_disponivel: Number(cota.quantidade_disponivel),
+      periodicidade: cota.periodicidade,
+      ativo: cota.ativo,
+      created_date: cota.created_date,
+      modified_date: cota.modified_date,
+    }));
+
+    return {
+      message: 'Cotas de veículos encontradas com sucesso',
+      cotas: cotasFormatadas,
+    };
+  }
+
   async findOne(id: number) {
     const veiculo = await this.prisma.veiculo.findUnique({
       where: { id },

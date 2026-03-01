@@ -194,6 +194,21 @@ export class VeiculoController {
     return this.veiculoService.findAll(findVeiculoDto, req.user?.id);
   }
 
+  @Get('cotas-periodo')
+  @ApiOperation({ summary: 'Listar cotas de período de veículos' })
+  @ApiResponse({ status: 200, description: 'Lista de cotas retornada com sucesso' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiQuery({ name: 'prefeituraId', required: false, description: 'Filtrar por prefeitura' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens' })
+  async findAllCotasPeriodo(
+    @Query('prefeituraId') prefeituraId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const prefeituraIdNum = prefeituraId ? parseInt(prefeituraId, 10) : undefined;
+    const limitNum = limit ? parseInt(limit, 10) : 10000;
+    return this.veiculoService.findAllCotasPeriodo(prefeituraIdNum, limitNum);
+  }
+
   @Get('buscar/placa')
   @UseGuards(JwtAuthGuard, EmpresaGuard)
   @ApiOperation({ summary: 'Buscar veículos por placa (perfis de empresa)' })
