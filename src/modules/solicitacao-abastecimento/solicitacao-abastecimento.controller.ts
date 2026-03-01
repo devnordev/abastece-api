@@ -24,6 +24,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminPrefeituraEmpresaGuard } from '../auth/guards/admin-prefeitura-empresa.guard';
 import { AdminPrefeituraEmpresaColaboradorGuard } from '../auth/guards/admin-prefeitura-empresa-colaborador.guard';
 import { AdminPrefeituraGuard } from '../auth/guards/admin-prefeitura.guard';
+import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 
 @ApiTags('Solicitações de Abastecimento')
 @Controller({ path: ['solicitacoes-abastecimento', 'solicitacoes'] })
@@ -46,6 +47,21 @@ export class SolicitacaoAbastecimentoController {
       payload: createDto,
     });
     return this.solicitacaoService.create(createDto, req.user);
+  }
+
+  @Get('superadmin')
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ 
+    summary: 'Listar solicitações de abastecimento para SUPER_ADMIN',
+    description: 'Permite SUPER_ADMIN listar solicitações de qualquer prefeitura. Use prefeituraId na query para filtrar. Exemplo: GET /solicitacoes-abastecimento/superadmin?prefeituraId={prefeituraId}&limit=10000'
+  })
+  @ApiResponse({ status: 200, description: 'Lista retornada com sucesso' })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode acessar' })
+  async findAllForSuperAdmin(
+    @Query() query: FindSolicitacaoAbastecimentoDto,
+    @Req() req: Request & { user: any },
+  ) {
+    return this.solicitacaoService.findAll(query);
   }
 
   @Get()

@@ -64,5 +64,13 @@ export class FindSolicitacaoAbastecimentoDto {
     return value === 'true';
   })
   ativo?: boolean;
+
+  @ApiPropertyOptional({ description: 'Data inicial para filtro (ISO string)', example: '2026-01-01T00:00:00.000Z' })
+  @IsOptional()
+  data_inicial?: string;
+
+  @ApiPropertyOptional({ description: 'Data final para filtro (ISO string)', example: '2026-03-01T23:59:59.999Z' })
+  @IsOptional()
+  data_final?: string;
 }
 

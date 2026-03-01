@@ -23,6 +23,7 @@ import { CreateAbastecimentoFromSolicitacaoDto } from './dto/create-abasteciment
 import { CreateAbastecimentoFromQrCodeVeiculoDto } from './dto/create-abastecimento-from-qrcode-veiculo.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { EmpresaGuard } from '../auth/guards/empresa.guard';
+import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { getSchemaPath } from '@nestjs/swagger';
@@ -143,6 +144,31 @@ export class AbastecimentoController {
     @Request() req,
   ) {
     return this.abastecimentoService.createFromQrCodeVeiculo(createDto, req.user);
+  }
+
+  @Get('superadmin')
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Listar abastecimentos para SUPER_ADMIN (permite filtrar por qualquer prefeitura)' })
+  @ApiResponse({ status: 200, description: 'Lista de abastecimentos retornada com sucesso' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode acessar' })
+  @ApiQuery({ name: 'veiculoId', required: false, description: 'Filtrar por veículo' })
+  @ApiQuery({ name: 'motoristaId', required: false, description: 'Filtrar por motorista' })
+  @ApiQuery({ name: 'combustivelId', required: false, description: 'Filtrar por combustível' })
+  @ApiQuery({ name: 'empresaId', required: false, description: 'Filtrar por empresa' })
+  @ApiQuery({ name: 'prefeituraId', required: false, description: 'Filtrar por prefeitura (através do veículo)' })
+  @ApiQuery({ name: 'tipo_abastecimento', required: false, description: 'Filtrar por tipo de abastecimento' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filtrar por status' })
+  @ApiQuery({ name: 'ativo', required: false, description: 'Filtrar por status ativo' })
+  @ApiQuery({ name: 'data_inicial', required: false, description: 'Data inicial para filtro' })
+  @ApiQuery({ name: 'data_final', required: false, description: 'Data final para filtro' })
+  @ApiQuery({ name: 'page', required: false, description: 'Página para paginação' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens por página' })
+  async findAllForSuperAdmin(
+    @Query() findAbastecimentoDto: FindAbastecimentoDto,
+    @Request() req,
+  ) {
+    return this.abastecimentoService.findAll(findAbastecimentoDto, req.user);
   }
 
   @Get()

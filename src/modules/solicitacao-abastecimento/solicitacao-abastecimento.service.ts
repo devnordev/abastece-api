@@ -464,6 +464,18 @@ export class SolicitacaoAbastecimentoService {
       where.ativo = query.ativo;
     }
 
+    if (query.data_inicial || query.data_final) {
+      where.data_solicitacao = {};
+      if (query.data_inicial) {
+        where.data_solicitacao.gte = new Date(query.data_inicial);
+      }
+      if (query.data_final) {
+        const dataFim = new Date(query.data_final);
+        dataFim.setHours(23, 59, 59, 999);
+        where.data_solicitacao.lte = dataFim;
+      }
+    }
+
     const [solicitacoes, total] = await Promise.all([
       this.prisma.solicitacaoAbastecimento.findMany({
         where,
