@@ -38,6 +38,7 @@ import { RegraAlertaModule } from './modules/regra-alerta/regra-alerta.module';
 import { ConfiguracaoAlertaModule } from './modules/configuracao-alerta/configuracao-alerta.module';
 import { AlertaModule } from './modules/alerta/alerta.module';
 import { SolicitacaoRastreamentoModule } from './modules/solicitacao-rastreamento/solicitacao-rastreamento.module';
+import { SuperadminExportModule } from './modules/superadmin-export/superadmin-export.module';
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { SolicitacaoRastreamentoModule } from './modules/solicitacao-rastreament
     ConfiguracaoAlertaModule,
     AlertaModule,
     SolicitacaoRastreamentoModule,
+    SuperadminExportModule,
   ],
 })
 export class AppModule {}
