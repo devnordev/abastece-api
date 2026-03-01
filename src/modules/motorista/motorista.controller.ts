@@ -29,7 +29,7 @@ import { BadRequestException, NotFoundException, ConflictException, ForbiddenExc
 
 @ApiTags('Motoristas')
 @Controller('motoristas')
-@UseGuards(JwtAuthGuard, new RoleBlockGuard(['SUPER_ADMIN']))
+@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class MotoristaController {
   constructor(private readonly motoristaService: MotoristaService) {}
@@ -122,9 +122,11 @@ export class MotoristaController {
   }
 
   @Get()
+  @UseGuards(new RoleBlockGuard(['SUPER_ADMIN']))
   @ApiOperation({ summary: 'Listar motoristas com filtros' })
   @ApiResponse({ status: 200, description: 'Lista de motoristas retornada com sucesso' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'SUPER_ADMIN não tem acesso a esta rota' })
   @ApiQuery({ name: 'nome', required: false, description: 'Filtrar por nome' })
   @ApiQuery({ name: 'cpf', required: false, description: 'Filtrar por CPF' })
   @ApiQuery({ name: 'cnh', required: false, description: 'Filtrar por CNH' })
