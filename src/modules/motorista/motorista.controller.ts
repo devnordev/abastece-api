@@ -22,6 +22,7 @@ import { UpdateMotoristaDto } from './dto/update-motorista.dto';
 import { FindMotoristaDto } from './dto/find-motorista.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleBlockGuard } from '../auth/guards/role-block.guard';
+import { SuperAdminGuard } from '../auth/guards/super-admin.guard';
 import { EmpresaGuard } from '../auth/guards/empresa.guard';
 import { CreateSolicitacaoQrCodeMotoristaDto } from './dto/create-solicitacao-qrcode.dto';
 import { BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
@@ -101,6 +102,23 @@ export class MotoristaController {
     };
 
     return this.motoristaService.create(processedDto, req.user?.id, file);
+  }
+
+  @Get('superadmin')
+  @UseGuards(SuperAdminGuard)
+  @ApiOperation({ summary: 'Listar motoristas para SUPER_ADMIN (permite filtrar por qualquer prefeitura)' })
+  @ApiResponse({ status: 200, description: 'Lista de motoristas retornada com sucesso' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Apenas SUPER_ADMIN pode acessar' })
+  @ApiQuery({ name: 'nome', required: false, description: 'Filtrar por nome' })
+  @ApiQuery({ name: 'cpf', required: false, description: 'Filtrar por CPF' })
+  @ApiQuery({ name: 'cnh', required: false, description: 'Filtrar por CNH' })
+  @ApiQuery({ name: 'ativo', required: false, description: 'Filtrar por status ativo' })
+  @ApiQuery({ name: 'prefeituraId', required: false, description: 'Filtrar por prefeitura' })
+  @ApiQuery({ name: 'page', required: false, description: 'Página para paginação' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Limite de itens por página' })
+  async findAllForSuperAdmin(@Query() findMotoristaDto: FindMotoristaDto, @Request() req) {
+    return this.motoristaService.findAll(findMotoristaDto, req.user?.id);
   }
 
   @Get()
