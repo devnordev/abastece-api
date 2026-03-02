@@ -1,7 +1,7 @@
 import {
   Injectable,
   BadRequestException,
-  ForbiddenException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
@@ -12,7 +12,7 @@ export type ExportModelConfig = {
   excludeFields?: string[];
 };
 
-const DEFAULT_LIMIT = 10000;
+const DEFAULT_LIMIT = 100000;
 
 const MODEL_WHITELIST: Record<string, ExportModelConfig> = {
   prefeitura: {
@@ -285,17 +285,25 @@ export class SuperadminExportService {
       }
     }
 
-    const records = await delegate.findMany({
-      where: Object.keys(where).length > 0 ? where : undefined,
-      take: DEFAULT_LIMIT,
-      orderBy: { id: 'asc' } as any,
-    });
+    try {
+      const records = await delegate.findMany({
+        where: Object.keys(where).length > 0 ? where : undefined,
+        take: DEFAULT_LIMIT,
+        orderBy: { id: 'asc' } as any,
+      });
 
-    const serialized = records.map((record: any) =>
-      this.serializeRecord(record, config.excludeFields || []),
-    );
+      const serialized = records.map((record: any) =>
+        this.serializeRecord(record, config.excludeFields || []),
+      );
 
-    return { data: serialized, model: modelKey };
+      return { data: serialized, model: modelKey };
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      console.error(`[SuperadminExport] Erro ao exportar ${modelKey}:`, msg);
+      throw new InternalServerErrorException(
+        `Erro ao exportar ${modelKey}: ${msg}`,
+      );
+    }
   }
 
   private getDateFieldsForModel(modelKey: string): string[] {
@@ -303,8 +311,10 @@ export class SuperadminExportService {
       solicitacaoAbastecimento: ['data_solicitacao', 'data_expiracao'],
       abastecimento: ['data_abastecimento', 'created_date'],
       logsAlteracoes: ['executado_em'],
+      solicitacoesQrCodeVeiculo: ['data_cadastro'],
+      qrcodeMotorista: ['data_cadastro'],
     };
-    return dateFieldsMap[modelKey] || ['created_date', 'modified_date', 'data_cadastro'];
+    return dateFieldsMap[modelKey] ?? [];
   }
 
   private serializeRecord(
@@ -312,8 +322,11 @@ export class SuperadminExportService {
     excludeFields: string[],
   ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(record)) {
+    // Usar Object.keys + acesso direto para garantir todas as propriedades do registro (Prisma pode retornar objetos com getters)
+    const keys = Object.keys(record).length > 0 ? Object.keys(record) : Object.getOwnPropertyNames(record);
+    for (const key of keys) {
       if (excludeFields.includes(key)) continue;
+      const value = (record as any)[key];
       if (value === undefined) continue;
       result[key] = this.serializeValue(value);
     }
