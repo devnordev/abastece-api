@@ -186,7 +186,67 @@ const MODEL_WHITELIST: Record<string, ExportModelConfig> = {
 export class SuperadminExportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  getAvailableModels(): { value: string; label: string }[] {
+  /**
+   * Retorna a ordem de exportação baseada em dependências (foreign keys)
+   * Tabelas são ordenadas para que as dependências sejam exportadas antes das tabelas que dependem delas
+   */
+  getExportOrder(): string[] {
+    return [
+      // Nível 1: Tabelas sem dependências (raiz)
+      'prefeitura',
+      'empresa',
+      'combustivel',
+      'regraAlerta',
+      'anpSemana',
+      'parametrosTeto',
+      
+      // Nível 2: Dependem apenas de Prefeitura ou Empresa
+      'usuario',
+      'orgao',
+      'categoria',
+      'motorista',
+      'contrato',
+      'processo',
+      
+      // Nível 3: Dependem de tabelas do nível 2
+      'contaFaturamentoOrgao', // depende de Prefeitura e Orgao
+      'veiculo', // depende de Prefeitura, Orgao (opcional), ContaFaturamentoOrgao (opcional)
+      'cotaOrgao', // depende de Processo, Orgao, Combustivel
+      'processoCombustivel', // depende de Processo, Combustivel
+      'processoPrefeituraConsorcio', // depende de Processo, Prefeitura
+      'processoPrefeituraCombustivelConsorcio', // depende de Processo, Prefeitura, Combustivel
+      'configuracaoAlerta', // depende de Prefeitura, RegraAlerta
+      
+      // Nível 4: Dependem de Veiculo ou outras tabelas do nível 3
+      'veiculoCotaPeriodo', // depende de Veiculo
+      'solicitacaoAbastecimento', // depende de Prefeitura, Veiculo, Motorista (opcional), Combustivel, Empresa
+      'solicitacoesQrCodeVeiculo', // depende de Veiculo, Prefeitura
+      'solicitacaoRastreamento', // depende de Veiculo, Prefeitura, Usuario
+      'alerta', // depende de Prefeitura, ConfiguracaoAlerta (opcional), RegraAlerta, Veiculo (opcional), Usuario (opcional)
+      
+      // Nível 5: Dependem de Solicitação ou outras tabelas do nível 4
+      'abastecimento', // depende de Veiculo, Motorista (opcional), Combustivel, Empresa, Usuario (opcional), ContaFaturamentoOrgao (opcional), CotaOrgao (opcional), SolicitacaoAbastecimento (opcional)
+      
+      // Nível 6: Tabelas de relacionamento (many-to-many) - dependem de múltiplas tabelas principais
+      'contratoCombustivel', // depende de Contrato, Combustivel
+      'veiculoCombustivel', // depende de Veiculo, Combustivel
+      'veiculoCategoria', // depende de Veiculo, Categoria
+      'veiculoMotorista', // depende de Veiculo, Motorista
+      'usuarioOrgao', // depende de Usuario, Orgao
+      'empresaPrecoCombustivel', // depende de Empresa, Combustivel
+      'aditivoContrato', // depende de Contrato
+      'aditivoProcesso', // depende de Processo, ProcessoCombustivel (opcional)
+      'anpPrecosUf', // depende de AnpSemana
+      'qrcodeMotorista', // depende de Motorista, Prefeitura
+      
+      // Nível 7: Tabelas auxiliares e logs
+      'modeloExportacao', // depende de Prefeitura, Usuario
+      'termoAceite', // depende de Usuario
+      'logsAlteracoes', // depende de Usuario (opcional)
+    ];
+  }
+
+  getAvailableModels(): { value: string; label: string; order: number }[] {
     const labels: Record<string, string> = {
       prefeitura: 'Prefeituras',
       usuario: 'Usuários',
@@ -229,10 +289,19 @@ export class SuperadminExportService {
       solicitacaoRastreamento: 'Solicitações Rastreamento',
     };
 
-    return Object.keys(MODEL_WHITELIST).map((value) => ({
-      value,
-      label: labels[value] || value,
-    }));
+    const order = this.getExportOrder();
+    const orderMap = new Map<string, number>();
+    order.forEach((model, index) => {
+      orderMap.set(model, index);
+    });
+
+    return Object.keys(MODEL_WHITELIST)
+      .map((value) => ({
+        value,
+        label: labels[value] || value,
+        order: orderMap.get(value) ?? 999, // Se não estiver na ordem, coloca no final
+      }))
+      .sort((a, b) => a.order - b.order);
   }
 
   async exportModel(
@@ -267,6 +336,19 @@ export class SuperadminExportService {
     const where: Record<string, unknown> = {};
     if (config.hasPrefeituraId && config.prefeituraIdField && prefeituraId) {
       where[config.prefeituraIdField] = prefeituraId;
+    }
+
+    // Para solicitacaoAbastecimento e abastecimento, aplicar filtro de data padrão se não fornecido
+    const shouldApplyDefaultDateFilter = 
+      (modelKey === 'solicitacaoAbastecimento' || modelKey === 'abastecimento') &&
+      (!dataInicial || !dataFinal);
+    
+    if (shouldApplyDefaultDateFilter) {
+      // Filtro padrão: 01/01/2026 a 01/03/2026
+      dataInicial = '2026-01-01T00:00:00.000Z';
+      const endDate = new Date('2026-03-01');
+      endDate.setHours(23, 59, 59, 999);
+      dataFinal = endDate.toISOString();
     }
 
     if (dataInicial && dataFinal) {
@@ -308,8 +390,8 @@ export class SuperadminExportService {
 
   private getDateFieldsForModel(modelKey: string): string[] {
     const dateFieldsMap: Record<string, string[]> = {
-      solicitacaoAbastecimento: ['data_solicitacao', 'data_expiracao'],
-      abastecimento: ['data_abastecimento', 'created_date'],
+      solicitacaoAbastecimento: ['data_solicitacao'], // Usar data_solicitacao como campo principal para filtro
+      abastecimento: ['data_abastecimento'], // Usar data_abastecimento como campo principal para filtro
       logsAlteracoes: ['executado_em'],
       solicitacoesQrCodeVeiculo: ['data_cadastro'],
       qrcodeMotorista: ['data_cadastro'],
