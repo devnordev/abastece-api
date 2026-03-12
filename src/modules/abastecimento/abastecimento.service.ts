@@ -1179,24 +1179,30 @@ export class AbastecimentoService {
         if (where.tipo_abastecimento) filtrosBase.tipo_abastecimento = where.tipo_abastecimento;
         if (where.ativo !== undefined) filtrosBase.ativo = where.ativo;
         
-        where.OR = [
-          // Abastecimentos com data no período (todos os status)
+        // Usar AND para combinar filtros base com OR de data
+        where.AND = [
+          // Todos os filtros base (empresaId, ativo, etc.)
+          filtrosBase,
+          // E (data no período OU cancelados sem data)
           {
-            ...filtrosBase,
-            data_abastecimento: {
-              ...(data_inicial && { gte: new Date(data_inicial) }),
-              ...(data_final && { lte: new Date(data_final) }),
-            },
-          },
-          // Cancelados sem data
-          {
-            ...filtrosBase,
-            status: StatusAbastecimento.Cancelado,
-            data_abastecimento: null,
+            OR: [
+              // Abastecimentos com data no período (todos os status)
+              {
+                data_abastecimento: {
+                  ...(data_inicial && { gte: new Date(data_inicial) }),
+                  ...(data_final && { lte: new Date(data_final) }),
+                },
+              },
+              // Cancelados sem data
+              {
+                status: StatusAbastecimento.Cancelado,
+                data_abastecimento: null,
+              },
+            ],
           },
         ];
         
-        // Limpar propriedades movidas para OR
+        // Limpar propriedades movidas para AND
         delete where.veiculoId;
         delete where.motoristaId;
         delete where.combustivelId;
