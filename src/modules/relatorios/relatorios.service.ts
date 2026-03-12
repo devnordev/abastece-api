@@ -1550,7 +1550,8 @@ export class RelatoriosService {
       dataFim = new Date(agora.getFullYear(), agora.getMonth() + 1, 0, 23, 59, 59, 999);
     }
 
-    // Construir filtros para abastecimentos aprovados
+    // Construir filtros para abastecimentos aprovados e efetuados
+    // Apenas abastecimentos com status Aprovado, ativos, e que foram efetuados (com data_abastecimento)
     const whereAbastecimento: Prisma.AbastecimentoWhereInput = {
       ativo: true,
       status: StatusAbastecimento.Aprovado,
@@ -1558,6 +1559,7 @@ export class RelatoriosService {
         prefeituraId,
       },
       data_abastecimento: {
+        not: null, // Garantir que o abastecimento foi efetuado (tem data)
         gte: dataInicio,
         lte: dataFim,
       },
@@ -1878,7 +1880,11 @@ export class RelatoriosService {
       ativo: true,
       status: StatusAbastecimento.Aprovado,
       veiculo: { prefeituraId },
-      data_abastecimento: { gte: dataInicio, lte: dataFim },
+      data_abastecimento: {
+        not: null, // Garantir que o abastecimento foi efetuado (tem data)
+        gte: dataInicio,
+        lte: dataFim,
+      },
     };
 
     // Dados do mês de referência
@@ -1899,7 +1905,11 @@ export class RelatoriosService {
       ativo: true,
       status: StatusAbastecimento.Aprovado,
       veiculo: { prefeituraId },
-      data_abastecimento: { gte: prevStart, lte: prevEnd },
+      data_abastecimento: {
+        not: null, // Garantir que o abastecimento foi efetuado (tem data)
+        gte: prevStart,
+        lte: prevEnd,
+      },
     };
     const prevCount = await this.prisma.abastecimento.count({ where: wherePrev });
     const prevAgg = await this.prisma.abastecimento.aggregate({
@@ -1947,7 +1957,11 @@ export class RelatoriosService {
           ativo: true,
           status: StatusAbastecimento.Aprovado,
           veiculo: { prefeituraId },
-          data_abastecimento: { gte: inicio, lte: fim },
+          data_abastecimento: {
+            not: null, // Garantir que o abastecimento foi efetuado (tem data)
+            gte: inicio,
+            lte: fim,
+          },
         },
       });
 
@@ -1959,7 +1973,11 @@ export class RelatoriosService {
             ativo: true,
             status: StatusAbastecimento.Aprovado,
             veiculo: { prefeituraId },
-            data_abastecimento: { gte: inicio, lte: fim },
+            data_abastecimento: {
+              not: null, // Garantir que o abastecimento foi efetuado (tem data)
+              gte: inicio,
+              lte: fim,
+            },
           },
         });
         historico.push({
@@ -2117,12 +2135,14 @@ export class RelatoriosService {
       dataInicio = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - 6, 0, 0, 0, 0);
     }
 
-    // Construir filtros para abastecimentos aprovados da empresa
+    // Construir filtros para abastecimentos aprovados e efetuados da empresa
+    // Apenas abastecimentos com status Aprovado, ativos, e que foram efetuados (com data_abastecimento)
     const whereAbastecimento: Prisma.AbastecimentoWhereInput = {
       ativo: true,
       status: StatusAbastecimento.Aprovado,
       empresaId,
       data_abastecimento: {
+        not: null, // Garantir que o abastecimento foi efetuado (tem data)
         gte: dataInicio,
         lte: dataFim,
       },
@@ -2313,6 +2333,7 @@ export class RelatoriosService {
       where: {
         ...whereAbastecimento,
         data_abastecimento: {
+          not: null, // Garantir que o abastecimento foi efetuado (tem data)
           gte: periodoAnteriorInicio,
           lte: periodoAnteriorFim,
         },
