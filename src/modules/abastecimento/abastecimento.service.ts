@@ -1124,15 +1124,87 @@ export class AbastecimentoService {
 
     // Aplicar filtro de data
     // Abastecimentos cancelados podem não ter data_abastecimento preenchida
-    // Quando o status for Cancelado ou não houver filtro de status, não aplicar filtro de data restritivo
-    // para não excluir abastecimentos cancelados sem data
     const isStatusCancelado = status === StatusAbastecimento.Cancelado;
     const naoTemFiltroStatus = !status;
 
     if (data_inicial || data_final) {
-      // Apenas aplicar filtro de data restritivo se NÃO for status Cancelado E tiver filtro de status
-      // Isso permite que cancelados sem data apareçam quando o filtro é "Todos os status" ou "Cancelado"
-      if (!isStatusCancelado && !naoTemFiltroStatus) {
+      if (isStatusCancelado) {
+        // Quando status é Cancelado, incluir cancelados com data no período OU cancelados sem data
+        const filtrosBase: any = {};
+        if (where.veiculoId) filtrosBase.veiculoId = where.veiculoId;
+        if (where.motoristaId) filtrosBase.motoristaId = where.motoristaId;
+        if (where.combustivelId) filtrosBase.combustivelId = where.combustivelId;
+        if (where.empresaId) filtrosBase.empresaId = where.empresaId;
+        if (where.veiculo) filtrosBase.veiculo = where.veiculo;
+        if (where.tipo_abastecimento) filtrosBase.tipo_abastecimento = where.tipo_abastecimento;
+        filtrosBase.status = StatusAbastecimento.Cancelado;
+        if (where.ativo !== undefined) filtrosBase.ativo = where.ativo;
+        
+        where.AND = [
+          filtrosBase,
+          {
+            OR: [
+              {
+                data_abastecimento: {
+                  ...(data_inicial && { gte: new Date(data_inicial) }),
+                  ...(data_final && { lte: new Date(data_final) }),
+                },
+              },
+              {
+                data_abastecimento: null,
+              },
+            ],
+          },
+        ];
+        
+        // Limpar propriedades movidas para AND
+        delete where.veiculoId;
+        delete where.motoristaId;
+        delete where.combustivelId;
+        delete where.empresaId;
+        delete where.veiculo;
+        delete where.tipo_abastecimento;
+        delete where.status;
+        delete where.ativo;
+      } else if (naoTemFiltroStatus) {
+        // Quando não há filtro de status ("Todos os status"), mostrar:
+        // 1. TODOS os abastecimentos com data no período (todos os status)
+        // 2. Cancelados sem data
+        const filtrosBase: any = {};
+        if (where.veiculoId) filtrosBase.veiculoId = where.veiculoId;
+        if (where.motoristaId) filtrosBase.motoristaId = where.motoristaId;
+        if (where.combustivelId) filtrosBase.combustivelId = where.combustivelId;
+        if (where.empresaId) filtrosBase.empresaId = where.empresaId;
+        if (where.veiculo) filtrosBase.veiculo = where.veiculo;
+        if (where.tipo_abastecimento) filtrosBase.tipo_abastecimento = where.tipo_abastecimento;
+        if (where.ativo !== undefined) filtrosBase.ativo = where.ativo;
+        
+        where.OR = [
+          // Abastecimentos com data no período (todos os status)
+          {
+            ...filtrosBase,
+            data_abastecimento: {
+              ...(data_inicial && { gte: new Date(data_inicial) }),
+              ...(data_final && { lte: new Date(data_final) }),
+            },
+          },
+          // Cancelados sem data
+          {
+            ...filtrosBase,
+            status: StatusAbastecimento.Cancelado,
+            data_abastecimento: null,
+          },
+        ];
+        
+        // Limpar propriedades movidas para OR
+        delete where.veiculoId;
+        delete where.motoristaId;
+        delete where.combustivelId;
+        delete where.empresaId;
+        delete where.veiculo;
+        delete where.tipo_abastecimento;
+        delete where.ativo;
+      } else {
         // Para status específicos (Aprovado, Rejeitado, Aguardando), aplicar filtro de data normalmente
         where.data_abastecimento = {};
         if (data_inicial) {
@@ -1142,8 +1214,6 @@ export class AbastecimentoService {
           where.data_abastecimento.lte = new Date(data_final);
         }
       }
-      // Se for Cancelado ou não houver filtro de status, não aplicar filtro de data
-      // Isso permite que abastecimentos cancelados sem data apareçam
     }
 
     // Buscar abastecimentos
