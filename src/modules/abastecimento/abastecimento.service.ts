@@ -1122,14 +1122,28 @@ export class AbastecimentoService {
       where.ativo = ativo;
     }
 
+    // Aplicar filtro de data
+    // Abastecimentos cancelados podem não ter data_abastecimento preenchida
+    // Quando o status for Cancelado ou não houver filtro de status, não aplicar filtro de data restritivo
+    // para não excluir abastecimentos cancelados sem data
+    const isStatusCancelado = status === StatusAbastecimento.Cancelado;
+    const naoTemFiltroStatus = !status;
+
     if (data_inicial || data_final) {
-      where.data_abastecimento = {};
-      if (data_inicial) {
-        where.data_abastecimento.gte = new Date(data_inicial);
+      // Apenas aplicar filtro de data restritivo se NÃO for status Cancelado E tiver filtro de status
+      // Isso permite que cancelados sem data apareçam quando o filtro é "Todos os status" ou "Cancelado"
+      if (!isStatusCancelado && !naoTemFiltroStatus) {
+        // Para status específicos (Aprovado, Rejeitado, Aguardando), aplicar filtro de data normalmente
+        where.data_abastecimento = {};
+        if (data_inicial) {
+          where.data_abastecimento.gte = new Date(data_inicial);
+        }
+        if (data_final) {
+          where.data_abastecimento.lte = new Date(data_final);
+        }
       }
-      if (data_final) {
-        where.data_abastecimento.lte = new Date(data_final);
-      }
+      // Se for Cancelado ou não houver filtro de status, não aplicar filtro de data
+      // Isso permite que abastecimentos cancelados sem data apareçam
     }
 
     // Buscar abastecimentos
